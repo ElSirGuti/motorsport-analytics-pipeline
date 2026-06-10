@@ -4,36 +4,48 @@ Backend API — Motorsport Analytics Pipeline.
 Aplicación FastAPI que expone el pipeline de análisis de telemetría como una API REST.
 
 Endpoints:
-    POST /api/compare-laps  → Recibe dos CSVs, devuelve análisis completo en JSON
-    GET  /api/health         → Health check
-
-Uso:
-    uvicorn main:app --reload --port 8000
+    POST /api/compare-laps    → Recibe dos CSVs, devuelve análisis completo en JSON
+    POST /api/analyze-session → Analiza una sesión completa con múltiples vueltas
+    GET  /api/health          → Health check
 """
 
 import os
-import sys
-import json
 import tempfile
 import logging
+from pathlib import Path
 
-# Configurar el directorio temporal en el disco E (el disco C del usuario tiene 0 bytes libres)
-project_tmp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp")
-os.makedirs(project_tmp, exist_ok=True)
-tempfile.tempdir = project_tmp
+from dotenv import load_dotenv
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+load_dotenv()
+
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-# Configurar logging
+# ── Configuración desde entorno ──────────────────────────────────────────────
+CORS_ORIGINS = [o.strip() for o in os.getenv(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000",
+).split(",") if o.strip()]
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+# Directorio temporal: preferir variable de entorno, luego carpeta /tmp del proyecto
+_project_tmp = os.getenv("TEMP_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp"))
+os.makedirs(_project_tmp, exist_ok=True)
+tempfile.tempdir = _project_tmp
+
+# Límite de tamaño por archivo: default 50 MB
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "50")) * 1024 * 1024
+
+# ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
     format="%(asctime)s │ %(levelname)-7s │ %(name)s │ %(message)s",
 )
 logger = logging.getLogger("motorsport-api")
 
-# Importar los módulos del pipeline
+# ── Módulos del pipeline ──────────────────────────────────────────────────────
 from src.io.loaders import load_telemetry_data, read_motec_metadata, DataLoaderException
 from src.io.exporters import export_report_text
 from src.processing.alignment import align_pair
@@ -41,106 +53,92 @@ from src.processing.filters import apply_standard_filters
 from src.telemetry.lap_comparator import compare_laps
 from src.telemetry.session_analyzer import analyze_session
 
-# ─────────────────────────────────────────────────
-# Inicializar la aplicación FastAPI
-# ─────────────────────────────────────────────────
-
+# ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="Motorsport Analytics API",
-    description="API para comparar vueltas de telemetría de Assetto Corsa (ACTI)",
-    version="1.0.0",
+    description="API para comparar vueltas de telemetría de Assetto Corsa (ACTI/MoTeC)",
+    version="1.1.0",
 )
 
-# Configurar CORS para permitir peticiones del frontend React
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://localhost:3000",   # React dev server (alternativo)
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# ─────────────────────────────────────────────────
-# Endpoints
-# ─────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
+async def _read_upload(upload: UploadFile) -> bytes:
+    """Lee un UploadFile y valida el límite de tamaño."""
+    content = await upload.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        max_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"El archivo '{upload.filename}' supera el límite de {max_mb} MB.",
+        )
+    return content
 
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 @app.get("/api/health")
 async def health_check():
-    """Health check endpoint."""
-    return {"status": "ok", "service": "motorsport-analytics-api"}
+    return {"status": "ok", "service": "motorsport-analytics-api", "version": "1.1.0"}
 
 
 @app.post("/api/compare-laps")
 async def compare_laps_endpoint(
-    lap_a: UploadFile = File(..., description="CSV de la vuelta de referencia (Piloto A)"),
-    lap_b: UploadFile = File(..., description="CSV de la vuelta a comparar (Piloto B)"),
+    lap_a: UploadFile = File(..., description="CSV de la vuelta de referencia"),
+    lap_b: UploadFile = File(..., description="CSV de la vuelta a comparar"),
 ):
     """
     Compara dos vueltas de telemetría y devuelve un análisis completo.
-    
-    Recibe dos archivos CSV exportados de ACTI. El pipeline:
+
+    Pipeline:
     1. Carga y valida ambos CSVs
     2. Aplica filtros de señal
-    3. Alinea ambas vueltas por distancia (interpolación cúbica)
+    3. Alinea por distancia (interpolación cúbica)
     4. Detecta eventos clave (frenado, apex, aceleración)
-    5. Compara las vueltas curva por curva
-    6. Genera un reporte con el análisis
-    
-    Returns:
-        JSON con el resultado completo de la comparación.
+    5. Compara curva por curva
+    6. Genera reporte de texto formato ingeniero
     """
     logger.info("=" * 60)
-    logger.info(f"Solicitud recibida: comparar '{lap_a.filename}' vs '{lap_b.filename}'")
+    logger.info(f"Solicitud: comparar '{lap_a.filename}' vs '{lap_b.filename}'")
     logger.info("=" * 60)
-    
+
     tmp_dir = None
     try:
-        # 1. Guardar archivos temporalmente
+        content_a = await _read_upload(lap_a)
+        content_b = await _read_upload(lap_b)
+
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_")
-        
         path_a = os.path.join(tmp_dir, "lap_a.csv")
         path_b = os.path.join(tmp_dir, "lap_b.csv")
-        
-        content_a = await lap_a.read()
-        content_b = await lap_b.read()
-        
-        with open(path_a, "wb") as f:
-            f.write(content_a)
-        with open(path_b, "wb") as f:
-            f.write(content_b)
-        
-        # 2. Cargar los datos
+
+        Path(path_a).write_bytes(content_a)
+        Path(path_b).write_bytes(content_b)
+
         logger.info("Paso 1/4: Cargando datos...")
         df_a = load_telemetry_data(path_a)
         df_b = load_telemetry_data(path_b)
-        
-        # 3. Aplicar filtros
+
         logger.info("Paso 2/4: Aplicando filtros...")
         df_a = apply_standard_filters(df_a)
         df_b = apply_standard_filters(df_b)
-        
-        # 4. Alinear por distancia
+
         logger.info("Paso 3/4: Alineando por distancia...")
         df_a_aligned, df_b_aligned = align_pair(df_a, df_b, distance_step=1.0)
-        
-        # 5. Comparar vueltas
+
         logger.info("Paso 4/4: Comparando vueltas...")
         result = compare_laps(df_a_aligned, df_b_aligned)
-        
-        # 6. Agregar reporte en texto
         result["text_report"] = export_report_text(result)
-        
-        # 7. Metadata base
+
+        # Metadata
         meta_a = read_motec_metadata(path_a)
         meta_b = read_motec_metadata(path_b)
 
-        # Determinar etiquetas inteligentes
         driver_a = meta_a.get("driver") or "Piloto A"
         driver_b = meta_b.get("driver") or "Piloto B"
         vehicle_a = meta_a.get("vehicle") or "?"
@@ -150,7 +148,6 @@ async def compare_laps_endpoint(
         same_driver  = driver_a.strip().lower() == driver_b.strip().lower()
         same_vehicle = vehicle_a.strip().lower() == vehicle_b.strip().lower()
 
-        # Si mismo piloto, distinguir por carro; si mismo carro, distinguir por piloto
         if same_driver and not same_vehicle:
             label_a = f"{driver_a} ({vehicle_a})"
             label_b = f"{driver_b} ({vehicle_b})"
@@ -167,7 +164,6 @@ async def compare_laps_endpoint(
             "lap_a_samples": len(df_a),
             "lap_b_samples": len(df_b),
             "aligned_samples": len(df_a_aligned),
-            # Identity
             "driver_a": driver_a,
             "driver_b": driver_b,
             "vehicle_a": vehicle_a,
@@ -178,29 +174,30 @@ async def compare_laps_endpoint(
             "same_driver": same_driver,
             "same_vehicle": same_vehicle,
         }
-        
-        # Extraer clima de la primera fila válida
+
         if "AirTemp" in df_a.columns and not df_a["AirTemp"].isna().all():
             result["metadata"]["air_temp"] = float(df_a["AirTemp"].dropna().iloc[0])
         if "RoadTemp" in df_a.columns and not df_a["RoadTemp"].isna().all():
             result["metadata"]["road_temp"] = float(df_a["RoadTemp"].dropna().iloc[0])
 
-        # Extraer Track Map de df_a_aligned (diezmado para optimizar transferencia JSON)
-        # AC y ACC usan X, Z para el plano del suelo y Y para la altitud, pero buscamos Y o Z como el 2do eje
+        # Track map (máximo 500 puntos para optimizar transferencia JSON)
         coord_x_col = "CarCoordX" if "CarCoordX" in df_a_aligned.columns else None
-        coord_y_col = "CarCoordZ" if "CarCoordZ" in df_a_aligned.columns else ("CarCoordY" if "CarCoordY" in df_a_aligned.columns else None)
-        
+        coord_y_col = (
+            "CarCoordZ" if "CarCoordZ" in df_a_aligned.columns
+            else "CarCoordY" if "CarCoordY" in df_a_aligned.columns
+            else None
+        )
         if coord_x_col and coord_y_col:
-            # Tomar 1 punto por cada 10 metros aprox o por índice
-            step = max(1, len(df_a_aligned) // 500) # Máximo 500 puntos para el render
+            step = max(1, len(df_a_aligned) // 500)
             x_coords = df_a_aligned[coord_x_col].iloc[::step].fillna(0).tolist()
             y_coords = df_a_aligned[coord_y_col].iloc[::step].fillna(0).tolist()
             result["track_map"] = [{"x": x, "y": y} for x, y in zip(x_coords, y_coords)]
-        
+
         logger.info("✓ Comparación completada exitosamente")
-        
         return JSONResponse(content=result)
-        
+
+    except HTTPException:
+        raise
     except DataLoaderException as e:
         logger.error(f"Error de datos: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -208,41 +205,38 @@ async def compare_laps_endpoint(
         logger.error(f"Error interno: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
     finally:
-        # Limpiar archivos temporales
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil
             shutil.rmtree(tmp_dir, ignore_errors=True)
+
 
 @app.post("/api/analyze-session")
 async def analyze_session_endpoint(
     session_file: UploadFile = File(..., description="CSV con la sesión completa"),
 ):
-    """
-    Analiza un CSV de telemetría de sesión completa y extrae las vueltas.
-    """
+    """Analiza un CSV de telemetría de sesión completa y extrae las vueltas."""
     logger.info("=" * 60)
-    logger.info(f"Solicitud recibida: analizar sesión '{session_file.filename}'")
+    logger.info(f"Solicitud: analizar sesión '{session_file.filename}'")
     logger.info("=" * 60)
-    
+
     tmp_dir = None
     try:
+        content = await _read_upload(session_file)
+
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_session_")
         path = os.path.join(tmp_dir, "session.csv")
-        
-        content = await session_file.read()
-        with open(path, "wb") as f:
-            f.write(content)
-        
+        Path(path).write_bytes(content)
+
         logger.info("Paso 1/2: Cargando sesión completa...")
-        # A veces el primer registro no es la línea de cabecera correcta si hay muchos metadatos, 
-        # load_telemetry_data ya lo maneja gracias a nuestro fix anterior
         df = load_telemetry_data(path)
-        
+
         logger.info("Paso 2/2: Analizando vueltas...")
         result = analyze_session(df)
-        
+
         return JSONResponse(content=result)
-        
+
+    except HTTPException:
+        raise
     except DataLoaderException as e:
         logger.error(f"Error de datos: {e}")
         raise HTTPException(status_code=400, detail=str(e))
@@ -254,11 +248,12 @@ async def analyze_session_endpoint(
             import shutil
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
-# ─────────────────────────────────────────────────
-# Punto de entrada para ejecución directa
-# ─────────────────────────────────────────────────
 
+# ── Punto de entrada ──────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
-    logger.info("Iniciando servidor de Motorsport Analytics API...")
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    host = os.getenv("API_HOST", "0.0.0.0")
+    port = int(os.getenv("API_PORT", "8000"))
+    reload = os.getenv("API_RELOAD", "false").lower() == "true"
+    logger.info(f"Iniciando servidor en {host}:{port} (reload={reload})")
+    uvicorn.run("main:app", host=host, port=port, reload=reload, log_level=LOG_LEVEL.lower())
