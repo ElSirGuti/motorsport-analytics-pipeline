@@ -19,8 +19,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# ── Constantes de detección ───────────────────────────────────────────────────
+BRAKE_THRESHOLD_PCT = 5.0       # % mínimo de freno para considerar frenada activa
+BRAKE_RELEASE_FACTOR = 0.5      # Factor para determinar fin de frenada (threshold * factor)
+APEX_WINDOW_SAMPLES = 25        # Muestras a cada lado para detectar mínimo local
+APEX_SPEED_FACTOR = 0.85        # El apex debe estar por debajo de este factor de la velocidad media
+APEX_MIN_DISTANCE_M = 100.0     # Distancia mínima (m) entre apex consecutivos
+FULL_THROTTLE_THRESHOLD_PCT = 98.0  # % mínimo de gas para considerar "fondo"
+FULL_THROTTLE_RESET_PCT = 50.0  # % debajo del cual se resetea el estado de full throttle
 
-def detect_braking_points(df: pd.DataFrame, threshold: float = 5.0) -> list[dict]:
+
+def detect_braking_points(df: pd.DataFrame, threshold: float = BRAKE_THRESHOLD_PCT) -> list[dict]:
     """
     Detecta los puntos donde el piloto inicia la frenada.
     
@@ -52,14 +61,14 @@ def detect_braking_points(df: pd.DataFrame, threshold: float = 5.0) -> list[dict
             })
             is_braking = True
         # Transición de frenado a no-frenado
-        elif is_braking and brake[i] < threshold * 0.5:
+        elif is_braking and brake[i] < threshold * BRAKE_RELEASE_FACTOR:
             is_braking = False
     
     logger.info(f"  Detectados {len(braking_points)} puntos de frenado")
     return braking_points
 
 
-def detect_apex_points(df: pd.DataFrame, min_distance_between: float = 100.0) -> list[dict]:
+def detect_apex_points(df: pd.DataFrame, min_distance_between: float = APEX_MIN_DISTANCE_M) -> list[dict]:
     """
     Detecta los vértices (apex) de cada curva como mínimos locales de velocidad.
     
@@ -78,13 +87,10 @@ def detect_apex_points(df: pd.DataFrame, min_distance_between: float = 100.0) ->
     speed = df["Speed"].values
     distance = df["Distance"].values
     
-    # Encontrar mínimos locales con una ventana de ±25 muestras
-    order = 25  # Muestras a cada lado para considerar mínimo local
-    local_min_indices = argrelextrema(speed, np.less, order=order)[0]
-    
-    # Filtrar: velocidad media general (para descartar "mínimos" en recta)
+    local_min_indices = argrelextrema(speed, np.less, order=APEX_WINDOW_SAMPLES)[0]
+
     mean_speed = np.mean(speed)
-    speed_threshold = mean_speed * 0.85  # El apex debe estar significativamente bajo
+    speed_threshold = mean_speed * APEX_SPEED_FACTOR
     
     apex_points = []
     last_apex_distance = -np.inf
@@ -120,7 +126,7 @@ def detect_apex_points(df: pd.DataFrame, min_distance_between: float = 100.0) ->
     return apex_points
 
 
-def detect_full_throttle_points(df: pd.DataFrame, threshold: float = 98.0) -> list[dict]:
+def detect_full_throttle_points(df: pd.DataFrame, threshold: float = FULL_THROTTLE_THRESHOLD_PCT) -> list[dict]:
     """
     Detecta los puntos donde el piloto aplica acelerador a fondo (≥ threshold%).
     
@@ -151,16 +157,18 @@ def detect_full_throttle_points(df: pd.DataFrame, threshold: float = 98.0) -> li
             })
             was_partial = False
         # Reset: throttle baja significativamente (nueva curva)
-        elif not was_partial and throttle[i] < 50:
+        elif not was_partial and throttle[i] < FULL_THROTTLE_RESET_PCT:
             was_partial = True
     
     logger.info(f"  Detectados {len(full_throttle_points)} puntos de aceleración a fondo")
     return full_throttle_points
 
 
-def segment_corners(df: pd.DataFrame, 
-                    brake_threshold: float = 5.0,
-                    min_distance_between: float = 100.0) -> list[dict]:
+def segment_corners(
+    df: pd.DataFrame,
+    brake_threshold: float = BRAKE_THRESHOLD_PCT,
+    min_distance_between: float = APEX_MIN_DISTANCE_M,
+) -> list[dict]:
     """
     Segmenta automáticamente el circuito en curvas.
     

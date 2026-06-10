@@ -1,83 +1,113 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 
 const TimeDeltaChart = ({ data, zoomDomain }) => {
   const chartData = useMemo(() => {
-    if (!data || !data.distance) return [];
-
+    if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => ({
       distance: dist,
       delta: data.delta[i],
     }));
-
     if (!zoomDomain) return rows;
     const [lo, hi] = zoomDomain;
     return rows.filter((r) => r.distance >= lo && r.distance <= hi);
   }, [data, zoomDomain]);
 
-  if (!chartData.length) return null;
+  if (!chartData.length) {
+    return (
+      <div className="chart-card">
+        <div className="chart-empty">
+          <span className="chart-empty__icon">◌</span>
+          Sin datos de delta
+        </div>
+      </div>
+    );
+  }
 
-  // Custom SVG gradient defs for the area chart
-  const renderGradient = () => (
-    <defs>
-      <linearGradient id="colorDelta" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="5%" stopColor="#FF4444" stopOpacity={0.8}/>
-        <stop offset="50%" stopColor="#FF4444" stopOpacity={0.1}/>
-        <stop offset="50%" stopColor="#00FF88" stopOpacity={0.1}/>
-        <stop offset="95%" stopColor="#00FF88" stopOpacity={0.8}/>
-      </linearGradient>
-    </defs>
-  );
+  const maxAbs = Math.max(...chartData.map((r) => Math.abs(r.delta)));
+  const yPad   = maxAbs * 0.15 || 0.05;
 
   return (
-    <div className="chart-container animate-in animate-in--delay-3">
-      <h3 className="chart-container__title">
-        ⏱️ Delta de Tiempo Acumulado (s)
-      </h3>
-      <div style={{ width: '100%', height: 250 }}>
+    <div className="chart-card">
+      <div className="chart-header">
+        <div className="chart-title">
+          <span>◷</span>
+          Delta de Tiempo Acumulado
+        </div>
+        {zoomDomain && (
+          <span className="chart-zoom-badge">
+            ZOOM {zoomDomain[0].toFixed(0)}m → {zoomDomain[1].toFixed(0)}m
+          </span>
+        )}
+      </div>
+
+      <div style={{ width: '100%', height: 240 }}>
         <ResponsiveContainer>
-          <AreaChart
-            data={chartData}
-            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-          >
-            {renderGradient()}
+          <AreaChart data={chartData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
+            <defs>
+              <linearGradient id="deltaGradAbove" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="#FF3D3D" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="#FF3D3D" stopOpacity={0.02} />
+              </linearGradient>
+              <linearGradient id="deltaGradBelow" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%"   stopColor="#00E676" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="#00E676" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
-            <XAxis 
-              dataKey="distance" 
+            <XAxis
+              dataKey="distance"
               type="number"
               domain={['dataMin', 'dataMax']}
-              tickFormatter={(val) => `${val.toFixed(0)}m`}
+              tickFormatter={(v) => `${v.toFixed(0)}m`}
             />
-            <YAxis 
-              tickFormatter={(val) => `${val > 0 ? '+' : ''}${val.toFixed(2)}s`}
+            <YAxis
+              domain={[-(maxAbs + yPad), maxAbs + yPad]}
+              tickFormatter={(v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}s`}
+              width={52}
             />
-            <Tooltip 
+            <Tooltip
               formatter={(value) => [
-                <span style={{ color: value >= 0 ? '#FF4444' : '#00FF88' }}>
-                  {value > 0 ? '+' : ''}{value.toFixed(3)}s
-                </span>, 
-                'Delta'
+                `${value > 0 ? '+' : ''}${Number(value).toFixed(3)}s`,
+                'Delta',
               ]}
-              labelFormatter={(label) => `Distancia: ${Number(label).toFixed(0)}m`}
+              labelFormatter={(l) => `${Number(l).toFixed(0)} m`}
+              contentStyle={{ color: 'var(--text-1)' }}
+              itemStyle={{ color: chartData.find((r) => r.delta > 0) ? 'var(--red)' : 'var(--green)' }}
             />
-            <ReferenceLine y={0} stroke="#94A3B8" strokeDasharray="3 3" />
-            <Area 
-              type="monotone" 
-              dataKey="delta" 
-              stroke="#FFFFFF" 
+            <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 3" />
+            {/* Positive area (B is slower) */}
+            <Area
+              type="monotone"
+              dataKey={(d) => (d.delta >= 0 ? d.delta : 0)}
+              name="Pérdida"
+              stroke="var(--red)"
+              strokeWidth={0}
+              fill="url(#deltaGradAbove)"
+              isAnimationActive={false}
+            />
+            {/* Negative area (B is faster) */}
+            <Area
+              type="monotone"
+              dataKey={(d) => (d.delta <= 0 ? d.delta : 0)}
+              name="Ganancia"
+              stroke="var(--green)"
+              strokeWidth={0}
+              fill="url(#deltaGradBelow)"
+              isAnimationActive={false}
+            />
+            {/* Main delta line */}
+            <Area
+              type="monotone"
+              dataKey="delta"
+              name="Delta"
+              stroke="rgba(255,255,255,0.7)"
               strokeWidth={1.5}
-              fillOpacity={1} 
-              fill="url(#colorDelta)" 
-              activeDot={{ r: 4 }}
+              fill="transparent"
+              activeDot={{ r: 3, strokeWidth: 0 }}
             />
           </AreaChart>
         </ResponsiveContainer>

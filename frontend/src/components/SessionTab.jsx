@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import FileUploader from './FileUploader';
 import TrackMap from './TrackMap';
 import { analyzeSession } from '../api/telemetry';
@@ -11,10 +11,8 @@ const SessionTab = () => {
 
   const handleAnalyze = async () => {
     if (!sessionFile) return;
-    
     setLoading(true);
     setError(null);
-    
     try {
       const data = await analyzeSession(sessionFile);
       setResults(data);
@@ -26,94 +24,141 @@ const SessionTab = () => {
     }
   };
 
+  const formatTime = (seconds) => {
+    if (seconds == null) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = (seconds % 60).toFixed(3);
+    return m > 0 ? `${m}:${s.padStart(6, '0')}` : `${Number(s).toFixed(3)}s`;
+  };
+
   return (
-    <div className="session-tab">
-      <section className="uploader card">
-        <h2 className="card__title">
-          <span className="card__title-icon">🏁</span>
-          Analizar Sesión Completa
-        </h2>
-        
-        <div className="uploader__grid" style={{ gridTemplateColumns: '1fr' }}>
-          <FileUploader 
-            label="Archivo CSV de Sesión (Múltiples Vueltas)" 
-            selectedFile={sessionFile} 
-            onFileSelect={setSessionFile} 
+    <div>
+      {/* Upload section */}
+      <section className="section card" aria-label="Cargar sesión">
+        <div className="card__title">
+          <span className="card__title-icon">▦</span>
+          Cargar Sesión Completa (Múltiples Vueltas)
+        </div>
+
+        <div style={{ marginBottom: 'var(--s4)' }}>
+          <FileUploader
+            label="Archivo CSV de Sesión Completa"
+            selectedFile={sessionFile}
+            onFileSelect={setSessionFile}
           />
         </div>
 
         {error && (
-          <div className="error-message" style={{ marginTop: '1rem' }}>
-            ⚠️ {error}
+          <div className="error-banner" role="alert" style={{ marginBottom: 'var(--s3)' }}>
+            <span className="error-banner__icon">✕</span>
+            <div className="error-banner__text">
+              <div className="error-banner__title">Error de análisis</div>
+              {error}
+            </div>
           </div>
         )}
 
-        <button 
-          className="btn-analyze" 
-          onClick={handleAnalyze} 
+        <button
+          className="btn-analyze"
+          onClick={handleAnalyze}
           disabled={!sessionFile || loading}
-          style={{ marginTop: '1.5rem' }}
+          aria-label={loading ? 'Analizando sesión...' : 'Analizar sesión'}
         >
-          {loading ? (
-            <div className="spinner"></div>
-          ) : (
-            '⚡ Analizar Sesión'
-          )}
+          {loading
+            ? <><div className="spinner" /> Procesando sesión...</>
+            : '⚡ Analizar Sesión'
+          }
         </button>
       </section>
 
+      {/* Results */}
       {results && (
-        <section className="results animate-in">
-          <div className="kpi-grid" style={{ marginBottom: '20px' }}>
-            <div className="kpi-card">
-              <span className="kpi-card__label">Total Vueltas Válidas</span>
-              <span className="kpi-card__value">{results.total_laps}</span>
+        <div className="fade-up">
+          {/* KPI summary */}
+          <div className="kpi-grid" style={{ marginBottom: 'var(--s5)' }}>
+            <div className="kpi-card kpi-card--info">
+              <div className="kpi-card__label">Vueltas válidas</div>
+              <div className="kpi-card__value kpi-card__value--neutral">{results.total_laps}</div>
             </div>
+
             {results.fastest_lap && (
-              <div className="kpi-card">
-                <span className="kpi-card__label">Mejor Vuelta (Lap {results.fastest_lap.lap_number})</span>
-                <span className="kpi-card__value highlight">
-                  {results.fastest_lap.lap_time.toFixed(3)}s
-                </span>
+              <div className="kpi-card kpi-card--negative">
+                <div className="kpi-card__label">Mejor Vuelta</div>
+                <div className="kpi-card__value kpi-card__value--neutral">
+                  #{results.fastest_lap.lap_number}
+                </div>
+                <div className="kpi-card__sub">{formatTime(results.fastest_lap.lap_time)}</div>
+              </div>
+            )}
+
+            {results.fastest_lap && (
+              <div className="kpi-card kpi-card--info">
+                <div className="kpi-card__label">Vel. Máxima</div>
+                <div className="kpi-card__value kpi-card__value--info" style={{ fontSize: '1.5rem' }}>
+                  {results.fastest_lap.max_speed?.toFixed(0) ?? '—'}
+                </div>
+                <div className="kpi-card__sub">km/h en mejor vuelta</div>
               </div>
             )}
           </div>
 
           {results.track_map && results.track_map.length > 0 && (
-            <TrackMap trackData={results.track_map} />
+            <div style={{ marginBottom: 'var(--s5)' }}>
+              <TrackMap trackData={results.track_map} />
+            </div>
           )}
 
-          <div className="card">
-            <h3 className="card__title">Lista de Vueltas</h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '1rem' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #333', textAlign: 'left' }}>
-                    <th style={{ padding: '10px' }}>Lap</th>
-                    <th style={{ padding: '10px' }}>Tiempo</th>
-                    <th style={{ padding: '10px' }}>Max Vel.</th>
-                    <th style={{ padding: '10px' }}>Distancia</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.laps.map(lap => (
-                    <tr key={lap.lap_number} style={{ 
-                      borderBottom: '1px solid #222',
-                      backgroundColor: lap.is_fastest ? 'rgba(0, 212, 255, 0.1)' : 'transparent'
-                    }}>
-                      <td style={{ padding: '10px' }}>{lap.lap_number} {lap.is_fastest && '⭐'}</td>
-                      <td style={{ padding: '10px', color: lap.is_fastest ? '#00D4FF' : '#fff' }}>
-                        {lap.lap_time.toFixed(3)}s
-                      </td>
-                      <td style={{ padding: '10px' }}>{lap.max_speed.toFixed(1)} km/h</td>
-                      <td style={{ padding: '10px' }}>{lap.lap_distance.toFixed(0)} m</td>
+          {/* Lap table */}
+          {results.laps && results.laps.length > 0 && (
+            <div className="card">
+              <div className="card__title">
+                <span className="card__title-icon">▤</span>
+                Lista de Vueltas
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="session-lap-table">
+                  <thead>
+                    <tr>
+                      <th>Vuelta</th>
+                      <th>Tiempo</th>
+                      <th>Vel. Máx.</th>
+                      <th>Distancia</th>
+                      <th>Δ vs Mejor</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {results.laps.map((lap) => {
+                      const delta = results.fastest_lap
+                        ? lap.lap_time - results.fastest_lap.lap_time
+                        : null;
+
+                      return (
+                        <tr key={lap.lap_number} className={lap.is_fastest ? 'row-fastest' : ''}>
+                          <td className="td-lap-num">
+                            {lap.lap_number}
+                            {lap.is_fastest && (
+                              <span style={{ marginLeft: '6px', color: 'var(--cyan)', fontSize: '0.7rem' }}>
+                                BEST
+                              </span>
+                            )}
+                          </td>
+                          <td className={`td-time ${lap.is_fastest ? '' : ''}`}>
+                            {formatTime(lap.lap_time)}
+                          </td>
+                          <td>{lap.max_speed?.toFixed(1) ?? '—'} km/h</td>
+                          <td>{lap.lap_distance?.toFixed(0) ?? '—'} m</td>
+                          <td style={{ color: delta != null && delta > 0 ? 'var(--red)' : 'var(--text-3)' }}>
+                            {delta != null && delta > 0 ? `+${delta.toFixed(3)}s` : '—'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </section>
+          )}
+        </div>
       )}
     </div>
   );
