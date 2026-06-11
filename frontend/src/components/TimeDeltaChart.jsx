@@ -3,8 +3,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { setCursorDistance } from '../api/cursorStore';
 
-const TimeDeltaChart = ({ data, zoomDomain }) => {
+const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
   const chartData = useMemo(() => {
     if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => ({
@@ -46,7 +47,14 @@ const TimeDeltaChart = ({ data, zoomDomain }) => {
 
       <div style={{ width: '100%', height: 240 }}>
         <ResponsiveContainer>
-          <AreaChart data={chartData} margin={{ top: 10, right: 12, left: -12, bottom: 0 }}>
+          <AreaChart
+            data={chartData}
+            margin={{ top: 10, right: 12, left: -12, bottom: 0 }}
+            syncId="distanceSync"
+            onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
+            onMouseLeave={() => setCursorDistance(null)}
+            onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
+          >
             <defs>
               <linearGradient id="deltaGradAbove" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%"   stopColor="#FF3D3D" stopOpacity={0.5} />

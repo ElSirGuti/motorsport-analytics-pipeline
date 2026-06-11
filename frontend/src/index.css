@@ -905,6 +905,39 @@ body::after {
   border: 1px solid var(--border-2);
 }
 
+.track-map-clear-btn {
+  margin-left: auto;
+  background: rgba(255,61,61,0.15);
+  border: 1px solid rgba(255,61,61,0.3);
+  color: #FF3D3D;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.track-map-clear-btn:hover {
+  background: rgba(255,61,61,0.3);
+}
+
+.track-cursor-ring {
+  animation: track-cursor-pulse 1.2s ease-in-out infinite;
+}
+
+.track-cursor-dot {
+  transition: cx 0.05s linear, cy 0.05s linear;
+}
+
+.track-cursor-ghost {
+  opacity: 0.5;
+  transition: cx 0.05s linear, cy 0.05s linear;
+}
+
+@keyframes track-cursor-pulse {
+  0%, 100% { opacity: 0.3; r: 14; }
+  50% { opacity: 0.6; r: 18; }
+}
+
 /* ── Corner Grid ─────────────────────────────────────────────────────────── */
 .corners-section {
   margin-bottom: var(--s6);
@@ -1073,6 +1106,184 @@ body::after {
   color: var(--text-2);
   line-height: 1.5;
   font-style: italic;
+}
+
+/* ── Dynamic Events Badges (in Corner Cards) ──────────────── */
+.corner-events {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: var(--s2);
+}
+
+.corner-event-badge {
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: var(--r1);
+  cursor: help;
+}
+
+.corner-event-badge--subviraje {
+  color: #FFB300;
+  background: rgba(255, 179, 0, 0.15);
+  border: 1px solid rgba(255, 179, 0, 0.3);
+}
+
+.corner-event-badge--sobreviraje {
+  color: #FF3D3D;
+  background: rgba(255, 61, 61, 0.15);
+  border: 1px solid rgba(255, 61, 61, 0.3);
+}
+
+/* ── Dynamic Events List (standalone section) ─────────────── */
+.dynamic-events-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.dynamic-event {
+  background: var(--bg-card-alt);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r2);
+  padding: var(--s3) var(--s4);
+  border-left: 3px solid transparent;
+}
+
+.dynamic-event--subviraje {
+  border-left-color: #FFB300;
+}
+
+.dynamic-event--sobreviraje {
+  border-left-color: #FF3D3D;
+}
+
+.dynamic-event__header {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-bottom: var(--s1);
+  flex-wrap: wrap;
+}
+
+.dynamic-event__tipo {
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 1px 6px;
+  border-radius: var(--r1);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-2);
+}
+
+.dynamic-event--subviraje .dynamic-event__tipo { color: #FFB300; border-color: rgba(255,179,0,0.3); }
+.dynamic-event--sobreviraje .dynamic-event__tipo { color: #FF3D3D; border-color: rgba(255,61,61,0.3); }
+
+.dynamic-event__curva {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.dynamic-event__dist {
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.dynamic-event__severidad {
+  margin-left: auto;
+  font-size: 0.55rem;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 1px 8px;
+  border-radius: var(--r5);
+}
+
+.dynamic-event__severidad--media {
+  color: #FFB300;
+  background: rgba(255,179,0,0.12);
+  border: 1px solid rgba(255,179,0,0.25);
+}
+
+.dynamic-event__severidad--alta {
+  color: #FF3D3D;
+  background: rgba(255,61,61,0.12);
+  border: 1px solid rgba(255,61,61,0.25);
+}
+
+.dynamic-event__diagnostico {
+  font-size: 0.74rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+/* ── Sector Table ────────────────────────────────────────────────────────── */
+.sector-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sector-table__head {
+  display: grid;
+  grid-template-columns: 40px 2fr 80px 100px 1fr;
+  padding: var(--s2) var(--s3);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border-1);
+  margin-bottom: var(--s2);
+}
+
+.sector-row {
+  display: grid;
+  grid-template-columns: 40px 2fr 80px 100px 1fr;
+  align-items: center;
+  padding: 8px var(--s3);
+  background: var(--bg-glass);
+  border-radius: var(--r1);
+  font-size: 0.82rem;
+  transition: background var(--t1);
+}
+
+.sector-row:hover {
+  background: var(--bg-glass-hover);
+}
+
+.sector-row--loss { border-left: 2px solid var(--red); }
+.sector-row--gain { border-left: 2px solid var(--green); }
+
+.sector-row__num {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+  font-weight: 600;
+}
+
+.sector-row__desc { color: var(--text-1); font-weight: 500; }
+.sector-row__dist { font-family: var(--font-mono); color: var(--text-2); }
+.sector-row__delta { font-family: var(--font-mono); font-weight: 700; }
+
+.sector-row__bar {
+  height: 6px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.sector-row__bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease;
 }
 
 /* ── Text Report ─────────────────────────────────────────────────────────── */

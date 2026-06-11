@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const apiClient = axios.create({
   baseURL: API_URL,
-  timeout: 60000,
+  timeout: 90000,
 });
 
 function extractErrorMessage(error) {
@@ -24,6 +24,42 @@ export const compareLaps = async (lapA, lapB) => {
 
   try {
     const response = await apiClient.post('/compare-laps', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error), { cause: error });
+  }
+};
+
+/**
+ * Pipeline avanzado: geometría + Time Delta acumulado + sectorización.
+ * Llama al endpoint POST /api/telemetry/compare
+ */
+export const compareAdvanced = async (lapFast, lapSlow, resolutionM = 5) => {
+  const formData = new FormData();
+  formData.append('lap_fast', lapFast);
+  formData.append('lap_slow', lapSlow);
+  formData.append('resolution_m', String(resolutionM));
+
+  try {
+    const response = await apiClient.post('/telemetry/compare', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error), { cause: error });
+  }
+};
+
+export const analyzeTelemetry = async (lapFast, lapSlow, resolutionM = 5) => {
+  const formData = new FormData();
+  formData.append('lap_fast', lapFast);
+  formData.append('lap_slow', lapSlow);
+  formData.append('resolution_m', String(resolutionM));
+
+  try {
+    const response = await apiClient.post('/telemetry/analyze', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
