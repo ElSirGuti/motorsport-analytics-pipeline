@@ -232,13 +232,17 @@ function App() {
       </div>
 
       {/* ── Advanced Tab ── */}
-      {activeTab === 'advanced' && <AdvancedComparePanel />}
+      <div style={{ display: activeTab === 'advanced' ? '' : 'none' }}>
+        <AdvancedComparePanel />
+      </div>
 
       {/* ── Session Tab ── */}
-      {activeTab === 'session' && <SessionTab />}
+      <div style={{ display: activeTab === 'session' ? '' : 'none' }}>
+        <SessionTab />
+      </div>
 
       {/* ── Comparison Tab ── */}
-      {activeTab === 'comparison' && (
+      <div style={{ display: activeTab === 'comparison' ? '' : 'none' }}>
         <>
           {/* Upload card */}
           <section className="section card" aria-label="Cargar vueltas">
@@ -384,7 +388,7 @@ function App() {
             </div>
           )}
         </>
-      )}
+      </div>
     </div>
   );
 }
