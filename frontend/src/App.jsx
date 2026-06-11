@@ -1,12 +1,18 @@
-import { useState, useCallback } from 'react';
-import SpeedChart from './components/SpeedChart';
-import BrakeThrottleChart from './components/BrakeThrottleChart';
-import TimeDeltaChart from './components/TimeDeltaChart';
+import React, { useState, useCallback } from 'react';
+import SpeedChartRaw from './components/SpeedChart';
+import BrakeThrottleChartRaw from './components/BrakeThrottleChart';
+import TimeDeltaChartRaw from './components/TimeDeltaChart';
 import SummaryCard from './components/SummaryCard';
 import CornerReport from './components/CornerReport';
 import SessionTab from './components/SessionTab';
-import TrackMap from './components/TrackMap';
+import TrackMapRaw from './components/TrackMap';
+import AdvancedComparePanel from './components/AdvancedComparePanel';
 import { compareLaps } from './api/telemetry';
+
+const SpeedChart = React.memo(SpeedChartRaw);
+const BrakeThrottleChart = React.memo(BrakeThrottleChartRaw);
+const TimeDeltaChart = React.memo(TimeDeltaChartRaw);
+const TrackMap = React.memo(TrackMapRaw);
 
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 const LAP_LABELS_DEFAULT = ['A (Ref)', 'B', 'C', 'D', 'E', 'F'];
@@ -86,6 +92,7 @@ function App() {
   const [zoomDomain, setZoomDomain] = useState(null);
   const [copied, setCopied] = useState(false);
   const [activeCorner, setActiveCorner] = useState(null);
+  const [fixedDistance, setFixedDistance] = useState(null);
 
   const setLapFile = useCallback((idx, file) => {
     setLaps((prev) => { const n = [...prev]; n[idx] = file; return n; });
@@ -109,6 +116,15 @@ function App() {
     setActiveCorner(null);
   }, []);
 
+  const handleChartClick = useCallback((distance) => {
+    if (distance == null) return;
+    setFixedDistance((prev) => prev === distance ? null : distance);
+  }, []);
+
+  const handleClearFixed = useCallback(() => {
+    setFixedDistance(null);
+  }, []);
+
   const handleAnalyze = async () => {
     const validLaps = laps.filter(Boolean);
     if (validLaps.length < 2) return;
@@ -117,6 +133,7 @@ function App() {
     setResults(null);
     setZoomDomain(null);
     setActiveCorner(null);
+    setFixedDistance(null);
 
     // Simulate step progression
     for (let i = 0; i < ANALYSIS_STEPS.length; i++) {
@@ -203,8 +220,19 @@ function App() {
           >
             ▦ Sesión Completa
           </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === 'advanced'}
+            className={`tab-btn tab-btn--advanced ${activeTab === 'advanced' ? 'tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('advanced')}
+          >
+            ⚡ Análisis Avanzado
+          </button>
         </div>
       </div>
+
+      {/* ── Advanced Tab ── */}
+      {activeTab === 'advanced' && <AdvancedComparePanel />}
 
       {/* ── Session Tab ── */}
       {activeTab === 'session' && <SessionTab />}
@@ -291,7 +319,11 @@ function App() {
 
               {results.track_map && results.track_map.length > 0 && (
                 <div className="fade-up fade-up--d1">
-                  <TrackMap trackData={results.track_map} />
+                  <TrackMap
+                    trackData={results.track_map}
+                    fixedDistance={fixedDistance}
+                    onClearFixed={handleClearFixed}
+                  />
                 </div>
               )}
 
@@ -311,13 +343,19 @@ function App() {
                 <SpeedChart
                   data={{ ...results.speed_comparison, lap_labels: lapLabels }}
                   zoomDomain={zoomDomain}
+                  onChartClick={handleChartClick}
                 />
                 <BrakeThrottleChart
                   brakeData={{ ...results.brake_comparison, lap_labels: lapLabels }}
                   throttleData={{ ...results.throttle_comparison, lap_labels: lapLabels }}
                   zoomDomain={zoomDomain}
+                  onChartClick={handleChartClick}
                 />
-                <TimeDeltaChart data={results.time_delta_series} zoomDomain={zoomDomain} />
+                <TimeDeltaChart
+                  data={results.time_delta_series}
+                  zoomDomain={zoomDomain}
+                  onChartClick={handleChartClick}
+                />
               </div>
 
               <CornerReport

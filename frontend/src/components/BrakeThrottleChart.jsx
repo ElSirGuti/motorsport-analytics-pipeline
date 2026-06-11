@@ -3,11 +3,12 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
+import { setCursorDistance } from '../api/cursorStore';
 
 const BRAKE_COLORS    = ['#FF3D3D', '#FF8C42', '#CC2936', '#FF6B6B'];
 const THROTTLE_COLORS = ['#00E676', '#FFB300', '#34D399', '#F59E0B'];
 
-const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain }) => {
+const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick }) => {
   const chartData = useMemo(() => {
     if (!brakeData?.distance || !throttleData) return [];
     const rows = brakeData.distance.map((dist, i) => {
@@ -70,7 +71,11 @@ const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain }) => {
         </div>
         <div style={{ width: '100%', height: 170 }}>
           <ResponsiveContainer>
-            <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals">
+            <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals"
+              onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
+              onMouseLeave={() => setCursorDistance(null)}
+              onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
+            >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="distance" hide type="number" domain={['dataMin', 'dataMax']} />
               {commonYAxis}
@@ -99,7 +104,11 @@ const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain }) => {
         </div>
         <div style={{ width: '100%', height: 170 }}>
           <ResponsiveContainer>
-            <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals">
+            <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals"
+              onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
+              onMouseLeave={() => setCursorDistance(null)}
+              onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
+            >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
               {commonXAxis}
               {commonYAxis}
