@@ -1,8 +1,60 @@
 import logging
 import numpy as np
 import pandas as pd
+from scipy.interpolate import interp1d
 
 logger = logging.getLogger(__name__)
+
+
+def calcular_g_desde_cinematica(
+    df_aligned: pd.DataFrame,
+    df_geo: pd.DataFrame,
+    canal_speed: str = "Speed",
+) -> pd.DataFrame:
+    """
+    Estima LateralG y LongitudinalG desde cinemática cuando el CSV no tiene sensores de G.
+
+    - LongitudinalG = (dv/ds) × v / 9.81        (derivada de velocidad × velocidad)
+    - LateralG      = v² × κ / 9.81              (curvatura de pista × velocidad²)
+
+    Requiere que df_geo tenga columnas 'Distance' y 'Curvature'.
+    df_aligned debe estar en pasos de distancia uniformes (1 m).
+    """
+    if "Distance" not in df_geo.columns or "Curvature" not in df_geo.columns:
+        logger.warning("df_geo no tiene Distance/Curvature — no se puede calcular G cinemático.")
+        return df_aligned
+
+    dist_geo = df_geo["Distance"].values
+    kappa_geo = np.abs(df_geo["Curvature"].values)
+    dist_aligned = df_aligned["Distance"].values
+
+    # Interpolar curvatura sobre el eje de distancia alineado
+    f_kappa = interp1d(
+        dist_geo, kappa_geo,
+        kind="linear", bounds_error=False, fill_value=0.0,
+    )
+    kappa = f_kappa(dist_aligned)
+
+    for lap in ("Fast", "Slow"):
+        speed_col = f"{canal_speed}_{lap}"
+        if speed_col not in df_aligned.columns:
+            continue
+
+        speed_ms = df_aligned[speed_col].fillna(0).values / 3.6  # km/h → m/s
+        speed_ms = np.clip(speed_ms, 0.5, None)                  # evitar /0
+
+        # LongitudinalG: a_lon = (dv/ds) × v  [chain rule: dv/dt = (dv/ds)*(ds/dt) = (dv/ds)*v]
+        dv_ds = np.gradient(speed_ms, 1.0)          # m/s por metro
+        lon_acc = dv_ds * speed_ms                  # m/s²
+        df_aligned[f"LongitudinalG_{lap}"] = np.round(lon_acc / 9.81, 4)
+
+        # LateralG: a_lat = v² × κ
+        lat_acc = speed_ms**2 * kappa               # m/s²
+        df_aligned[f"LateralG_{lap}"] = np.round(lat_acc / 9.81, 4)
+
+    logger.info("  ✓ G cinemático calculado (LateralG = v²κ, LongitudinalG = v·dv/ds)")
+    return df_aligned
+
 
 def calcular_limites_dinamicos(
     df_aligned: pd.DataFrame,
@@ -15,7 +67,12 @@ def calcular_limites_dinamicos(
     has_lon_slow = f"{canal_long}_Slow" in df_aligned.columns
 
     if not (has_lat_fast and has_lon_fast):
-        logger.warning("Canales de fuerza G no disponibles. Omitiendo análisis dinámico.")
+        g_cols = [c for c in df_aligned.columns if any(k in c.lower() for k in ("lat", "lon", "g_", "_g", "accel", "force"))]
+        logger.warning(
+            f"Canales de fuerza G no disponibles. "
+            f"Buscando '{canal_lat}_Fast' y '{canal_long}_Fast'. "
+            f"Columnas con 'g/lat/lon/accel' disponibles: {g_cols or '(ninguna)'}"
+        )
         return df_aligned, 0.0
 
     if has_lat_fast and has_lon_fast:
@@ -47,6 +104,7 @@ def _build_gg_points(
     df_aligned: pd.DataFrame,
     canal_lat: str = "LateralG",
     canal_long: str = "LongitudinalG",
+    max_points: int = 500,
 ) -> dict:
     gg = {"fast": [], "slow": []}
     for lap in ("Fast", "Slow"):
@@ -55,16 +113,64 @@ def _build_gg_points(
         eff_col = f"G_Efficiency_{lap}"
         if lat_col not in df_aligned.columns or lon_col not in df_aligned.columns:
             continue
-        subset = df_aligned[[lat_col, lon_col]].dropna()
+
+        cols = [lat_col, lon_col] + ([eff_col] if eff_col in df_aligned.columns else [])
+        subset = df_aligned[cols].dropna(subset=[lat_col, lon_col])
+
+        if len(subset) > max_points:
+            subset = subset.iloc[:: len(subset) // max_points]
+
+        lats = subset[lat_col].round(4).tolist()
+        lons = subset[lon_col].round(4).tolist()
+        effs = subset[eff_col].round(1).tolist() if eff_col in subset.columns else [0.0] * len(lats)
+
         gg[lap.lower()] = [
-            {
-                "lat": round(float(row[lat_col]), 4),
-                "lon": round(float(row[lon_col]), 4),
-                "eff": round(float(row[eff_col]), 1) if eff_col in row else 0.0,
-            }
-            for _, row in subset.iterrows()
+            {"lat": lat, "lon": lon, "eff": eff}
+            for lat, lon, eff in zip(lats, lons, effs)
         ]
     return gg
+
+
+def _sev_subviraje(d_steer: float, steer_angle: float) -> str:
+    """Leve / media / critico según la velocidad de aplicación de volante y el ángulo."""
+    if d_steer >= 0.6 or steer_angle > 15:
+        return "critico"
+    if d_steer >= 0.3 or steer_angle > 8:
+        return "media"
+    return "leve"
+
+
+def _diag_subviraje(sev: str, curva: int, steer: float, lat_g: float) -> str:
+    base = f"Curva {curva}: volante en {steer:.1f}° con solo {lat_g:.2f}G laterales."
+    if sev == "critico":
+        return (f"SUBVIRAJE CRÍTICO — {base} Tren delantero completamente saturado. "
+                f"Reducir velocidad de entrada o ablandar barra estabilizadora delantera.")
+    if sev == "media":
+        return (f"Subviraje moderado — {base} El piloto está añadiendo volante sin "
+                f"obtener rotación. Revisar trazada de entrada o balance de setup.")
+    return (f"Subviraje leve — {base} Velocidad de entrada ligeramente elevada. "
+            f"El tren delantero pierde adherencia de forma marginal.")
+
+
+def _sev_sobreviraje(lat_jerk: float, umbral: float) -> str:
+    """Leve / media / critico según la brusquedad del pico de G lateral."""
+    if lat_jerk >= umbral * 2.5:
+        return "critico"
+    if lat_jerk >= umbral * 1.5:
+        return "media"
+    return "leve"
+
+
+def _diag_sobreviraje(sev: str, curva: int, dist: float, lat_g: float) -> str:
+    base = f"Curva {curva} a {dist:.0f}m: pico de {lat_g:.2f}G con corrección de volante."
+    if sev == "critico":
+        return (f"SOBREVIRAJE CRÍTICO — {base} El tren trasero se desplaza violentamente. "
+                f"Revisar presión de neumáticos traseros, ajuste de diferencial o dureza de barra trasera.")
+    if sev == "media":
+        return (f"Sobreviraje moderado — {base} Pérdida de agarre trasero controlable. "
+                f"Evaluar ajuste de diferencial o reducir entrada a la curva.")
+    return (f"Sobreviraje leve — {base} Ligero movimiento de cola, "
+            f"corregido sin pérdida de control. Monitorear en condiciones de mayor temperatura.")
 
 
 def detectar_subviraje_sobreviraje(
@@ -112,17 +218,15 @@ def detectar_subviraje_sobreviraje(
             steer_rising = d_steer[i] > 0.1
             lat_flat = abs(d_lat[i]) < umbral_sub * abs(steer_smooth[i])
             if steer_rising and lat_flat and d_apex - dists[i] > 0:
+                sev = _sev_subviraje(d_steer[i], steer_smooth[i])
                 eventos.append({
                     "tipo": "subviraje",
                     "curva": idx + 1,
                     "distancia": round(float(dists[i]), 1),
                     "steer_angle": round(float(steer_smooth[i]), 1),
                     "lat_g": round(float(lat_smooth[i]), 3),
-                    "severidad": "media",
-                    "diagnostico": f"Subviraje en entrada de curva {idx+1}: "
-                                   f"el volante sigue girando ({steer_smooth[i]:.1f}°) "
-                                   f"pero el G lateral no aumenta ({lat_smooth[i]:.2f}G). "
-                                   f"Falta rotación del tren delantero.",
+                    "severidad": sev,
+                    "diagnostico": _diag_subviraje(sev, idx + 1, steer_smooth[i], lat_smooth[i]),
                 })
                 break
 
@@ -137,17 +241,15 @@ def detectar_subviraje_sobreviraje(
                 after = abs(steer_smooth[i + 1])
                 steer_correction = after < before * 0.7 or after > before * 1.3
             if lat_jerk > umbral_over and steer_correction:
+                sev = _sev_sobreviraje(lat_jerk, umbral_over)
                 eventos.append({
                     "tipo": "sobreviraje",
                     "curva": idx + 1,
                     "distancia": round(float(dists[i]), 1),
                     "lat_g": round(float(lat_smooth[i]), 3),
                     "jerkyness": round(float(lat_jerk), 3),
-                    "severidad": "alta" if lat_jerk > umbral_over * 1.5 else "media",
-                    "diagnostico": f"Sobreviraje en curva {idx+1} a {dists[i]:.0f}m: "
-                                   f"pico de G lateral ({lat_smooth[i]:.2f}G) "
-                                   f"con corrección de volante. "
-                                   f"Pérdida de agarre trasero.",
+                    "severidad": sev,
+                    "diagnostico": _diag_sobreviraje(sev, idx + 1, dists[i], lat_smooth[i]),
                 })
                 break
 

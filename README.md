@@ -91,3 +91,50 @@ El pipeline utiliza la siguiente arquitectura matemática y lógica:
 | `/api/telemetry/compare` | POST | Pipeline avanzado con geometría, time delta y sectorización |
 | `/api/telemetry/analyze` | POST | Pipeline completo: geometría + time delta + círculo de fricción + eventos dinámicos + compresión RDP |
 | `/api/analyze-session` | POST | Análisis de sesión completa con múltiples vueltas |
+| `/api/analyze` | POST | Pipeline completo con IA: geometría + time delta + Isolation Forest + K-Means + XGBoost + P10 |
+| `/api/stint/analyze` | POST | Análisis multi-vuelta: degradación lineal + estrategia de combustible + Monte Carlo 500 sims |
+
+## 🤖 Pipeline de Inteligencia Artificial
+
+El sistema incluye tres modelos de IA que se activan progresivamente según el historial acumulado en `data/laptime_history.db`:
+
+### Isolation Forest — Anomaly Detection
+Entrena sobre la vuelta rápida (estado de referencia normal) y puntúa la vuelta lenta punto a punto. Zonas con score > 0.60 se identifican como anomalías de conducción.
+- **Siempre activo** — no requiere datos históricos
+- Documentación: [docs/05_anomaly_detection.md](./docs/05_anomaly_detection.md)
+
+### K-Means — Perfiles de Estilo por Curva
+Clasifica cada curva en perfiles semánticos: *Ataque Limpio*, *Entrada Agresiva*, *Conservador*, *Salida Tardía*. Permite comparar el estilo de conducción entre circuitos y vueltas.
+- **Siempre activo** — basado en los datos de la vuelta actual
+- Documentación: [docs/06_clustering.md](./docs/06_clustering.md)
+
+### Reachable Lap (P10) + Consistencia + XGBoost
+Tres capas de análisis de tiempo potencial:
+1. **P10 Histórico** — activa con ≥3 observaciones por curva: tiempo estadísticamente alcanzable en el 10% mejor
+2. **Score de Consistencia** — `max(0, 100 × (1 − σ/|μ|))`: qué tan repetible es el piloto curva por curva
+3. **XGBoost** — activa con ≥30 observaciones totales: predice el óptimo y explica el gap con los top-2 factores limitantes
+- Documentación: [docs/07_lap_time_potential.md](./docs/07_lap_time_potential.md)
+
+### Stint Analysis — Monte Carlo
+Pipeline completo para análisis de carrera completa:
+- Degradación de tiempo de vuelta: regresión lineal β₁ (s/vuelta)
+- Estrategia de combustible con ventana de pit calculada con consumo conservador (media + 1.65σ)
+- 500 simulaciones Monte Carlo reproducibles (`seed=42`) con bandas P10/P25/P50/P75/P90
+- Documentación: [docs/08_stint_analysis.md](./docs/08_stint_analysis.md)
+
+## 📚 Documentación Científica
+
+Todos los módulos están documentados con fundamentos matemáticos, pseudocódigo y visualizaciones matplotlib:
+
+| Módulo | Documento |
+|--------|-----------|
+| Geometría de pista y detección de apexes | [docs/01_geometry.md](./docs/01_geometry.md) |
+| Time Delta y alineación por distancia | [docs/02_time_delta.md](./docs/02_time_delta.md) |
+| Diagrama GG y círculo de fricción | [docs/03_gg_diagram.md](./docs/03_gg_diagram.md) |
+| Subviraje / sobreviraje (3 niveles de severidad) | [docs/04_dynamics.md](./docs/04_dynamics.md) |
+| Isolation Forest — detección de anomalías | [docs/05_anomaly_detection.md](./docs/05_anomaly_detection.md) |
+| K-Means — clustering de estilo de conducción | [docs/06_clustering.md](./docs/06_clustering.md) |
+| Reachable Lap, Consistencia y XGBoost | [docs/07_lap_time_potential.md](./docs/07_lap_time_potential.md) |
+| Análisis de stint y simulación Monte Carlo | [docs/08_stint_analysis.md](./docs/08_stint_analysis.md) |
+
+Ver índice completo en [docs/README.md](./docs/README.md).

@@ -7,6 +7,7 @@ import CornerReport from './components/CornerReport';
 import SessionTab from './components/SessionTab';
 import TrackMapRaw from './components/TrackMap';
 import AdvancedComparePanel from './components/AdvancedComparePanel';
+import StintPanel from './components/StintPanel';
 import { compareLaps } from './api/telemetry';
 
 const SpeedChart = React.memo(SpeedChartRaw);
@@ -228,12 +229,25 @@ function App() {
           >
             ⚡ Análisis Avanzado
           </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === 'stint'}
+            className={`tab-btn tab-btn--stint ${activeTab === 'stint' ? 'tab-btn--active' : ''}`}
+            onClick={() => setActiveTab('stint')}
+          >
+            ◉ Análisis de Stint
+          </button>
         </div>
       </div>
 
       {/* ── Advanced Tab ── */}
       <div style={{ display: activeTab === 'advanced' ? '' : 'none' }}>
         <AdvancedComparePanel />
+      </div>
+
+      {/* ── Stint Tab ── */}
+      <div style={{ display: activeTab === 'stint' ? '' : 'none' }}>
+        <StintPanel />
       </div>
 
       {/* ── Session Tab ── */}

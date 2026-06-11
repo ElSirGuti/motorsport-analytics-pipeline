@@ -34,8 +34,12 @@ COLUMN_ALIASES = {
     "Gear":     ["Gear", "gear", "GEAR", "GearNumber"],
     "RPM":      ["RPM", "rpm", "Rpm", "EngineRPM", "engine_rpm"],
     "SteerAngle":     ["SteerAngle", "steer_angle", "Steer", "SteeringAngle", "Steering Angle"],
-    "LateralG":       ["LateralG", "lateral_g", "LatG", "G_Lat", "AccG_Lateral"],
-    "LongitudinalG":  ["LongitudinalG", "longitudinal_g", "LonG", "G_Lon", "AccG_Longitudinal"],
+    "LateralG":       ["LateralG", "lateral_g", "LatG", "G_Lat", "AccG_Lateral",
+                       "Lateral G", "Lat G", "G Lat", "G Force Lat", "Lateral Acc",
+                       "Lat Acc", "AccLateral", "Lateral Accel"],
+    "LongitudinalG":  ["LongitudinalG", "longitudinal_g", "LonG", "G_Lon", "AccG_Longitudinal",
+                       "Longitudinal G", "Lon G", "G Lon", "G Force Lon", "Longitudinal Acc",
+                       "Lon Acc", "AccLongitudinal", "Longitudinal Accel", "Long G"],
     "LapTime":        ["LapTime", "lap_time", "Time", "time", "CurrentLapTime"],
     # New aliases for weather and coordinates
     "AirTemp":        ["Air Temp", "AirTemp", "air_temp", "AmbientTemp"],
@@ -116,28 +120,32 @@ def _detect_separator_and_header(filepath: str) -> tuple[str, int, bool]:
     """
     Detecta el separador (coma o punto y coma), la fila del encabezado y la fila de unidades.
     """
+    # Nombres que confirman que una línea es el header de datos
+    HEADER_ANCHORS = {"Time", "Distance", "Speed", "Brake", "Throttle",
+                      "Ground Speed", "Brake Pos", "Throttle Pos"}
+    UNIT_TOKENS = {"s", "m", "km/h", "rpm", "deg", "%", "bar", "km", "C"}
     separators = [",", ";"]
-    
+
     try:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-            # Leer las primeras 50 líneas
             lines = [f.readline() for _ in range(50)]
     except Exception:
         return ",", 0, False
-        
+
     for sep in separators:
         for i, line in enumerate(lines):
             clean = line.replace('"', '').strip()
             parts = [p.strip() for p in clean.split(sep)]
-            if "Time" in parts and "Distance" in parts:
+            # El header tiene al menos 3 columnas y al menos uno es un nombre conocido
+            if len(parts) >= 3 and any(p in HEADER_ANCHORS for p in parts):
                 has_units = False
                 if i + 1 < len(lines):
-                    next_clean = lines[i+1].replace('"', '').strip()
+                    next_clean = lines[i + 1].replace('"', '').strip()
                     next_parts = [p.strip() for p in next_clean.split(sep)]
-                    if any(u in next_parts for u in ["s", "m", "km/h", "rpm", "deg"]):
+                    if any(u in next_parts for u in UNIT_TOKENS):
                         has_units = True
                 return sep, i, has_units
-                
+
     return ",", 0, False
 
 
