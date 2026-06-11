@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from typing import List
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -57,8 +58,17 @@ from src.telemetry.session_analyzer import analyze_session
 from src.analytics.geometry import procesar_geometria_pista_perfecta, detectar_apexes_perfectos
 from src.analytics.alignment import alinear_vueltas_y_calcular_delta, resumir_delta_por_sector
 from src.analytics.insights import analizar_errores_por_curva
-from src.analytics.dynamics import calcular_limites_dinamicos, _build_gg_points, detectar_subviraje_sobreviraje
+from src.analytics.dynamics import (calcular_limites_dinamicos, _build_gg_points,
+                                     detectar_subviraje_sobreviraje, calcular_g_desde_cinematica)
 from src.analytics.compression import comprimir_telemetria
+from src.analytics.ml_anomaly import detectar_anomalias
+from src.analytics.ml_clustering import clasificar_curvas
+from src.analytics.ml_laptime import (calcular_tiempo_potencial,
+                                       guardar_en_historial, predecir_tiempo_potencial_ml,
+                                       n_observaciones_historial,
+                                       enriquecer_corners_con_historial)
+from src.analytics.stint import (extraer_metricas_por_vuelta, analizar_degradacion_stint,
+                                  calcular_estrategia_combustible, simular_tiempos_stint)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -423,6 +433,9 @@ async def analyze_telemetry_endpoint(
         )
 
         logger.info("Paso 4/7: Analizando dinámica vehicular (círculo de fricción)...")
+        if "LateralG_Fast" not in df_aligned.columns or "LongitudinalG_Fast" not in df_aligned.columns:
+            logger.info("  Sin sensores de G en CSV — estimando desde cinemática (v²κ / dv·v)...")
+            df_aligned = calcular_g_desde_cinematica(df_aligned, df_geo)
         df_aligned, g_limit = calcular_limites_dinamicos(df_aligned)
         gg_points = _build_gg_points(df_aligned)
 
@@ -439,50 +452,69 @@ async def analyze_telemetry_endpoint(
         df_curv = df_geo.iloc[::step].copy()
 
         telemetria_json = df_compressed.where(df_compressed.notna(), None).to_dict(orient="records")
-        curvatura_json = df_curv[["Distance", "Curvature"]].where(
+        curvatura_json  = df_curv[["Distance", "Curvature"]].where(
             df_curv[["Distance", "Curvature"]].notna(), None
         ).to_dict(orient="records")
-        apexes_json = apexes.where(apexes.notna(), None).to_dict(orient="records")
+        apexes_json  = apexes.where(apexes.notna(), None).to_dict(orient="records")
         sectores_json = df_sectores.to_dict(orient="records") if not df_sectores.empty else []
 
         meta_fast = read_motec_metadata(path_fast)
         meta_slow = read_motec_metadata(path_slow)
-
         delta_total = float(df_aligned["Delta_Time"].iloc[-1]) if not df_aligned.empty else 0.0
         n_total = len(df_aligned)
-        n_comp = len(df_compressed)
+        n_comp  = len(df_compressed)
+
+        # ── Fase IA ───────────────────────────────────────────────────────────
+        logger.info("Paso 8/8: IA — Isolation Forest · K-Means · Tiempo Potencial...")
+        anomaly_data    = detectar_anomalias(df_aligned)
+        corner_clusters = clasificar_curvas(df_aligned, insights_curvas)
+
+        meta_dict = {
+            "driver_fast":  meta_fast.get("driver") or "Piloto A",
+            "driver_slow":  meta_slow.get("driver") or "Piloto B",
+            "vehicle_fast": meta_fast.get("vehicle") or "?",
+            "vehicle_slow": meta_slow.get("vehicle") or "?",
+            "venue":        meta_fast.get("venue") or meta_slow.get("venue"),
+        }
+        insights_curvas  = enriquecer_corners_con_historial(insights_curvas, meta_dict)
+        tiempo_potencial = calcular_tiempo_potencial(sectores_json, insights_curvas, meta_dict)
+        xgboost_pred     = predecir_tiempo_potencial_ml(insights_curvas, meta_dict)
+        guardar_en_historial(meta_dict, insights_curvas, apexes, df_aligned)
+        n_hist = n_observaciones_historial()
 
         payload = {
             "status": "success",
             "metadata": {
                 "lap_fast_filename": lap_fast.filename,
                 "lap_slow_filename": lap_slow.filename,
-                "driver_fast": meta_fast.get("driver") or "Piloto A",
-                "driver_slow": meta_slow.get("driver") or "Piloto B",
-                "vehicle_fast": meta_fast.get("vehicle") or "?",
-                "vehicle_slow": meta_slow.get("vehicle") or "?",
-                "venue": meta_fast.get("venue") or meta_slow.get("venue"),
-                "samples_fast": len(df_fast_raw),
-                "samples_slow": len(df_slow_raw),
-                "delta_total_s": round(delta_total, 3),
-                "apexes_detected": len(apexes),
-                "resolution_m": step,
-                "compression_ratio": f"{n_comp}/{n_total} ({(1 - n_comp/max(n_total,1))*100:.0f}%)",
+                **meta_dict,
+                "samples_fast":       len(df_fast_raw),
+                "samples_slow":       len(df_slow_raw),
+                "delta_total_s":      round(delta_total, 3),
+                "apexes_detected":    len(apexes),
+                "resolution_m":       step,
+                "compression_ratio":  f"{n_comp}/{n_total} ({(1 - n_comp/max(n_total,1))*100:.0f}%)",
+                "history_samples":    n_hist,
             },
-            "g_limit": round(float(g_limit), 3),
-            "telemetria": telemetria_json,
-            "curvatura": curvatura_json,
-            "apexes": apexes_json,
-            "sectores": sectores_json,
-            "corners": insights_curvas,
-            "gg_diagram": gg_points,
+            "g_limit":       round(float(g_limit), 3),
+            "telemetria":    telemetria_json,
+            "curvatura":     curvatura_json,
+            "apexes":        apexes_json,
+            "sectores":      sectores_json,
+            "corners":       insights_curvas,
+            "gg_diagram":    gg_points,
             "dynamic_events": eventos_dinamica,
+            # ── IA ──
+            "anomaly":          anomaly_data,
+            "corner_clusters":  corner_clusters,
+            "tiempo_potencial": tiempo_potencial,
+            "xgboost_pred":     xgboost_pred,
         }
 
-        logger.info(f"✓ Análisis completo: {len(apexes)} curvas, "
-                    f"delta={delta_total:+.3f}s, G_max={g_limit:.2f}, "
-                    f"{len(eventos_dinamica)} eventos dinámicos, "
-                    f"compresión {n_comp}/{n_total}")
+        logger.info(f"✓ Pipeline completo: {len(apexes)} curvas, delta={delta_total:+.3f}s, "
+                    f"G_max={g_limit:.2f}, {len(eventos_dinamica)} eventos, "
+                    f"{len(anomaly_data.get('zones', []))} zonas anómalas, "
+                    f"historial={n_hist} obs")
         return JSONResponse(content=payload)
 
     except HTTPException:
@@ -492,6 +524,75 @@ async def analyze_telemetry_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error interno: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    finally:
+        if tmp_dir and os.path.exists(tmp_dir):
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.post("/api/stint/analyze")
+async def analyze_stint_endpoint(
+    laps: List[UploadFile] = File(..., description="CSVs de cada vuelta en orden cronológico"),
+):
+    """
+    Analiza un stint completo de N vueltas.
+    Detecta degradación de neumáticos, ventana de pit stop, y proyecta tiempos
+    futuros con simulación Monte Carlo usando la varianza real del piloto.
+    Mínimo 3 vueltas requeridas.
+    """
+    if len(laps) < 3:
+        raise HTTPException(status_code=422, detail="Se requieren mínimo 3 vueltas para el análisis de stint.")
+
+    logger.info("=" * 60)
+    logger.info(f"[stint/analyze] {len(laps)} vueltas recibidas")
+    logger.info("=" * 60)
+
+    tmp_dir = None
+    try:
+        tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
+        dfs = []
+        for i, lap_file in enumerate(laps):
+            content = await _read_upload(lap_file)
+            path = os.path.join(tmp_dir, f"lap_{i+1:02d}.csv")
+            Path(path).write_bytes(content)
+            df = load_telemetry_data(path)
+            dfs.append(df)
+
+        logger.info(f"Paso 1/4: {len(dfs)} vueltas cargadas. Extrayendo métricas...")
+        df_laps = extraer_metricas_por_vuelta(dfs)
+
+        logger.info("Paso 2/4: Analizando degradación...")
+        degradacion = analizar_degradacion_stint(df_laps)
+
+        logger.info("Paso 3/4: Calculando estrategia de combustible...")
+        combustible = calcular_estrategia_combustible(df_laps)
+
+        logger.info("Paso 4/4: Simulación Monte Carlo...")
+        montecarlo = simular_tiempos_stint(df_laps, degradacion)
+
+        laps_json = df_laps.where(df_laps.notna(), None).to_dict(orient="records")
+
+        logger.info(
+            f"✓ Stint completado: {len(dfs)} vueltas, "
+            f"deg={degradacion.get('tasa_s_per_lap', 0):+.4f}s/lap, "
+            f"combustible={'sí' if combustible.get('available') else 'no'}"
+        )
+        return JSONResponse(content={
+            "status":      "success",
+            "n_laps":      len(dfs),
+            "laps":        laps_json,
+            "degradacion": degradacion,
+            "combustible": combustible,
+            "montecarlo":  montecarlo,
+        })
+
+    except HTTPException:
+        raise
+    except DataLoaderException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error en stint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
     finally:
         if tmp_dir and os.path.exists(tmp_dir):

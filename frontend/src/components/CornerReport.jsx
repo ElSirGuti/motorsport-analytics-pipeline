@@ -1,5 +1,14 @@
 
-const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents }) => {
+const CLUSTER_COLOR = {
+  'Ataque Limpio':         '#00E676',
+  'Entrada Agresiva':      '#FF8C42',
+  'Conservador':           '#00D4FF',
+  'Salida Tardía':         '#FFB300',
+  'Conducción Errática':   '#FF3D3D',
+  'Ejecución Consistente': '#7C3AED',
+};
+
+const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cornerClusters, xgboostPred }) => {
   if (!corners || corners.length === 0) return null;
 
   const eventsByCorner = {};
@@ -8,6 +17,16 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents }) =
       if (!eventsByCorner[ev.curva]) eventsByCorner[ev.curva] = [];
       eventsByCorner[ev.curva].push(ev);
     });
+  }
+
+  const clusterByCorner = {};
+  if (cornerClusters && cornerClusters.length > 0) {
+    cornerClusters.forEach((c) => { clusterByCorner[c.corner_number] = c; });
+  }
+
+  const xgbByCorner = {};
+  if (xgboostPred?.corner_predictions) {
+    xgboostPred.corner_predictions.forEach((p) => { xgbByCorner[p.corner_number] = p; });
   }
 
   return (
@@ -111,6 +130,58 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents }) =
                       title={ev.diagnostico}>
                       {ev.tipo === 'subviraje' ? 'SUB' : 'OVER'} · {ev.severidad}
                     </span>
+                  ))}
+                </div>
+              )}
+
+              {clusterByCorner[corner.corner_number] && (
+                <div className="corner-cluster-badge" style={{
+                  color: CLUSTER_COLOR[clusterByCorner[corner.corner_number].perfil] || 'var(--text-2)',
+                  borderColor: (CLUSTER_COLOR[clusterByCorner[corner.corner_number].perfil] || '#4A5578') + '44',
+                  background: (CLUSTER_COLOR[clusterByCorner[corner.corner_number].perfil] || '#4A5578') + '14',
+                }}>
+                  ◈ {clusterByCorner[corner.corner_number].perfil}
+                </div>
+              )}
+
+              {/* Capa 2: Consistency badge */}
+              {corner.consistency_pct != null && corner.n_hist_samples >= 3 && (
+                <div className="corner-consistency">
+                  <div className="corner-consistency__bar">
+                    <div
+                      className="corner-consistency__fill"
+                      style={{
+                        width: `${corner.consistency_pct}%`,
+                        background: corner.consistency_pct >= 80
+                          ? 'var(--green)' : corner.consistency_pct >= 50
+                          ? 'var(--amber)' : 'var(--red)',
+                      }}
+                    />
+                  </div>
+                  <span className="corner-consistency__label" style={{
+                    color: corner.consistency_pct >= 80
+                      ? 'var(--green)' : corner.consistency_pct >= 50
+                      ? 'var(--amber)' : 'var(--red)',
+                  }}>
+                    {corner.consistency_pct.toFixed(0)}% consistente
+                  </span>
+                  <span className="corner-consistency__n">({corner.n_hist_samples} vueltas)</span>
+                </div>
+              )}
+
+              {/* Capa 3: XGBoost explanation chips */}
+              {xgbByCorner[corner.corner_number]?.explanations?.length > 0 && (
+                <div className="corner-xgb-chips">
+                  {xgbByCorner[corner.corner_number].explanations.map((exp, ei) => (
+                    <div key={ei} className="corner-xgb-chip">
+                      <span className="corner-xgb-chip__feature">{exp.feature}</span>
+                      <span className="corner-xgb-chip__gap" style={{ color: 'var(--red)' }}>
+                        {exp.gap > 0 ? '+' : ''}{exp.gap.toFixed(1)}{exp.unit}
+                      </span>
+                      <span className="corner-xgb-chip__optimal" style={{ color: 'var(--text-3)' }}>
+                        óptimo: {exp.optimal.toFixed(1)}{exp.unit}
+                      </span>
+                    </div>
                   ))}
                 </div>
               )}

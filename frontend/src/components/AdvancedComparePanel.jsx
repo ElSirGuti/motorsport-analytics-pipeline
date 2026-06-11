@@ -7,6 +7,8 @@ import SpeedChart from './SpeedChart';
 import BrakeThrottleChart from './BrakeThrottleChart';
 import CornerReport from './CornerReport';
 import GGDiagramChart from './GGDiagramChart';
+import AnomalyReport from './AnomalyReport';
+import PotentialLapCard from './PotentialLapCard';
 
 const LAP_COLORS = ['#00D4FF', '#FF3D3D'];
 
@@ -140,6 +142,7 @@ const AdvancedComparePanel = () => {
   const [error, setError] = useState(null);
   const [results, setResults] = useState(null);
   const [zoomDomain, setZoomDomain] = useState(null);
+  const [activeCorner, setActiveCorner] = useState(null);
 
   const handleAnalyze = async () => {
     if (!lapFast || !lapSlow) return;
@@ -147,6 +150,7 @@ const AdvancedComparePanel = () => {
     setError(null);
     setResults(null);
     setZoomDomain(null);
+    setActiveCorner(null);
 
     for (let i = 0; i < STEPS.length; i++) {
       setStep(i);
@@ -201,10 +205,15 @@ const AdvancedComparePanel = () => {
       }
     : null;
 
-  const handleApexClick = useCallback((apex, idx) => {
-    const dist = apex.Distance;
+  const handleApexClick = useCallback((apex) => {
+    const dist = apex?.Distance;
     if (!dist) return;
     setZoomDomain([Math.max(0, dist - 200), dist + 200]);
+  }, []);
+
+  const handleCornerClick = useCallback((domain, cornerNum) => {
+    setZoomDomain(domain);
+    setActiveCorner(cornerNum ?? null);
   }, []);
 
   return (
@@ -293,9 +302,11 @@ const AdvancedComparePanel = () => {
           <section className="section">
             <CornerReport
               corners={results.corners}
-              onCornerClick={handleApexClick}
-              activeCorner={null}
+              onCornerClick={handleCornerClick}
+              activeCorner={activeCorner}
               dynamicEvents={results.dynamic_events}
+              cornerClusters={results.corner_clusters}
+              xgboostPred={results.xgboost_pred}
             />
           </section>
 
@@ -335,13 +346,32 @@ const AdvancedComparePanel = () => {
             </section>
           )}
 
+          {/* ── IA: Isolation Forest ── */}
+          {results.anomaly && (
+            <section className="section">
+              <AnomalyReport anomaly={results.anomaly} />
+            </section>
+          )}
+
+          {/* ── IA: Tiempo Potencial ── */}
+          {results.tiempo_potencial && (
+            <section className="section">
+              <PotentialLapCard
+                tiempoPotencial={results.tiempo_potencial}
+                xgboostPred={results.xgboost_pred}
+                historySamples={results.metadata?.history_samples}
+              />
+            </section>
+          )}
+
           {/* Controles de Zoom */}
           {zoomDomain && (
             <div className="zoom-bar">
               <span className="zoom-bar__label">
                 ⬡ Zoom: {zoomDomain[0].toFixed(0)}m – {zoomDomain[1].toFixed(0)}m
+                {activeCorner != null && ` · Curva ${activeCorner}`}
               </span>
-              <button className="zoom-reset-btn" onClick={() => setZoomDomain(null)}>
+              <button className="zoom-reset-btn" onClick={() => { setZoomDomain(null); setActiveCorner(null); }}>
                 Vuelta completa ×
               </button>
             </div>
