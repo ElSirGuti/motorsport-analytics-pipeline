@@ -81,3 +81,17 @@ export const analyzeSession = async (sessionFile) => {
     throw new Error(extractErrorMessage(error), { cause: error });
   }
 };
+
+export const analyzeStint = async (lapFiles) => {
+  const formData = new FormData();
+  lapFiles.forEach(f => formData.append('laps', f));
+  try {
+    const response = await apiClient.post('/stint/analyze', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error), { cause: error });
+  }
+};

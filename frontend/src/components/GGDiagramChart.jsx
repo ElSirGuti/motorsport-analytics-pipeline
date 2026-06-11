@@ -1,9 +1,7 @@
-import { PureComponent } from 'react';
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Customized, Legend, Cell,
 } from 'recharts';
-import { setCursorDistance } from '../api/cursorStore';
 
 const FAST_COLOR = '#00D4FF';
 const SLOW_COLOR = '#FF3D3D';
@@ -35,13 +33,6 @@ function FrictionCircle({ gLimit, xAxisMap, yAxisMap }) {
   );
 }
 
-class CustomizedScatter extends PureComponent {
-  render() {
-    const { formattedGraphicalItems } = this.props;
-    if (!formattedGraphicalItems) return null;
-    return formattedGraphicalItems.map((entry) => entry?.render());
-  }
-}
 
 const renderTooltip = ({ active, payload }) => {
   if (!active || !payload || payload.length === 0) return null;
@@ -90,12 +81,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
         <div className="chart-zoom-badge">Límite {limit.toFixed(2)} G</div>
       </div>
       <ResponsiveContainer width="100%" height={380}>
-        <ScatterChart
-          margin={{ top: 12, right: 20, bottom: 8, left: 8 }}
-          onMouseMove={(state) => {
-            if (state?.activeLabel != null) setCursorDistance(Number(state.activeLabel));
-          }}
-        >
+        <ScatterChart margin={{ top: 12, right: 20, bottom: 8, left: 8 }}>
           <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
           <XAxis
             type="number" dataKey="lon" domain={domain}
@@ -113,23 +99,19 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
           />
           <Customized component={(p) => <FrictionCircle gLimit={limit} {...p} />} />
           {fastData.length > 0 && (
-            <Scatter name="fast" data={fastData} shape={<CircleDot fill={FAST_COLOR} fillOpacity={0.5} />}>
+            <Scatter name="fast" data={fastData} isAnimationActive={false}
+              shape={<CircleDot fill={FAST_COLOR} fillOpacity={0.5} />}>
               {fastData.map((p, i) => {
-                let color = FAST_COLOR;
-                if (p.eff >= 90) color = '#00E676';
-                else if (p.eff >= 70) color = '#FFB300';
-                else if (p.eff >= 50) color = '#FF8C42';
+                const color = p.eff >= 90 ? '#00E676' : p.eff >= 70 ? '#FFB300' : p.eff >= 50 ? '#FF8C42' : FAST_COLOR;
                 return <Cell key={i} fill={color} fillOpacity={0.5} />;
               })}
             </Scatter>
           )}
           {slowData.length > 0 && (
-            <Scatter name="slow" data={slowData} shape={<CircleDot fill={SLOW_COLOR} fillOpacity={0.35} />}>
+            <Scatter name="slow" data={slowData} isAnimationActive={false}
+              shape={<CircleDot fill={SLOW_COLOR} fillOpacity={0.35} />}>
               {slowData.map((p, i) => {
-                let color = SLOW_COLOR;
-                if (p.eff >= 90) color = '#00E676';
-                else if (p.eff >= 70) color = '#FFB300';
-                else if (p.eff >= 50) color = '#FF8C42';
+                const color = p.eff >= 90 ? '#00E676' : p.eff >= 70 ? '#FFB300' : p.eff >= 50 ? '#FF8C42' : SLOW_COLOR;
                 return <Cell key={i} fill={color} fillOpacity={0.35} />;
               })}
             </Scatter>
