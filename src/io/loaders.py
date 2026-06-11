@@ -27,7 +27,7 @@ class DataLoaderException(Exception):
 # La clave es el nombre canónico que usamos internamente.
 # Los valores son posibles nombres que puede tener el canal en el CSV.
 COLUMN_ALIASES = {
-    "Speed":    ["Speed", "speed", "SPEED", "SpeedKmh", "speed_kmh", "Velocity", "Ground Speed"],
+    "Speed":    ["Speed", "speed", "SPEED", "SpeedKmh", "speed_kmh", "Velocity", "Ground Speed", "Chassis Velocity X"],
     "Brake":    ["Brake", "brake", "BRAKE", "BrakePressure", "brake_pressure", "BrakeInput", "Brake Pos"],
     "Throttle": ["Throttle", "throttle", "THROTTLE", "Gas", "gas", "ThrottleInput", "Accel", "Throttle Pos"],
     "Distance": ["Distance", "distance", "DISTANCE", "Dist", "dist", "LapDistance", "lap_distance"],
@@ -41,8 +41,8 @@ COLUMN_ALIASES = {
     "AirTemp":        ["Air Temp", "AirTemp", "air_temp", "AmbientTemp"],
     "RoadTemp":       ["Road Temp", "RoadTemp", "road_temp", "TrackTemp"],
     "CarCoordX":      ["Car Coord X", "car_coord_x", "PosX"],
-    "CarCoordY":      ["Car Coord Y", "car_coord_y", "PosY"],
-    "CarCoordZ":      ["Car Coord Z", "car_coord_z", "PosZ"],
+    "CarCoordY":      ["Car Coord Y", "car_coord_y", "PosY"],  # plano horizontal
+    "CarCoordZ":      ["Car Coord Z", "car_coord_z", "PosZ"],  # elevación real
     "SessionLapCount": ["Session Lap Count", "session_lap_count", "Lap"],
 }
 

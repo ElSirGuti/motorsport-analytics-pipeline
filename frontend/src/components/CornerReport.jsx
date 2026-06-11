@@ -1,6 +1,14 @@
 
-const CornerReport = ({ corners, onCornerClick, activeCorner }) => {
+const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents }) => {
   if (!corners || corners.length === 0) return null;
+
+  const eventsByCorner = {};
+  if (dynamicEvents && dynamicEvents.length > 0) {
+    dynamicEvents.forEach((ev) => {
+      if (!eventsByCorner[ev.curva]) eventsByCorner[ev.curva] = [];
+      eventsByCorner[ev.curva].push(ev);
+    });
+  }
 
   return (
     <div className="corners-section fade-up fade-up--d4">
@@ -95,6 +103,17 @@ const CornerReport = ({ corners, onCornerClick, activeCorner }) => {
                   </span>
                 </div>
               </div>
+
+              {eventsByCorner[corner.corner_number] && (
+                <div className="corner-events">
+                  {eventsByCorner[corner.corner_number].map((ev, ei) => (
+                    <span key={ei} className={`corner-event-badge corner-event-badge--${ev.tipo}`}
+                      title={ev.diagnostico}>
+                      {ev.tipo === 'subviraje' ? 'SUB' : 'OVER'} · {ev.severidad}
+                    </span>
+                  ))}
+                </div>
+              )}
 
               {corner.description && (
                 <div className="corner-card__description">{corner.description}</div>

@@ -3,10 +3,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
+import { setCursorDistance } from '../api/cursorStore';
 
 const COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 
-const SpeedChart = ({ data, zoomDomain }) => {
+const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
   const chartData = useMemo(() => {
     if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => {
@@ -50,7 +51,14 @@ const SpeedChart = ({ data, zoomDomain }) => {
       </div>
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer>
-          <LineChart data={chartData} margin={{ top: 6, right: 12, left: -16, bottom: 0 }}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 6, right: 12, left: -16, bottom: 0 }}
+            syncId="distanceSync"
+            onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
+            onMouseLeave={() => setCursorDistance(null)}
+            onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
+          >
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="distance"
