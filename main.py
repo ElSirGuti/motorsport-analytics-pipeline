@@ -70,6 +70,11 @@ from src.analytics.ml_laptime import (calcular_tiempo_potencial,
 from src.analytics.stint import (extraer_metricas_por_vuelta, analizar_degradacion_stint,
                                   calcular_estrategia_combustible, simular_tiempos_stint,
                                   segmentar_vueltas_desde_csv)
+from src.analytics.thermodynamics import analizar_neumaticos_comparativo
+from src.analytics.brake_fade import analizar_eficiencia_frenado
+from src.analytics.driver_inputs import analizar_inputs_piloto
+from src.analytics.suspension import analizar_suspension
+from src.analytics.slip_angle import analizar_slip_angle
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -364,7 +369,19 @@ async def compare_session_laps_endpoint(
             apexes = detectar_apexes_perfectos(df_geo)
 
             logger.info("Paso avanzado 2/5: Alineación avanzada con Delta_Time...")
-            canales_extra = ["LateralG", "LongitudinalG", "SteerAngle"]
+            canales_extra = [
+                "LateralG", "LongitudinalG", "SteerAngle", "Brake", "Throttle",
+                # tire thermals
+                "TyreTempInnerFL", "TyreTempMiddleFL", "TyreTempOuterFL", "TyreTempCoreFL",
+                "TyreTempInnerFR", "TyreTempMiddleFR", "TyreTempOuterFR", "TyreTempCoreFR",
+                "TyreTempInnerRL", "TyreTempMiddleRL", "TyreTempOuterRL", "TyreTempCoreRL",
+                "TyreTempInnerRR", "TyreTempMiddleRR", "TyreTempOuterRR", "TyreTempCoreRR",
+                # suspension
+                "SuspTravelFL", "SuspTravelFR", "SuspTravelRL", "SuspTravelRR",
+                # brake thermals + yaw
+                "BrakeTempFL", "BrakeTempFR", "BrakeTempRL", "BrakeTempRR",
+                "YawRate",
+            ]
             df_adv = alinear_vueltas_y_calcular_delta(
                 df_a, df_b, paso_metros=1.0, canales_extra=canales_extra
             )
@@ -378,9 +395,16 @@ async def compare_session_laps_endpoint(
             df_sectores = resumir_delta_por_sector(df_adv, apexes)
             insights_curvas = analizar_errores_por_curva(df_adv, apexes)
 
-            logger.info("Paso avanzado 5/5: Compresión + Anomalías...")
+            logger.info("Paso avanzado 5/5: Compresión + Anomalías + Módulos avanzados...")
             df_compressed = comprimir_telemetria(df_adv, asegurar_apexes=apexes)
             anomaly_data = detectar_anomalias(df_adv)
+
+            # ── Nuevos módulos de análisis ────────────────────────────────────
+            tyre_data    = analizar_neumaticos_comparativo(df_adv)
+            brake_data   = analizar_eficiencia_frenado(df_adv)
+            inputs_data  = analizar_inputs_piloto(df_adv)
+            susp_data    = analizar_suspension(df_adv)
+            slip_data    = analizar_slip_angle(df_adv)
 
             step_c = 1
             df_curv = df_geo.iloc[::step_c].copy()
@@ -395,7 +419,18 @@ async def compare_session_laps_endpoint(
             result["dynamic_events"] = eventos
             result["anomaly"]        = anomaly_data
             result["telemetria"]     = df_compressed.to_dict(orient="records")
-            logger.info("✓ Pipeline avanzado completado: %d apexes, %d eventos", len(apexes), len(eventos))
+            result["tyre_analysis"]  = tyre_data
+            result["brake_analysis"] = brake_data
+            result["driver_inputs"]  = inputs_data
+            result["suspension"]     = susp_data
+            result["slip_angle"]     = slip_data
+            logger.info(
+                "✓ Pipeline avanzado completado: %d apexes, %d eventos, "
+                "neumáticos=%s, frenado=%s, inputs=%s, suspensión=%s",
+                len(apexes), len(eventos),
+                tyre_data.get("available"), brake_data.get("available"),
+                inputs_data.get("available"), susp_data.get("available"),
+            )
 
         except Exception as exc:
             logger.warning("Pipeline avanzado parcialmente disponible: %s", exc, exc_info=False)
