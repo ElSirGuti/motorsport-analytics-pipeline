@@ -16,6 +16,11 @@ Documentación científica de todos los módulos de análisis. Cada sección inc
 | 06 | [Clustering de Estilo](./06_clustering.md) | K-Means, perfiles de conducción, mapa de calor por curva |
 | 07 | [Tiempo Potencial](./07_lap_time_potential.md) | Reachable Lap P10, consistencia, XGBoost con explicaciones |
 | 08 | [Análisis de Stint](./08_stint_analysis.md) | Degradación lineal, estrategia de combustible, Monte Carlo |
+| 09 | [Temperatura de Neumáticos](./09_thermodynamics.md) | Ventana térmica óptima, gradiente ΔT superficie–núcleo, estrés térmico |
+| 10 | [Brake Fade](./10_brake_fade.md) | Eficiencia \|LonG\|/presión, detección de fade por zona y baseline |
+| 11 | [Inputs del Piloto](./11_driver_inputs.md) | Welch PSD sobre SteerAngle, índice de nerviosismo, solapamiento freno-gas |
+| 12 | [Suspensión](./12_suspension.md) | Pitch y roll desde SuspTravel FL/FR/RL/RR, detección de bottoming |
+| 13 | [Ángulo de Deslizamiento](./13_slip_angle.md) | Sideslip β cinemático, αF/αR modelo bicicleta, balance de pista |
 
 ---
 
@@ -32,6 +37,11 @@ python scripts/docs/gen_anomaly.py
 python scripts/docs/gen_clustering.py
 python scripts/docs/gen_laptime.py
 python scripts/docs/gen_stint.py
+python scripts/docs/gen_thermodynamics.py
+python scripts/docs/gen_brake_fade.py
+python scripts/docs/gen_driver_inputs.py
+python scripts/docs/gen_suspension.py
+python scripts/docs/gen_slip_angle.py
 ```
 
 Cada script escribe en `docs/images/{módulo}/`.
