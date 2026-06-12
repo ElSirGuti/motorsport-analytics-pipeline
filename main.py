@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from typing import List
-from fastapi import FastAPI, File, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -36,8 +36,8 @@ _project_tmp = os.getenv("TEMP_DIR", os.path.join(os.path.dirname(os.path.abspat
 os.makedirs(_project_tmp, exist_ok=True)
 tempfile.tempdir = _project_tmp
 
-# Límite de tamaño por archivo: default 50 MB
-MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "50")) * 1024 * 1024
+# Límite de tamaño por archivo: default 100 MB
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "100")) * 1024 * 1024
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -68,7 +68,8 @@ from src.analytics.ml_laptime import (calcular_tiempo_potencial,
                                        n_observaciones_historial,
                                        enriquecer_corners_con_historial)
 from src.analytics.stint import (extraer_metricas_por_vuelta, analizar_degradacion_stint,
-                                  calcular_estrategia_combustible, simular_tiempos_stint)
+                                  calcular_estrategia_combustible, simular_tiempos_stint,
+                                  segmentar_vueltas_desde_csv)
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -97,6 +98,19 @@ async def _read_upload(upload: UploadFile) -> bytes:
             detail=f"El archivo '{upload.filename}' supera el límite de {max_mb} MB.",
         )
     return content
+
+
+import math
+
+def _sanitize(obj):
+    """Recursively replace NaN/Inf floats with None so the payload is JSON-safe."""
+    if isinstance(obj, float):
+        return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    return obj
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -215,7 +229,7 @@ async def compare_laps_endpoint(
             ]
 
         logger.info("✓ Comparación completada exitosamente")
-        return JSONResponse(content=result)
+        return JSONResponse(content=_sanitize(result))
 
     except HTTPException:
         raise
@@ -254,7 +268,7 @@ async def analyze_session_endpoint(
         logger.info("Paso 2/2: Analizando vueltas...")
         result = analyze_session(df)
 
-        return JSONResponse(content=result)
+        return JSONResponse(content=_sanitize(result))
 
     except HTTPException:
         raise
@@ -269,6 +283,175 @@ async def analyze_session_endpoint(
             import shutil
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+
+@app.post("/api/compare-session-laps")
+async def compare_session_laps_endpoint(
+    session_file: UploadFile = File(..., description="CSV con la sesión completa"),
+    lap_a: int = Form(..., description="Número de vuelta A (1-based)"),
+    lap_b: int = Form(..., description="Número de vuelta B (1-based)"),
+):
+    """
+    Extrae dos vueltas de un CSV de sesión y las compara con el pipeline estándar.
+    Permite comparar cualquier par de vueltas segmentadas automáticamente.
+    """
+    logger.info("=" * 60)
+    logger.info(f"Solicitud: comparar vueltas {lap_a} vs {lap_b} de '{session_file.filename}'")
+    logger.info("=" * 60)
+
+    import pandas as pd
+
+    tmp_dir = None
+    try:
+        content = await _read_upload(session_file)
+        tmp_dir = tempfile.mkdtemp(prefix="motorsport_csl_")
+        path = os.path.join(tmp_dir, "session.csv")
+        Path(path).write_bytes(content)
+
+        logger.info("Paso 1/3: Cargando sesión...")
+        df = load_telemetry_data(path)
+        df = apply_standard_filters(df)
+
+        logger.info("Paso 2/3: Segmentando vueltas...")
+        laps = segmentar_vueltas_desde_csv(df)
+        n = len(laps)
+
+        if lap_a < 1 or lap_a > n:
+            raise HTTPException(422, f"Vuelta {lap_a} fuera de rango (1–{n})")
+        if lap_b < 1 or lap_b > n:
+            raise HTTPException(422, f"Vuelta {lap_b} fuera de rango (1–{n})")
+        if lap_a == lap_b:
+            raise HTTPException(422, "Las dos vueltas deben ser diferentes")
+
+        df_a = laps[lap_a - 1]
+        df_b = laps[lap_b - 1]
+
+        if len(df_a) < 50 or len(df_b) < 50:
+            raise HTTPException(422, "Alguna vuelta tiene muy pocas muestras para comparar")
+
+        logger.info("Paso 3/3: Comparando V%d (%d pts) vs V%d (%d pts)...",
+                    lap_a, len(df_a), lap_b, len(df_b))
+
+        # Basic alignment + comparison
+        df_a_aligned, df_b_aligned = align_pair(df_a, df_b, distance_step=1.0)
+        result = compare_laps(df_a_aligned, df_b_aligned)
+        result["text_report"] = export_report_text(result)
+
+        # Track map from lap A (auto-select horizontal-plane axes)
+        coord_ranges = {}
+        for col in ["CarCoordX", "CarCoordY", "CarCoordZ"]:
+            if col in df_a_aligned.columns:
+                v = pd.to_numeric(df_a_aligned[col], errors="coerce").dropna()
+                if len(v) > 10:
+                    coord_ranges[col] = float(v.max() - v.min())
+        if len(coord_ranges) >= 2:
+            sorted_axes = sorted(coord_ranges, key=coord_ranges.get, reverse=True)
+            x_col, y_col = sorted_axes[0], sorted_axes[1]
+            step = max(1, len(df_a_aligned) // 500)
+            xs = df_a_aligned[x_col].iloc[::step].fillna(0).tolist()
+            ys = df_a_aligned[y_col].iloc[::step].fillna(0).tolist()
+            dists = df_a_aligned["Distance"].iloc[::step].fillna(0).tolist()
+            result["track_map"] = [
+                {"x": float(x), "y": float(y), "distance": float(d)}
+                for x, y, d in zip(xs, ys, dists)
+            ]
+
+        # Full advanced pipeline (geometry, GG, dynamics, anomaly detection)
+        apexes = None
+        basic_corners = result.get("corners", [])  # save before advanced pipeline may overwrite
+        try:
+            logger.info("Paso avanzado 1/5: Geometría y Apexes...")
+            df_geo = procesar_geometria_pista_perfecta(df_a)
+            apexes = detectar_apexes_perfectos(df_geo)
+
+            logger.info("Paso avanzado 2/5: Alineación avanzada con Delta_Time...")
+            canales_extra = ["LateralG", "LongitudinalG", "SteerAngle"]
+            df_adv = alinear_vueltas_y_calcular_delta(
+                df_a, df_b, paso_metros=1.0, canales_extra=canales_extra
+            )
+
+            logger.info("Paso avanzado 3/5: GG + Dinámicas...")
+            df_adv, g_limit = calcular_limites_dinamicos(df_adv)  # returns (df, float)
+            gg_points = _build_gg_points(df_adv)
+            eventos = detectar_subviraje_sobreviraje(df_adv, apexes)
+
+            logger.info("Paso avanzado 4/5: Sectores + Insights por curva...")
+            df_sectores = resumir_delta_por_sector(df_adv, apexes)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes)
+
+            logger.info("Paso avanzado 5/5: Compresión + Anomalías...")
+            df_compressed = comprimir_telemetria(df_adv, asegurar_apexes=apexes)
+            anomaly_data = detectar_anomalias(df_adv)
+
+            step_c = 1
+            df_curv = df_geo.iloc[::step_c].copy()
+            result["curvatura"]      = df_curv[["Distance", "Curvature"]].where(
+                df_curv[["Distance", "Curvature"]].notna(), None
+            ).to_dict(orient="records")
+            result["apexes"]         = apexes.where(apexes.notna(), None).to_dict(orient="records")
+            result["sectores"]       = df_sectores.to_dict(orient="records") if not df_sectores.empty else []
+            result["corners"]        = insights_curvas   # richer corners override basic ones
+            result["gg_diagram"]     = gg_points
+            result["g_limit"]        = round(float(g_limit), 3)
+            result["dynamic_events"] = eventos
+            result["anomaly"]        = anomaly_data
+            result["telemetria"]     = df_compressed.to_dict(orient="records")
+            logger.info("✓ Pipeline avanzado completado: %d apexes, %d eventos", len(apexes), len(eventos))
+
+        except Exception as exc:
+            logger.warning("Pipeline avanzado parcialmente disponible: %s", exc, exc_info=False)
+            # Fallback: lightweight dynamic events using basic corners (pre-overwrite snapshot)
+            if basic_corners and "LateralG" in df_a_aligned.columns and "SteerAngle" in df_a_aligned.columns:
+                _apx = pd.DataFrame([
+                    {"Distance": c["ref_apex_distance"], "Speed": c["ref_apex_speed"]}
+                    for c in basic_corners
+                    if "ref_apex_distance" in c
+                ])
+                _df = df_a_aligned.copy()
+                _df["LateralG_Fast"] = df_a_aligned["LateralG"]
+                _df["SteerAngle_Fast"] = df_a_aligned["SteerAngle"]
+                try:
+                    result["dynamic_events"] = detectar_subviraje_sobreviraje(_df, _apx)
+                except Exception:
+                    result["dynamic_events"] = []
+            else:
+                result["dynamic_events"] = []
+
+        result["metadata"] = {
+            "driver_a":       f"Vuelta {lap_a}",
+            "vehicle_a":      session_file.filename,
+            "driver_b":       f"Vuelta {lap_b}",
+            "vehicle_b":      session_file.filename,
+            "driver_fast":    f"V{lap_a}",
+            "driver_slow":    f"V{lap_b}",
+            "vehicle_fast":   session_file.filename,
+            "vehicle_slow":   session_file.filename,
+            "label_a":        f"V{lap_a}",
+            "label_b":        f"V{lap_b}",
+            "same_driver":    True,
+            "same_vehicle":   True,
+            "session_file":   session_file.filename,
+            "delta_total_s":  result["summary"]["total_time_delta"],
+            "apexes_detected": len(apexes) if apexes is not None else 0,
+            "lap_a_samples":  len(df_a),
+            "lap_b_samples":  len(df_b),
+            "aligned_samples": len(df_a_aligned),
+        }
+
+        logger.info("✓ Comparación de vueltas de sesión completada")
+        return JSONResponse(content=_sanitize(result))
+
+    except HTTPException:
+        raise
+    except DataLoaderException as e:
+        logger.error(f"Error de datos: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error interno: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    finally:
+        if tmp_dir and os.path.exists(tmp_dir):
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 @app.post("/api/telemetry/compare")
@@ -365,7 +548,7 @@ async def compare_telemetry_endpoint(
             f"✓ Análisis completado: {len(apexes)} curvas, "
             f"delta total = {delta_total:+.3f}s"
         )
-        return JSONResponse(content=payload)
+        return JSONResponse(content=_sanitize(payload))
 
     except HTTPException:
         raise
@@ -515,7 +698,7 @@ async def analyze_telemetry_endpoint(
                     f"G_max={g_limit:.2f}, {len(eventos_dinamica)} eventos, "
                     f"{len(anomaly_data.get('zones', []))} zonas anómalas, "
                     f"historial={n_hist} obs")
-        return JSONResponse(content=payload)
+        return JSONResponse(content=_sanitize(payload))
 
     except HTTPException:
         raise
@@ -533,31 +716,52 @@ async def analyze_telemetry_endpoint(
 
 @app.post("/api/stint/analyze")
 async def analyze_stint_endpoint(
-    laps: List[UploadFile] = File(..., description="CSVs de cada vuelta en orden cronológico"),
+    laps: List[UploadFile] = File(..., description="CSVs de cada vuelta, o un único CSV de sesión completa"),
 ):
     """
     Analiza un stint completo de N vueltas.
-    Detecta degradación de neumáticos, ventana de pit stop, y proyecta tiempos
-    futuros con simulación Monte Carlo usando la varianza real del piloto.
-    Mínimo 3 vueltas requeridas.
+    Acepta dos modos:
+    - Múltiples archivos CSV (uno por vuelta, mínimo 3).
+    - Un único CSV de sesión grande con canal 'Session Lap Count' o resets de distancia.
+    Detecta degradación, ventana de pit stop y proyecta tiempos con Monte Carlo.
     """
-    if len(laps) < 3:
-        raise HTTPException(status_code=422, detail="Se requieren mínimo 3 vueltas para el análisis de stint.")
-
     logger.info("=" * 60)
-    logger.info(f"[stint/analyze] {len(laps)} vueltas recibidas")
+    logger.info(f"[stint/analyze] {len(laps)} archivo(s) recibido(s)")
     logger.info("=" * 60)
 
     tmp_dir = None
     try:
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
         dfs = []
-        for i, lap_file in enumerate(laps):
-            content = await _read_upload(lap_file)
-            path = os.path.join(tmp_dir, f"lap_{i+1:02d}.csv")
+
+        if len(laps) == 1:
+            # Session CSV mode — auto-segment into individual laps
+            content = await _read_upload(laps[0])
+            path = os.path.join(tmp_dir, "session.csv")
             Path(path).write_bytes(content)
-            df = load_telemetry_data(path)
-            dfs.append(df)
+            df_session = load_telemetry_data(path)
+            logger.info(f"Modo sesión única: segmentando '{laps[0].filename}' ({len(df_session)} filas)...")
+            try:
+                dfs = segmentar_vueltas_desde_csv(df_session)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
+        else:
+            if len(laps) < 3:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Se requieren mínimo 3 archivos CSV (uno por vuelta) o un único CSV de sesión.",
+                )
+            for i, lap_file in enumerate(laps):
+                content = await _read_upload(lap_file)
+                path = os.path.join(tmp_dir, f"lap_{i+1:02d}.csv")
+                Path(path).write_bytes(content)
+                dfs.append(load_telemetry_data(path))
+
+        if len(dfs) < 3:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Solo se detectaron {len(dfs)} vuelta(s). Se requieren mínimo 3 para el análisis de stint.",
+            )
 
         logger.info(f"Paso 1/4: {len(dfs)} vueltas cargadas. Extrayendo métricas...")
         df_laps = extraer_metricas_por_vuelta(dfs)
@@ -578,14 +782,14 @@ async def analyze_stint_endpoint(
             f"deg={degradacion.get('tasa_s_per_lap', 0):+.4f}s/lap, "
             f"combustible={'sí' if combustible.get('available') else 'no'}"
         )
-        return JSONResponse(content={
+        return JSONResponse(content=_sanitize({
             "status":      "success",
             "n_laps":      len(dfs),
             "laps":        laps_json,
             "degradacion": degradacion,
             "combustible": combustible,
             "montecarlo":  montecarlo,
-        })
+        }))
 
     except HTTPException:
         raise

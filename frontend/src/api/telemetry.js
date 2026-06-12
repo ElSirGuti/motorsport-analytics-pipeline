@@ -82,6 +82,23 @@ export const analyzeSession = async (sessionFile) => {
   }
 };
 
+export const compareSessionLaps = async (sessionFile, lapA, lapB) => {
+  const formData = new FormData();
+  formData.append('session_file', sessionFile);
+  formData.append('lap_a', String(lapA));
+  formData.append('lap_b', String(lapB));
+
+  try {
+    const response = await apiClient.post('/compare-session-laps', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000,
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error), { cause: error });
+  }
+};
+
 export const analyzeStint = async (lapFiles) => {
   const formData = new FormData();
   lapFiles.forEach(f => formData.append('laps', f));

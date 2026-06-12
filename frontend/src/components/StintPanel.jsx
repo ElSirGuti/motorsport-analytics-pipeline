@@ -58,8 +58,11 @@ export default function StintPanel() {
     e.target.value = '';
   };
 
+  const isSessionMode = files.length === 1;
+  const canAnalyze = isSessionMode || files.length >= 3;
+
   const handleAnalyze = async () => {
-    if (files.length < 3) return;
+    if (!canAnalyze) return;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -82,12 +85,14 @@ export default function StintPanel() {
     }
   };
 
-  const bestTime = result?.laps?.length
-    ? Math.min(...result.laps.map(l => l.lap_time_s).filter(t => t && !isNaN(t)))
+  const racingLaps = result?.laps?.filter(l => !l.is_pit_lap) ?? [];
+
+  const bestTime = racingLaps.length
+    ? Math.min(...racingLaps.map(l => l.lap_time_s).filter(t => t && !isNaN(t)))
     : null;
 
-  const meanTime = result?.laps?.length
-    ? result.laps.reduce((s, l) => s + (l.lap_time_s || 0), 0) / result.laps.length
+  const meanTime = racingLaps.length
+    ? racingLaps.reduce((s, l) => s + (l.lap_time_s || 0), 0) / racingLaps.length
     : null;
 
   function fmtLaptime(s) {
@@ -124,8 +129,10 @@ export default function StintPanel() {
           }}
         >
           <div className="dropzone__icon">◎</div>
-          <div className="dropzone__label">Arrastra los CSVs de cada vuelta aquí</div>
-          <div className="dropzone__sub">O haz clic para seleccionar · Mínimo 3 vueltas en orden cronológico</div>
+          <div className="dropzone__label">Arrastra los CSVs de telemetría aquí</div>
+          <div className="dropzone__sub">
+            Un CSV de sesión completa · o varios CSVs (mínimo 3) en orden cronológico
+          </div>
         </div>
         <input
           ref={fileInputRef}
@@ -139,14 +146,23 @@ export default function StintPanel() {
         {/* File list */}
         {files.length > 0 && (
           <div className="stint-file-list">
+            {isSessionMode && (
+              <div style={{
+                fontSize: '0.7rem', color: 'var(--cyan)', fontFamily: "'JetBrains Mono', monospace",
+                padding: '4px 8px', marginBottom: 4,
+                background: 'var(--cyan-dim)', borderRadius: 4, border: '1px solid var(--cyan-border)',
+              }}>
+                ◎ Modo sesión — las vueltas se segmentarán automáticamente
+              </div>
+            )}
             {files.map((f, i) => (
               <div key={i} className="stint-file-row">
-                <span className="stint-file-row__num">V{i + 1}</span>
+                <span className="stint-file-row__num">{isSessionMode ? '◉' : `V${i + 1}`}</span>
                 <span className="stint-file-row__name" title={f.name}>{f.name}</span>
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontFamily: "'JetBrains Mono', monospace" }}>
                   {(f.size / 1024).toFixed(0)} KB
                 </span>
-                <button className="stint-file-row__remove" onClick={(e) => { e.stopPropagation(); removeFile(i); }} aria-label={`Quitar vuelta ${i + 1}`}>
+                <button className="stint-file-row__remove" onClick={(e) => { e.stopPropagation(); removeFile(i); }} aria-label={`Quitar ${isSessionMode ? 'sesión' : `vuelta ${i + 1}`}`}>
                   ×
                 </button>
               </div>
@@ -183,16 +199,18 @@ export default function StintPanel() {
         <button
           className="btn-analyze"
           onClick={handleAnalyze}
-          disabled={files.length < 3 || loading}
-          aria-label={loading ? 'Analizando stint...' : `Analizar ${files.length} vueltas`}
+          disabled={!canAnalyze || loading}
+          aria-label={loading ? 'Analizando stint...' : isSessionMode ? 'Analizar sesión completa' : `Analizar ${files.length} vueltas`}
         >
           {loading
             ? <><div className="spinner" /> Procesando stint...</>
-            : `◉ Analizar Stint · ${files.length} Vuelta${files.length !== 1 ? 's' : ''}`
+            : isSessionMode
+              ? '◉ Analizar Sesión Completa'
+              : `◉ Analizar Stint · ${files.length} Vuelta${files.length !== 1 ? 's' : ''}`
           }
         </button>
 
-        {files.length > 0 && files.length < 3 && !loading && (
+        {files.length > 1 && files.length < 3 && !loading && (
           <div style={{ marginTop: 8, fontSize: '0.72rem', color: 'var(--amber)',
             fontFamily: "'JetBrains Mono', monospace", textAlign: 'center' }}>
             Agrega {3 - files.length} vuelta{3 - files.length !== 1 ? 's' : ''} más para habilitar el análisis
@@ -207,8 +225,10 @@ export default function StintPanel() {
           <div className="stint-kpi-grid">
             <KpiCard
               label="Total Vueltas"
-              value={result.n_laps}
-              sub="analizadas"
+              value={racingLaps.length}
+              sub={result.n_laps > racingLaps.length
+                ? `${result.n_laps - racingLaps.length} pit/outlier excluidas`
+                : 'en carrera'}
             />
             <KpiCard
               label="Mejor Tiempo"

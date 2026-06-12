@@ -31,12 +31,114 @@ def _find_channel(df, candidates):
     return None
 
 
+_LAP_CHANNELS  = ["Session Lap Count", "SessionLapCount", "Lap", "LapNumber",
+                  "Lap Number", "LapCount", "session_lap_count"]
+_DIST_CHANNELS = ["Distance", "Dist", "LapDistance", "lap_distance"]
+
+
+def segmentar_vueltas_desde_csv(df: pd.DataFrame) -> list:
+    """
+    Splits a single multi-lap session DataFrame into a list of per-lap DataFrames.
+
+    Strategy 1 — Lap counter channel: groups rows by unique integer values in a
+    recognised lap-number column (e.g. MoTeC "Session Lap Count").
+
+    Strategy 2 — Distance reset: detects when the distance channel drops to less
+    than 30 % of the previous value, indicating a new lap has started.
+
+    Returns a list of DataFrames (one per lap) with at least 10 rows each.
+    Raises ValueError when fewer than 2 valid laps are detected.
+    """
+    def _reset_distance(seg: pd.DataFrame) -> pd.DataFrame:
+        """Resets the Distance column so each lap segment starts at 0."""
+        seg = seg.copy()
+        if "Distance" in seg.columns:
+            reset = seg["Distance"] - seg["Distance"].iloc[0]
+            if reset.max() > 10.0:
+                seg["Distance"] = reset
+                return seg
+        # Distance absent or flat (all-zero CSV column) — synthesize from Speed×time
+        time_ch = next(
+            (c for c in ["LR Sample Clock", "HR Sample Clock", "MR Sample Clock"]
+             if c in seg.columns),
+            None,
+        )
+        if "Speed" in seg.columns and time_ch:
+            spd = pd.to_numeric(seg["Speed"], errors="coerce").fillna(0) / 3.6
+            t = pd.to_numeric(seg[time_ch], errors="coerce").ffill().bfill()
+            dt = t.diff().fillna(0).clip(lower=0, upper=2.0)
+            seg["Distance"] = (spd * dt).cumsum()
+        elif "Distance" in seg.columns:
+            seg["Distance"] = seg["Distance"] - seg["Distance"].iloc[0]
+        return seg
+
+    lap_col = _find_channel(df, _LAP_CHANNELS)
+    if lap_col is not None:
+        try:
+            lap_nums = df[lap_col].fillna(-1).astype(int)
+            unique_laps = sorted(n for n in lap_nums.unique() if n >= 0)
+            dfs = [_reset_distance(df[lap_nums == n].reset_index(drop=True)) for n in unique_laps]
+            dfs = [d for d in dfs if len(d) >= 10]
+            if len(dfs) >= 2:
+                logger.info("Segmentación por canal '%s': %d vueltas", lap_col, len(dfs))
+                return dfs
+        except Exception as exc:
+            logger.warning("Fallo en segmentación por canal de vuelta: %s", exc)
+
+    dist_col = _find_channel(df, _DIST_CHANNELS)
+    if dist_col is not None:
+        dist = df[dist_col].reset_index(drop=True)
+        splits = [0]
+        for i in range(1, len(dist)):
+            prev = dist.iloc[i - 1]
+            curr = dist.iloc[i]
+            if prev > 50 and curr < prev * 0.30:
+                splits.append(i)
+        splits.append(len(dist))
+        dfs = [
+            _reset_distance(df.iloc[splits[j]: splits[j + 1]].reset_index(drop=True))
+            for j in range(len(splits) - 1)
+        ]
+        dfs = [d for d in dfs if len(d) >= 10]
+        if len(dfs) >= 2:
+            logger.info("Segmentación por reset de distancia: %d vueltas", len(dfs))
+            return dfs
+
+    raise ValueError(
+        "No se detectaron múltiples vueltas en el CSV. "
+        "Asegúrate de que el archivo de sesión incluya el canal 'Session Lap Count' "
+        "o que la distancia se reinicie en cada vuelta."
+    )
+
+
 def _format_laptime(seconds):
     if seconds <= 0 or np.isnan(seconds):
         return "—"
     m = int(seconds // 60)
     s = seconds % 60
     return f"{m}:{s:06.3f}"
+
+
+def _racing_laps_mask(df_laps: pd.DataFrame) -> pd.Series:
+    """
+    Boolean mask for laps to include in regression and Monte Carlo.
+    Excludes: pit laps (In Pit channel) and time outliers (< 70% or > 115% of median).
+    """
+    mask = pd.Series(True, index=df_laps.index)
+
+    if "is_pit_lap" in df_laps.columns:
+        mask &= ~df_laps["is_pit_lap"]
+
+    valid_times = df_laps.loc[mask & df_laps["lap_time_s"].notna(), "lap_time_s"]
+    if len(valid_times) >= 3:
+        median_t = valid_times.median()
+        mask &= (
+            df_laps["lap_time_s"].isna() |
+            ((df_laps["lap_time_s"] >= median_t * 0.70) &
+             (df_laps["lap_time_s"] <= median_t * 1.15))
+        )
+
+    return mask & df_laps["lap_time_s"].notna()
 
 
 def extraer_metricas_por_vuelta(dfs):
@@ -48,11 +150,23 @@ def extraer_metricas_por_vuelta(dfs):
     for i, df in enumerate(dfs, start=1):
         row = {"lap_number": i}
 
-        if "Time" in df.columns:
-            row["lap_time_s"] = round(float(df["Time"].iloc[-1]) - float(df["Time"].iloc[0]), 3)
-        else:
-            row["lap_time_s"] = float("nan")
-        row["lap_time_str"] = _format_laptime(row["lap_time_s"])
+        # LapTime = current-lap timer (starts near 0, last value = lap duration)
+        # LR/HR Sample Clock = absolute session clock (diff = lap duration)
+        # Time / LapTime after alias resolution may be either
+        lap_time_s = float("nan")
+        t_col = _find_channel(df, ["LapTime", "Time", "LR Sample Clock", "HR Sample Clock", "MR Sample Clock"])
+        if t_col:
+            t = pd.to_numeric(df[t_col], errors="coerce")
+            t_start, t_end = float(t.iloc[0]), float(t.iloc[-1])
+            if not (np.isnan(t_start) or np.isnan(t_end)):
+                diff = t_end - t_start
+                # Current-lap timer: starts near 0, duration = last value
+                if t_start < 10 and t_end > 5:
+                    lap_time_s = round(t_end, 3)
+                elif diff > 0:
+                    lap_time_s = round(diff, 3)
+        row["lap_time_s"]   = lap_time_s
+        row["lap_time_str"] = _format_laptime(lap_time_s)
 
         spd = _find_channel(df, ["Speed", "Ground Speed"])
         if spd:
@@ -89,9 +203,33 @@ def extraer_metricas_por_vuelta(dfs):
                 tyre_temps.append(float(df[col].mean()))
         row["tyre_temp_avg"] = round(float(np.mean(tyre_temps)), 1) if tyre_temps else float("nan")
 
+        in_pit_col = _find_channel(df, ["In Pit", "InPit", "in_pit"])
+        if in_pit_col:
+            in_pit_vals = pd.to_numeric(df[in_pit_col], errors="coerce").fillna(0)
+            row["is_pit_lap"] = bool((in_pit_vals > 0).any())
+        else:
+            row["is_pit_lap"] = False
+
         rows.append(row)
 
-    return pd.DataFrame(rows)
+    df_result = pd.DataFrame(rows)
+
+    # Post-hoc outlier detection: laps outside 70–115% of median are also excluded
+    # from regression regardless of pit channel (catches out-laps, SC laps, etc.)
+    valid_times = df_result.loc[~df_result["is_pit_lap"] & df_result["lap_time_s"].notna(), "lap_time_s"]
+    if len(valid_times) >= 3:
+        median_t = float(valid_times.median())
+        df_result["is_outlier"] = (
+            df_result["lap_time_s"].notna() &
+            ((df_result["lap_time_s"] < median_t * 0.70) |
+             (df_result["lap_time_s"] > median_t * 1.15))
+        )
+        # Promote outlier laps to pit_lap so they're excluded everywhere
+        df_result.loc[df_result["is_outlier"], "is_pit_lap"] = True
+    else:
+        df_result["is_outlier"] = False
+
+    return df_result
 
 
 def analizar_degradacion_stint(df_laps):
@@ -100,7 +238,7 @@ def analizar_degradacion_stint(df_laps):
     Projects N_FUTURE_LAPS laps forward.
     Returns dict with trend, actual, and projected data.
     """
-    valid = df_laps.dropna(subset=["lap_time_s"])
+    valid = df_laps[_racing_laps_mask(df_laps)]
     if len(valid) < 3:
         return {"available": False}
 
@@ -131,7 +269,7 @@ def analizar_degradacion_stint(df_laps):
         "projected_times": [round(float(t), 3) for t in model.predict(future_X)],
     }
 
-    valid_g = df_laps.dropna(subset=["max_g_sum"])
+    valid_g = df_laps[_racing_laps_mask(df_laps)].dropna(subset=["max_g_sum"])
     if len(valid_g) >= 3:
         mg = LinearRegression().fit(valid_g[["lap_number"]].values, valid_g["max_g_sum"].values)
         result["grip_tasa_per_lap"] = round(float(mg.coef_[0]), 4)
@@ -147,7 +285,7 @@ def calcular_estrategia_combustible(df_laps):
     """
     Computes per-lap consumption, std, and safe pit window (95th percentile).
     """
-    valid = df_laps.dropna(subset=["fuel_burned"])
+    valid = df_laps[_racing_laps_mask(df_laps)].dropna(subset=["fuel_burned"])
     if valid.empty or valid["fuel_burned"].abs().sum() < 0.01:
         return {"available": False}
 
@@ -179,7 +317,7 @@ def simular_tiempos_stint(df_laps, degradacion, seed=42):
     Monte Carlo projection using real observed lap time variance.
     Returns P10/P25/P50/P75/P90 bands — reproducible with seed.
     """
-    valid = df_laps.dropna(subset=["lap_time_s"])
+    valid = df_laps[_racing_laps_mask(df_laps)]
     if len(valid) < 3 or not degradacion.get("available"):
         return {"available": False}
 

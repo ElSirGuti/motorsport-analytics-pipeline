@@ -36,11 +36,13 @@ COLUMN_ALIASES = {
     "SteerAngle":     ["SteerAngle", "steer_angle", "Steer", "SteeringAngle", "Steering Angle"],
     "LateralG":       ["LateralG", "lateral_g", "LatG", "G_Lat", "AccG_Lateral",
                        "Lateral G", "Lat G", "G Lat", "G Force Lat", "Lateral Acc",
-                       "Lat Acc", "AccLateral", "Lateral Accel"],
+                       "Lat Acc", "AccLateral", "Lateral Accel",
+                       "CG Accel Lateral"],
     "LongitudinalG":  ["LongitudinalG", "longitudinal_g", "LonG", "G_Lon", "AccG_Longitudinal",
                        "Longitudinal G", "Lon G", "G Lon", "G Force Lon", "Longitudinal Acc",
-                       "Lon Acc", "AccLongitudinal", "Longitudinal Accel", "Long G"],
-    "LapTime":        ["LapTime", "lap_time", "Time", "time", "CurrentLapTime"],
+                       "Lon Acc", "AccLongitudinal", "Longitudinal Accel", "Long G",
+                       "CG Accel Longitudinal"],
+    "LapTime":        ["LapTime", "lap_time", "Time", "time", "CurrentLapTime", "Lap Time"],
     # New aliases for weather and coordinates
     "AirTemp":        ["Air Temp", "AirTemp", "air_temp", "AmbientTemp"],
     "RoadTemp":       ["Road Temp", "RoadTemp", "road_temp", "TrackTemp"],
@@ -51,7 +53,13 @@ COLUMN_ALIASES = {
 }
 
 # Canales que DEBEN existir para que el pipeline funcione
-ESSENTIAL_CHANNELS = ["Speed", "Brake", "Throttle", "Distance"]
+ESSENTIAL_CHANNELS = ["Speed", "Brake", "Throttle"]
+
+# Canales de tiempo a intentar en orden para sintetizar Distance
+_TIME_CANDIDATES = [
+    "LR Sample Clock", "HR Sample Clock", "MR Sample Clock",
+    "Time", "time", "Lap Time",
+]
 
 
 def read_motec_metadata(filepath: str) -> dict:
@@ -81,6 +89,39 @@ def read_motec_metadata(filepath: str) -> dict:
     except Exception:
         pass
     return meta
+
+
+def _synthesize_distance(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Computes a Distance column (metres, cumulative) from Speed × dt when the
+    channel is absent in the source CSV.
+
+    Uses the best monotonic time clock available (LR/HR Sample Clock, then Time,
+    then Lap Time). Falls back to a fixed 100 Hz interval when no clock is found.
+    The synthesized distances are session-continuous (not reset per lap) — for
+    per-lap analysis the caller must slice and re-cumsum after lap segmentation.
+    """
+    time_col = next((c for c in _TIME_CANDIDATES if c in df.columns), None)
+
+    speed_ms = pd.to_numeric(df["Speed"], errors="coerce").fillna(0) / 3.6  # km/h → m/s
+
+    if time_col:
+        t = pd.to_numeric(df[time_col], errors="coerce").ffill().bfill()
+        dt = t.diff().fillna(0).clip(lower=0, upper=2.0)
+        logger.warning(
+            "Canal 'Distance' ausente — sintetizado integrando Speed con '%s'. "
+            "Precisión suficiente para análisis de stint; no apta para comparación de vueltas.",
+            time_col,
+        )
+    else:
+        dt = pd.Series(0.01, index=df.index)  # 100 Hz fallback
+        logger.warning(
+            "Canal 'Distance' ausente y sin canal de tiempo — asumiendo 100 Hz. "
+            "Úsese solo para análisis de stint.",
+        )
+
+    df["Distance"] = (speed_ms * dt).cumsum()
+    return df
 
 
 def _resolve_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -204,6 +245,13 @@ def load_telemetry_data(filepath: str,
     # 2. Resolver alias de columnas
     df = _resolve_column_names(df)
 
+    # 2b. Sintetizar Distance desde Speed+tiempo si no está disponible o si el
+    # canal presente tiene todos los valores en cero (frecuente en CSVs de MoTeC
+    # donde la columna "Distance" existe pero no se registra en sesión completa).
+    dist_max = pd.to_numeric(df["Distance"], errors="coerce").abs().max() if "Distance" in df.columns else 0.0
+    if "Distance" not in df.columns or not (dist_max > 10.0):
+        df = _synthesize_distance(df)
+
     # 3. Verificación de canales esenciales
     missing = [ch for ch in ESSENTIAL_CHANNELS if ch not in df.columns]
     if missing:
@@ -227,15 +275,18 @@ def load_telemetry_data(filepath: str,
             except Exception:
                 pass
 
-    # Asegurar que los canales esenciales sean numéricos (forzando coerción)
-    for ch in ESSENTIAL_CHANNELS:
-        df[ch] = pd.to_numeric(df[ch], errors="coerce")
-    
-    # 5. Interpolar NaN en canales esenciales
-    if df[ESSENTIAL_CHANNELS].isnull().any().any():
-        logger.warning("Valores NaN detectados en canales esenciales. Interpolando...")
-        df[ESSENTIAL_CHANNELS] = df[ESSENTIAL_CHANNELS].interpolate(method="linear")
-        df[ESSENTIAL_CHANNELS] = df[ESSENTIAL_CHANNELS].ffill().bfill()
+    # Asegurar que los canales base sean numéricos (forzando coerción)
+    base_channels = ESSENTIAL_CHANNELS + ["Distance"]
+    for ch in base_channels:
+        if ch in df.columns:
+            df[ch] = pd.to_numeric(df[ch], errors="coerce")
+
+    # 5. Interpolar NaN en canales base
+    present_base = [ch for ch in base_channels if ch in df.columns]
+    if df[present_base].isnull().any().any():
+        logger.warning("Valores NaN detectados en canales base. Interpolando...")
+        df[present_base] = df[present_base].interpolate(method="linear")
+        df[present_base] = df[present_base].ffill().bfill()
 
     logger.info(f"  ✓ Cargados {len(df)} registros, {len(df.columns)} canales")
     
