@@ -10,12 +10,16 @@ Esta herramienta alinea las vueltas por distancia y detecta automáticamente eve
 - 🔍 **Zoom Interactivo por Curva:** Al hacer clic en las tarjetas de análisis de curvas, los gráficos hacen zoom automáticamente en la zona de frenado y aceleración de esa curva específica.
 - 🆔 **Detección Inteligente de Identidad:** Extrae la metadata del CSV de MoTeC (Piloto, Vehículo, Circuito) para generar etiquetas dinámicas e identificar diferencias (ej. advierte si estás comparando distintos vehículos).
 - 📋 **Reporte de Ingeniero Exportable:** Genera un resumen en texto plano, curva por curva, con un botón integrado para copiar al portapapeles.
-- 🌡️ **Datos Atmosféricos:** Extrae y muestra la temperatura de pista y ambiente directamente de la telemetría.
+- 🌡️ **Temperatura de Neumáticos:** Análisis térmico completo por neumático (Inner/Middle/Outer/Core), detección de ventana óptima de operación (configurable), gradiente ΔT superficie–núcleo y % de tiempo en estrés térmico.
+- 🔴 **Brake Fade — Eficiencia de Frenado:** Ratio |LonG| / presión de pedal en todas las zonas de frenada. Detecta automáticamente la degradación de eficiencia a lo largo del stint y localiza zonas de fade térmico.
+- 🎮 **Análisis de Inputs del Piloto (FFT):** Welch PSD sobre el canal SteerAngle para cuantificar micro-correcciones de alta frecuencia. Índice de nerviosismo normalizado + % solapamiento freno-gas por vuelta.
+- 🔧 **Suspensión — Pitch & Roll:** Pitch y roll del chasis desde los 4 canales SuspTravel, detección de eventos de fondo (bottoming) con severidad, máximos de transferencia de carga dinámica.
+- 📐 **Ángulo de Deslizamiento (Sideslip β):** Integración cinemática de Vy_dot = LateralG·g − YawRate·Vx para estimar β del chasis. Cálculo de αF y αR con modelo de bicicleta; balance de pista (subviraje vs sobreviraje) por distancia.
 - 🗺️ **Mapeo de Pista:** Visualización simplificada de la trazada del circuito basada en coordenadas GPS/Juego.
 - ◎ **Diagrama G-G (Círculo de Fricción):** Visualiza el agarre disponible del vehículo con puntos coloreados por eficiencia de G-Sum. Muestra el límite de adherencia (percentil 95) y la distribución de fuerzas longitudinales y laterales.
 - ⚠️ **Detección de Subviraje y Sobreviraje:** Algoritmo que analiza derivadas del ángulo de volante y G-Lateral para identificar pérdida de agarre delantero (subviraje) o trasero (sobreviraje) en cada curva, con severidad y diagnóstico textual.
 - 🗜️ **Compresión RDP (Ramer-Douglas-Peucker):** Reduce el payload de telemetría hasta un 80% preservando la forma de las curvas de velocidad y delta, con retención forzada de apexes para mantener precisión en zonas críticas.
-- 🗃️ **Persistencia entre Pestañas:** Los archivos cargados y resultados de análisis se mantienen al cambiar entre las pestañas de Comparación, Análisis Avanzado y Sesión, evitando recargas innecesarias.
+- 🗃️ **Vista Unificada:** Todos los análisis (básico + avanzado) se presentan en una sola página scrollable sin pestañas ni toggles, cargados en paralelo.
 
 ## 📁 Estructura del Proyecto
 
@@ -30,6 +34,11 @@ Esta herramienta alinea las vueltas por distancia y detecta automáticamente eve
     - `insights.py` - Generación de insights técnicos curva por curva
     - `dynamics.py` - Círculo de fricción (G-Sum, eficiencia), detección de subviraje/sobreviraje
     - `compression.py` - Compresión Ramer-Douglas-Peucker (RDP) para reducción de payload
+    - `thermodynamics.py` - Análisis térmico de neumáticos: ventana de temperatura, ΔT, estrés
+    - `brake_fade.py` - Eficiencia de frenado y detección de brake fade por zona
+    - `driver_inputs.py` - FFT Welch sobre SteerAngle, índice de nerviosismo, solapamiento freno-gas
+    - `suspension.py` - Pitch, roll y bottoming desde canales SuspTravel FL/FR/RL/RR
+    - `slip_angle.py` - Ángulo de deslizamiento β (cinemático), αF/αR y balance de pista
 - `frontend/` - Interfaz de usuario (React + Vite, Recharts para gráficos)
   - `src/components/` - Componentes React (SpeedChart, BrakeThrottleChart, TimeDeltaChart, TrackMap, CornerReport, GGDiagramChart, etc.)
   - `src/api/` - Cliente Axios para comunicación con la API
@@ -136,5 +145,10 @@ Todos los módulos están documentados con fundamentos matemáticos, pseudocódi
 | K-Means — clustering de estilo de conducción | [docs/06_clustering.md](./docs/06_clustering.md) |
 | Reachable Lap, Consistencia y XGBoost | [docs/07_lap_time_potential.md](./docs/07_lap_time_potential.md) |
 | Análisis de stint y simulación Monte Carlo | [docs/08_stint_analysis.md](./docs/08_stint_analysis.md) |
+| Temperatura de Neumáticos — ventana térmica y ΔT | [docs/09_thermodynamics.md](./docs/09_thermodynamics.md) |
+| Brake Fade — eficiencia y degradación de frenado | [docs/10_brake_fade.md](./docs/10_brake_fade.md) |
+| Inputs del Piloto — FFT y nerviosismo de volante | [docs/11_driver_inputs.md](./docs/11_driver_inputs.md) |
+| Suspensión — pitch, roll y bottoming | [docs/12_suspension.md](./docs/12_suspension.md) |
+| Ángulo de Deslizamiento — sideslip β y balance αF/αR | [docs/13_slip_angle.md](./docs/13_slip_angle.md) |
 
 Ver índice completo en [docs/README.md](./docs/README.md).

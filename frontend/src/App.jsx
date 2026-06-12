@@ -12,6 +12,11 @@ import SectorTable from './components/SectorTable';
 import GGDiagramChart from './components/GGDiagramChart';
 import AnomalyReport from './components/AnomalyReport';
 import PotentialLapCard from './components/PotentialLapCard';
+import TyreHeatmap from './components/TyreHeatmap';
+import BrakeFadeChart from './components/BrakeFadeChart';
+import DriverInputsChart from './components/DriverInputsChart';
+import SuspensionChart from './components/SuspensionChart';
+import SlipAngleChart from './components/SlipAngleChart';
 import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps } from './api/telemetry';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
@@ -343,6 +348,36 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
       {result.anomaly && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
           <AnomalyReport anomaly={result.anomaly} />
+        </div>
+      )}
+
+      {result.tyre_analysis?.available && (
+        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
+        </div>
+      )}
+
+      {result.brake_analysis?.available && (
+        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
+        </div>
+      )}
+
+      {result.driver_inputs?.available && (
+        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
+        </div>
+      )}
+
+      {result.suspension?.available && (
+        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <SuspensionChart suspension={result.suspension} metadata={meta} />
+        </div>
+      )}
+
+      {result.slip_angle?.available && (
+        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
         </div>
       )}
 
