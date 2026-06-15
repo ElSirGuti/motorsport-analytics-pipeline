@@ -177,16 +177,18 @@ async def generate_pdf_report(
         n = len(laps)
 
         if lap_a == 0 or lap_b == 0:
-            lap_times = [_lap_time_seconds(lap) for lap in laps]
-            valid_idxs = [i for i, t in enumerate(lap_times) if t < float("inf") and t > 10]
-            if len(valid_idxs) < 2:
-                raise HTTPException(422, "No hay suficientes vueltas con tiempo medible")
-            best_idx  = min(valid_idxs, key=lambda i: lap_times[i])
-            worst_idx = max(valid_idxs, key=lambda i: lap_times[i])
+            lap_times  = [_lap_time_seconds(lap) for lap in laps]
+            flying     = _flying_lap_indices(laps, lap_times)
+            if len(flying) < 2:
+                raise HTTPException(422, "No hay suficientes vueltas flying para auto-seleccionar (posibles vueltas de pit detectadas)")
+            best_idx  = min(flying, key=lambda i: lap_times[i])
+            worst_idx = max(flying, key=lambda i: lap_times[i])
             if lap_a == 0:
                 lap_a = best_idx + 1
             if lap_b == 0:
                 lap_b = worst_idx + 1
+            logger.info("PDF auto-selección: V%d (%.1fs rápida) vs V%d (%.1fs lenta) — %d vueltas flying de %d totales",
+                        lap_a, lap_times[best_idx], lap_b, lap_times[worst_idx], len(flying), n)
 
         if lap_a < 1 or lap_a > n:
             raise HTTPException(422, f"Vuelta {lap_a} fuera de rango (1–{n})")
@@ -536,6 +538,48 @@ def _lap_time_seconds(lap_df: pd.DataFrame) -> float:
     return float("inf")
 
 
+def _is_pit_lap(lap_df: pd.DataFrame, lap_time: float, fastest_time: float) -> bool:
+    """
+    Returns True when a lap is likely a pit/formation/outlap that should be
+    excluded from best-vs-worst flying-lap auto-selection.
+
+    Two independent criteria — either one is sufficient:
+    1. Time gate  : lap_time > 1.5 × fastest flying lap  (pit stop adds ≥30 s)
+    2. Speed gate : >10 % of samples below 80 km/h       (pit lane limiter zone)
+    """
+    if lap_time in (float("inf"), float("-inf")) or lap_time <= 10:
+        return True
+    # Criterion 1 — dramatically longer than fastest lap
+    if fastest_time > 0 and fastest_time != float("inf"):
+        if lap_time > fastest_time * 1.5:
+            return True
+    # Criterion 2 — extended low-speed zone (pit lane)
+    for col in ("Speed", "GPS Speed", "GPS_Speed"):
+        if col in lap_df.columns:
+            speed = pd.to_numeric(lap_df[col], errors="coerce").dropna()
+            if len(speed) > 10 and float((speed < 80).mean()) > 0.10:
+                return True
+            break
+    return False
+
+
+def _flying_lap_indices(laps: list, lap_times: list) -> list:
+    """
+    Returns indices of flying (non-pit) laps sorted fastest first.
+    Falls back to all finite-time laps if no flying laps can be identified.
+    """
+    finite = [t for t in lap_times if 10 < t < float("inf")]
+    if not finite:
+        return []
+    fastest = min(finite)
+    flying = [i for i, t in enumerate(lap_times)
+               if not _is_pit_lap(laps[i], t, fastest)]
+    if len(flying) < 2:
+        # Relax filter — keep all laps with a measurable time
+        flying = [i for i, t in enumerate(lap_times) if 10 < t < float("inf")]
+    return flying
+
+
 @app.post("/api/compare-session-laps")
 async def compare_session_laps_endpoint(
     session_file: UploadFile = File(..., description="CSV con la sesión completa"),
@@ -568,20 +612,20 @@ async def compare_session_laps_endpoint(
         laps = segmentar_vueltas_desde_csv(df)
         n = len(laps)
 
-        # Auto-select best (fastest) and worst (slowest) lap when 0 is passed
+        # Auto-select best (fastest) and worst (slowest) flying lap when 0 is passed
         if lap_a == 0 or lap_b == 0:
             lap_times = [_lap_time_seconds(lap) for lap in laps]
-            valid_idxs = [i for i, t in enumerate(lap_times) if t < float("inf") and t > 10]
-            if len(valid_idxs) < 2:
-                raise HTTPException(422, "No hay suficientes vueltas con tiempo medible para auto-seleccionar")
-            best_idx  = min(valid_idxs, key=lambda i: lap_times[i])
-            worst_idx = max(valid_idxs, key=lambda i: lap_times[i])
+            flying    = _flying_lap_indices(laps, lap_times)
+            if len(flying) < 2:
+                raise HTTPException(422, "No hay suficientes vueltas flying para auto-seleccionar (posibles vueltas de pit detectadas)")
+            best_idx  = min(flying, key=lambda i: lap_times[i])
+            worst_idx = max(flying, key=lambda i: lap_times[i])
             if lap_a == 0:
                 lap_a = best_idx + 1
             if lap_b == 0:
                 lap_b = worst_idx + 1
-            logger.info("Auto-selección: vuelta más rápida=V%d (%.3fs), más lenta=V%d (%.3fs)",
-                        lap_a, lap_times[best_idx], lap_b, lap_times[worst_idx])
+            logger.info("Auto-selección: V%d (%.1fs rápida) vs V%d (%.1fs lenta) — %d flying de %d totales",
+                        lap_a, lap_times[best_idx], lap_b, lap_times[worst_idx], len(flying), n)
 
         if lap_a < 1 or lap_a > n:
             raise HTTPException(422, f"Vuelta {lap_a} fuera de rango (1–{n})")
