@@ -7,7 +7,7 @@
 | Documento | Para quién |
 |-----------|-----------|
 | [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app. Explica cómo interpretar cada sección en lenguaje simple. |
-| [Referencia Rápida](./REFERENCIA_RAPIDA.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes y flujo de análisis. |
+| [Referencia Rápida](./REFERENCIA_RAPIDA.es.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes y flujo de análisis. |
 
 ---
 
@@ -21,19 +21,19 @@ Documentación científica de todos los módulos de análisis. Cada sección inc
 
 | # | Módulo | Descripción |
 |---|--------|-------------|
-| 01 | [Geometría de Pista](./01_geometry.md) | Filtro Savitzky-Golay, curvatura geométrica κ, detección de apexes |
-| 02 | [Time Delta](./02_time_delta.md) | Interpolación cúbica, alineación por distancia, RDP de compresión |
-| 03 | [Diagrama GG](./03_gg_diagram.md) | Círculo de fricción, G-efficiency, estimación cinemática de G |
-| 04 | [Dinámica del Vehículo](./04_dynamics.md) | Subviraje / sobreviraje, tres niveles de severidad |
-| 05 | [Detección de Anomalías](./05_anomaly_detection.md) | Isolation Forest, puntuación multivariable, extracción de zonas |
-| 06 | [Clustering de Estilo](./06_clustering.md) | K-Means, perfiles de conducción, mapa de calor por curva |
-| 07 | [Tiempo Potencial](./07_lap_time_potential.md) | Reachable Lap P10, consistencia, XGBoost con explicaciones |
-| 08 | [Análisis de Stint](./08_stint_analysis.md) | Degradación lineal, estrategia de combustible, Monte Carlo |
-| 09 | [Temperatura de Neumáticos](./09_thermodynamics.md) | Ventana térmica óptima, gradiente ΔT superficie–núcleo, estrés térmico |
-| 10 | [Brake Fade](./10_brake_fade.md) | Eficiencia \|LonG\|/presión, detección de fade por zona y baseline |
-| 11 | [Inputs del Piloto](./11_driver_inputs.md) | Welch PSD sobre SteerAngle, índice de nerviosismo, solapamiento freno-gas |
-| 12 | [Suspensión](./12_suspension.md) | Pitch y roll desde SuspTravel FL/FR/RL/RR, detección de bottoming |
-| 13 | [Ángulo de Deslizamiento](./13_slip_angle.md) | Sideslip β cinemático, αF/αR modelo bicicleta, balance de pista |
+| 01 | [Geometría de Pista](./01_geometry.es.md) | Filtro Savitzky-Golay, curvatura geométrica κ, detección de apexes |
+| 02 | [Time Delta](./02_time_delta.es.md) | Interpolación cúbica, alineación por distancia, RDP de compresión |
+| 03 | [Diagrama GG](./03_gg_diagram.es.md) | Círculo de fricción, G-efficiency, estimación cinemática de G |
+| 04 | [Dinámica del Vehículo](./04_dynamics.es.md) | Subviraje / sobreviraje, tres niveles de severidad |
+| 05 | [Detección de Anomalías](./05_anomaly_detection.es.md) | Isolation Forest, puntuación multivariable, extracción de zonas |
+| 06 | [Clustering de Estilo](./06_clustering.es.md) | K-Means, perfiles de conducción, mapa de calor por curva |
+| 07 | [Tiempo Potencial](./07_lap_time_potential.es.md) | Reachable Lap P10, consistencia, XGBoost con explicaciones |
+| 08 | [Análisis de Stint](./08_stint_analysis.es.md) | Degradación lineal, estrategia de combustible, Monte Carlo |
+| 09 | [Temperatura de Neumáticos](./09_thermodynamics.es.md) | Ventana térmica óptima, gradiente ΔT superficie–núcleo, estrés térmico |
+| 10 | [Brake Fade](./10_brake_fade.es.md) | Eficiencia \|LonG\|/presión, detección de fade por zona y baseline |
+| 11 | [Inputs del Piloto](./11_driver_inputs.es.md) | Welch PSD sobre SteerAngle, índice de nerviosismo, solapamiento freno-gas |
+| 12 | [Suspensión](./12_suspension.es.md) | Pitch y roll desde SuspTravel FL/FR/RL/RR, detección de bottoming |
+| 13 | [Ángulo de Deslizamiento](./13_slip_angle.es.md) | Sideslip β cinemático, αF/αR modelo bicicleta, balance de pista |
 
 ---
 
