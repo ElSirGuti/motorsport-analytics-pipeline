@@ -1,148 +1,150 @@
-# Diagrama G-G, Círculo de Fricción y Estimación Cinemática
+# G-G Diagram, Friction Circle, and Kinematic Estimation
+
+🌐 [Ver en Español](./03_gg_diagram.es.md)
 
 ---
 
-## Tabla de Contenidos
+## Table of Contents
 
-1. [Descripción General](#descripción-general)
-2. [Fundamentos Científicos](#fundamentos-científicos)
-   - 2.1 [El Círculo de Fricción](#21-el-círculo-de-fricción)
-   - 2.2 [Eficiencia del Diagrama G-G](#22-eficiencia-del-diagrama-g-g)
-   - 2.3 [Estimación Cinemática de Fuerzas G](#23-estimación-cinemática-de-fuerzas-g)
-   - 2.4 [Forma Real vs Círculo Ideal: la "Diamante"](#24-forma-real-vs-círculo-ideal-la-diamante)
-3. [Algoritmo e Implementación](#algoritmo-e-implementación)
-   - 3.1 [Estimación Cinemática — `calcular_g_desde_cinematica`](#31-estimación-cinemática--calcular_g_desde_cinematica)
-   - 3.2 [Límites Dinámicos y Eficiencia — `calcular_limites_dinamicos`](#32-límites-dinámicos-y-eficiencia--calcular_limites_dinamicos)
-   - 3.3 [Construcción de Puntos G-G — `_build_gg_points`](#33-construcción-de-puntos-g-g--_build_gg_points)
-   - 3.4 [Detección de Sub/Sobreviraje](#34-detección-de-subsobreviraje)
-4. [Parámetros Clave](#parámetros-clave)
-5. [Interpretación de Resultados](#interpretación-de-resultados)
-6. [Recomendaciones para el Piloto](#recomendaciones-para-el-piloto)
-7. [Visualizaciones](#visualizaciones)
-8. [Referencias](#referencias)
-
----
-
-## Descripción General
-
-El **Diagrama G-G** (también llamado diagrama de tracción o círculo de fricción) es la herramienta central del análisis de dinámica vehicular en competición. Representa gráficamente el vector de aceleración total que experimenta el vehículo en cada instante de la vuelta, descompuesto en sus componentes lateral ($G_{lat}$) y longitudinal ($G_{lon}$). El espacio disponible dentro del círculo de fricción define la envolvente máxima de rendimiento del neumático, de modo que todo punto fuera de esa frontera implica deslizamiento incontrolado y, por ende, pérdida de tiempo por vuelta.
-
-Este módulo implementa dos caminos complementarios: (1) el cálculo directo desde sensores IMU cuando el canal de aceleración está disponible en el CSV de telemetría, y (2) la **estimación cinemática** pura a partir de la velocidad y la geometría de la trazada, útil cuando el vehículo carece de acelerómetros de alta frecuencia. Además, el módulo calcula una métrica de eficiencia normalizada que permite cuantificar el porcentaje del potencial de adherencia que el piloto aprovecha instante a instante, y expone detectores automáticos de subviraje y sobreviraje que combinan el canal de ángulo de volante con el G lateral para generar diagnósticos orientados al setup del vehículo.
+1. [Overview](#overview)
+2. [Scientific Foundations](#scientific-foundations)
+   - 2.1 [The Friction Circle](#21-the-friction-circle)
+   - 2.2 [G-G Diagram Efficiency](#22-g-g-diagram-efficiency)
+   - 2.3 [Kinematic Estimation of G-Forces](#23-kinematic-estimation-of-g-forces)
+   - 2.4 [Real Shape vs Ideal Circle: the "Diamond"](#24-real-shape-vs-ideal-circle-the-diamond)
+3. [Algorithm and Implementation](#algorithm-and-implementation)
+   - 3.1 [Kinematic Estimation — `calcular_g_desde_cinematica`](#31-kinematic-estimation--calcular_g_desde_cinematica)
+   - 3.2 [Dynamic Limits and Efficiency — `calcular_limites_dinamicos`](#32-dynamic-limits-and-efficiency--calcular_limites_dinamicos)
+   - 3.3 [G-G Point Construction — `_build_gg_points`](#33-g-g-point-construction--_build_gg_points)
+   - 3.4 [Under/Oversteer Detection](#34-underoversteer-detection)
+4. [Key Parameters](#key-parameters)
+5. [Interpreting Results](#interpreting-results)
+6. [Recommendations for the Driver](#recommendations-for-the-driver)
+7. [Visualizations](#visualizations)
+8. [References](#references)
 
 ---
 
-## Fundamentos Científicos
+## Overview
 
-### 2.1 El Círculo de Fricción
+The **G-G Diagram** (also called the traction diagram or friction circle) is the central tool in vehicle dynamics analysis for motorsport. It graphically represents the total acceleration vector experienced by the vehicle at each instant of the lap, decomposed into its lateral ($G_{lat}$) and longitudinal ($G_{lon}$) components. The space available within the friction circle defines the maximum performance envelope of the tyre, such that any point outside that boundary implies uncontrolled sliding and, consequently, lap time loss.
 
-Un neumático puede transmitir una fuerza horizontal máxima $F_{max} = \mu \cdot F_z$, donde $\mu$ es el coeficiente de fricción combinado y $F_z$ la carga vertical. Al dividir por la masa del vehículo se obtiene la aceleración límite en unidades g:
+This module implements two complementary paths: (1) direct calculation from IMU sensors when the acceleration channel is available in the telemetry CSV, and (2) pure **kinematic estimation** from speed and track geometry, useful when the vehicle lacks high-frequency accelerometers. In addition, the module computes a normalised efficiency metric that quantifies the percentage of available grip potential the driver exploits at each instant, and exposes automatic understeer and oversteer detectors that combine the steering angle channel with lateral G to generate diagnostics aimed at vehicle setup.
+
+---
+
+## Scientific Foundations
+
+### 2.1 The Friction Circle
+
+A tyre can transmit a maximum horizontal force $F_{max} = \mu \cdot F_z$, where $\mu$ is the combined friction coefficient and $F_z$ is the vertical load. Dividing by vehicle mass gives the limit acceleration in g units:
 
 $$
 G_{max} = \mu \cdot g
 $$
 
-La física de la goma establece que la capacidad de tracción se consume de forma **vectorial**: la misma fuerza máxima puede orientarse en cualquier dirección del plano horizontal, pero la suma cuadrática no puede superar el límite. Esto genera la restricción circular:
+The physics of rubber establishes that traction capacity is consumed **vectorially**: the same maximum force can be directed in any horizontal-plane direction, but the quadratic sum cannot exceed the limit. This generates the circular constraint:
 
 $$
 G_{sum}(t) = \sqrt{G_{lat}^2(t) + G_{lon}^2(t)} \leq \mu \cdot g = G_{max}
 $$
 
-La razón geométrica por la que la frontera es una **circunferencia** y no un cuadrado se debe al modelo de Coulomb: el neumático satura cuando la resultante vectorial de las fuerzas de rozamiento alcanza $\mu F_z$, independientemente de la dirección. Un modelo de cuadrado supondría que la capacidad longitudinal no se ve afectada por la tracción lateral, lo cual es físicamente incorrecto. El círculo de fricción, en contraste, captura correctamente la transferencia de capacidad entre ejes de fuerza.
+The geometric reason why the boundary is a **circle** and not a square stems from the Coulomb model: the tyre saturates when the vector resultant of friction forces reaches $\mu F_z$, regardless of direction. A square model would assume that longitudinal capacity is unaffected by lateral traction, which is physically incorrect. The friction circle, by contrast, correctly captures the capacity transfer between force axes.
 
-### 2.2 Eficiencia del Diagrama G-G
+### 2.2 G-G Diagram Efficiency
 
-Para poder comparar pilotos o vueltas en condiciones de adherencia variables (temperatura de neumáticos, pista mojada, tipo de compuesto), se normaliza $G_{sum}$ contra un límite de referencia empírico derivado de la propia vuelta:
+In order to compare drivers or laps under variable grip conditions (tyre temperature, wet track, compound type), $G_{sum}$ is normalised against an empirical reference limit derived from the lap itself:
 
 $$
-G_{limit} = \text{percentil}_{95}\bigl(G_{sum}(t)\bigr)
+G_{limit} = \text{percentile}_{95}\bigl(G_{sum}(t)\bigr)
 $$
 
-El percentil 95 se escoge deliberadamente en lugar del máximo para evitar que picos espúreos o maniobras de esquivar obstáculos distorsionen la referencia. Con este límite se define la **eficiencia de adherencia**:
+The 95th percentile is deliberately chosen instead of the maximum to prevent spurious spikes or obstacle-avoidance manoeuvres from distorting the reference. Using this limit, **grip efficiency** is defined as:
 
 $$
 \eta(t) = \frac{G_{sum}(t)}{G_{limit}} \times 100\%
 $$
 
-Un piloto de referencia (o un conductor experto) mantiene $\eta(t)$ cerca del 100 % durante las fases de frenada, vértice y aceleración, con descensos solo en las transiciones entre fases. Valores medios de vuelta superiores al 80 % son indicativos de pilotaje de alto nivel en monoplazas de fórmula; en turismos de producción, valores por encima del 65 % ya representan un aprovechamiento muy bueno del neumático.
+A reference driver (or an expert driver) keeps $\eta(t)$ close to 100 % during braking, apex, and acceleration phases, with drops only during transitions between phases. Average lap values above 80 % are indicative of high-level driving in formula single-seaters; in production touring cars, values above 65 % already represent very good tyre exploitation.
 
-El código en `calcular_limites_dinamicos` implementa exactamente esta definición:
+The code in `calcular_limites_dinamicos` implements exactly this definition:
 
 ```python
 g_max = df_aligned["G_Sum_Fast"].quantile(0.95)   # G_limit = p95
 df_aligned["G_Efficiency_Fast"] = (df_aligned["G_Sum_Fast"] / g_max) * 100
 ```
 
-Si `g_max` resultara menor que 0.1 G (datos degenerados o vehículo casi parado) se sustituye por 1.0 G como valor de guardia para evitar divisiones por cero.
+If `g_max` turns out to be less than 0.1 G (degenerate data or vehicle nearly stationary), it is replaced by 1.0 G as a guard value to avoid division by zero.
 
-### 2.3 Estimación Cinemática de Fuerzas G
+### 2.3 Kinematic Estimation of G-Forces
 
-Cuando el CSV de telemetría no incluye canales de acelerómetro, el módulo reconstruye los vectores G a partir de la velocidad longitudinal y la curvatura de la trazada. La derivación exacta es la siguiente:
+When the telemetry CSV does not include accelerometer channels, the module reconstructs the G vectors from longitudinal speed and track curvature. The exact derivation is as follows:
 
-**G Longitudinal**
+**Longitudinal G**
 
-Partiendo de la definición de aceleración longitudinal $a_{lon} = dv/dt$, se aplica la regla de la cadena para reescribir la derivada temporal en función de la distancia recorrida $s$:
+Starting from the definition of longitudinal acceleration $a_{lon} = dv/dt$, the chain rule is applied to rewrite the time derivative as a function of distance travelled $s$:
 
 $$
 a_{lon} = \frac{dv}{dt} = \frac{dv}{ds} \cdot \frac{ds}{dt} = \frac{dv}{ds} \cdot v
 $$
 
-En unidades g:
+In g units:
 
 $$
 G_{lon}(t) = \frac{a_{lon}}{g} = \frac{v \cdot \frac{dv}{ds}}{g}
 $$
 
-La derivada espacial $dv/ds$ se evalúa numéricamente con diferencias centrales (`numpy.gradient`) sobre el vector de velocidad muestreado en pasos de 1 m de distancia.
+The spatial derivative $dv/ds$ is evaluated numerically with central differences (`numpy.gradient`) over the speed vector sampled at 1 m distance steps.
 
-**G Lateral**
+**Lateral G**
 
-En un movimiento curvilíneo, la aceleración centrípeta es $a_{lat} = v^2 / R$. Sustituyendo el radio de curvatura por su inverso, la curvatura geométrica $\kappa = 1/R$:
+In curvilinear motion, centripetal acceleration is $a_{lat} = v^2 / R$. Replacing the radius of curvature by its inverse, the geometric curvature $\kappa = 1/R$:
 
 $$
 a_{lat} = v^2 \cdot \kappa(s)
 $$
 
-En unidades g:
+In g units:
 
 $$
 G_{lat}(t) = \frac{v^2(t) \cdot \kappa\bigl(s(t)\bigr)}{g}
 $$
 
-donde $\kappa(s)$ es la curvatura de la trazada previamente calculada por el módulo de geometría (spline cúbico del GPS) e interpolada sobre la malla de distancia del canal de velocidad.
+where $\kappa(s)$ is the track curvature previously computed by the geometry module (cubic GPS spline) and interpolated onto the distance grid of the speed channel.
 
-**Precisión del método**
+**Method Accuracy**
 
-La estimación cinemática es exacta en condiciones de agarre. Diverge de la lectura real del acelerómetro cuando existe deslizamiento lateral (porque entonces $v^2\kappa/g < G_{lat,real}$, el neumático no sigue la trazada geométrica) o cuando hay vibraciones de alta frecuencia en la velocidad muestreada. En la práctica, el error RMS en vueltas limpias es inferior al 5 % del rango dinámico, suficiente para análisis de setup y coaching.
+The kinematic estimation is exact under grip conditions. It diverges from the actual accelerometer reading when lateral slip occurs (because then $v^2\kappa/g < G_{lat,real}$, the tyre no longer follows the geometric line) or when high-frequency vibrations are present in the sampled speed signal. In practice, the RMS error on clean laps is below 5 % of the dynamic range, sufficient for setup analysis and coaching.
 
-### 2.4 Forma Real vs Círculo Ideal: la "Diamante"
+### 2.4 Real Shape vs Ideal Circle: the "Diamond"
 
-En vehículos de competición reales, la nube de puntos del diagrama G-G no forma un círculo perfecto sino una figura **romboidal o en diamante** ligeramente aplanada en los vértices laterales. Las causas son:
+In real competition vehicles, the point cloud of the G-G diagram does not form a perfect circle but rather a **rhomboidal or diamond** figure slightly flattened at the lateral vertices. The causes are:
 
-- **Carga aerodinámica**: a alta velocidad, el downforce aumenta $F_z$ y por tanto $G_{max}$, extendiendo el círculo hacia los cuadrantes de frenada y aceleración a altas $v$, pero no necesariamente en el vértice (velocidad mínima).
-- **Frenada con trail braking**: la técnica de frenada tardía y progresiva permite combinar $G_{lon}$ y $G_{lat}$ en la entrada de curva, llenando el cuadrante SE/SW y confiriendo la forma de diamante. Un piloto que suelta completamente el freno antes de girar dejará vacíos esos cuadrantes.
-- **Asimetría neumático delantero/trasero**: los compuestos de diferente dureza, presiones o temperaturas producen elipses asimétricas respecto al eje de $G_{lat}$.
-- **Limitaciones mecánicas**: la relación entre aceleración máxima en tracción y máxima en frenada no es 1:1; un monoplaza de F1 puede generar hasta 6 G en frenada pero solo 2–3 G en aceleración, desplazando el centroide del diagrama hacia $G_{lon} < 0$.
+- **Aerodynamic load**: at high speed, downforce increases $F_z$ and therefore $G_{max}$, extending the circle towards the braking and acceleration quadrants at high $v$, but not necessarily at the apex (minimum speed).
+- **Braking with trail braking**: the technique of late, progressive braking allows combining $G_{lon}$ and $G_{lat}$ on corner entry, filling the SE/SW quadrants and conferring the diamond shape. A driver who fully releases the brake before turning will leave those quadrants empty.
+- **Front/rear tyre asymmetry**: compounds of different hardness, pressures, or temperatures produce ellipses that are asymmetric with respect to the $G_{lat}$ axis.
+- **Mechanical limitations**: the ratio between maximum acceleration under traction and maximum under braking is not 1:1; an F1 single-seater can generate up to 6 G under braking but only 2–3 G under acceleration, shifting the diagram centroid towards $G_{lon} < 0$.
 
-La forma del diagrama G-G es, por tanto, una huella digital del estilo de pilotaje, el setup del vehículo y las condiciones de la pista.
+The shape of the G-G diagram is therefore a fingerprint of driving style, vehicle setup, and track conditions.
 
 ---
 
-## Algoritmo e Implementación
+## Algorithm and Implementation
 
-### 3.1 Estimación Cinemática — `calcular_g_desde_cinematica`
+### 3.1 Kinematic Estimation — `calcular_g_desde_cinematica`
 
-**Archivo**: `src/analytics/dynamics.py`, línea 9.
+**File**: `src/analytics/dynamics.py`, line 9.
 
-**Entradas**:
-- `df_aligned` — DataFrame con columnas `Distance`, `Speed_Fast`, `Speed_Slow` en pasos de 1 m.
-- `df_geo` — DataFrame con columnas `Distance` y `Curvature` (curvatura geométrica en m⁻¹).
-- `canal_speed` — nombre base del canal de velocidad (por defecto `"Speed"`).
+**Inputs**:
+- `df_aligned` — DataFrame with columns `Distance`, `Speed_Fast`, `Speed_Slow` at 1 m steps.
+- `df_geo` — DataFrame with columns `Distance` and `Curvature` (geometric curvature in m⁻¹).
+- `canal_speed` — base name of the speed channel (default `"Speed"`).
 
-**Pasos**:
+**Steps**:
 
-1. **Validación de canales**: se comprueba que `df_geo` contenga `Distance` y `Curvature`. Si faltan, se emite un warning y se devuelve `df_aligned` sin modificar.
+1. **Channel validation**: checks that `df_geo` contains `Distance` and `Curvature`. If missing, a warning is issued and `df_aligned` is returned unmodified.
 
-2. **Interpolación de curvatura**: la curvatura de la trazada se calcula sobre la malla del GPS (`df_geo`), que puede tener resolución diferente al canal de velocidad. Se construye una función de interpolación lineal con `scipy.interpolate.interp1d` con `fill_value=0.0` fuera de rango (rectas = curvatura cero):
+2. **Curvature interpolation**: track curvature is computed on the GPS grid (`df_geo`), which may have a different resolution than the speed channel. A linear interpolation function is built with `scipy.interpolate.interp1d` with `fill_value=0.0` out of range (straights = zero curvature):
 
    ```python
    f_kappa = interp1d(dist_geo, kappa_geo, kind="linear",
@@ -150,36 +152,36 @@ La forma del diagrama G-G es, por tanto, una huella digital del estilo de pilota
    kappa = f_kappa(dist_aligned)
    ```
 
-3. **Conversión de unidades**: la velocidad se convierte de km/h a m/s y se recorta a un mínimo de 0.5 m/s para evitar divisiones por cero en las subsiguientes operaciones.
+3. **Unit conversion**: speed is converted from km/h to m/s and clipped to a minimum of 0.5 m/s to avoid division by zero in subsequent operations.
 
-4. **G Longitudinal** (derivada numérica central):
+4. **Longitudinal G** (central numerical derivative):
 
    ```python
-   dv_ds = np.gradient(speed_ms, 1.0)   # paso de 1 m
+   dv_ds = np.gradient(speed_ms, 1.0)   # 1 m step
    lon_acc = dv_ds * speed_ms            # a_lon = (dv/ds) * v  [m/s²]
    df_aligned[f"LongitudinalG_{lap}"] = np.round(lon_acc / 9.81, 4)
    ```
 
-5. **G Lateral** (producto curvatura-velocidad²):
+5. **Lateral G** (curvature-speed² product):
 
    ```python
    lat_acc = speed_ms**2 * kappa         # a_lat = v² * κ  [m/s²]
    df_aligned[f"LateralG_{lap}"] = np.round(lat_acc / 9.81, 4)
    ```
 
-   Nota: la función devuelve únicamente el módulo de $G_{lat}$ (valor siempre $\geq 0$) ya que la curvatura geométrica no codifica el sentido (derecha/izquierda). Para recuperar el signo se requiere el canal de ángulo de volante o la derivada del heading GPS.
+   Note: the function returns only the magnitude of $G_{lat}$ (always $\geq 0$) because geometric curvature does not encode direction (right/left). Recovering the sign requires the steering angle channel or the derivative of the GPS heading.
 
-6. **Iteración por vuelta**: el bloque se repite para `_Fast` (vuelta rápida) y `_Slow` (vuelta de referencia), produciendo cuatro columnas nuevas: `LongitudinalG_Fast`, `LateralG_Fast`, `LongitudinalG_Slow`, `LateralG_Slow`.
+6. **Per-lap iteration**: the block is repeated for `_Fast` (fast lap) and `_Slow` (reference lap), producing four new columns: `LongitudinalG_Fast`, `LateralG_Fast`, `LongitudinalG_Slow`, `LateralG_Slow`.
 
-### 3.2 Límites Dinámicos y Eficiencia — `calcular_limites_dinamicos`
+### 3.2 Dynamic Limits and Efficiency — `calcular_limites_dinamicos`
 
-**Archivo**: `src/analytics/dynamics.py`, línea 59.
+**File**: `src/analytics/dynamics.py`, line 59.
 
-**Pasos**:
+**Steps**:
 
-1. Verificar disponibilidad de canales `LateralG_Fast` y `LongitudinalG_Fast`. Si faltan, se registra un warning con la lista de columnas disponibles que contengan keywords relacionados con G/aceleración.
+1. Verify availability of channels `LateralG_Fast` and `LongitudinalG_Fast`. If missing, a warning is logged listing the available columns containing G/acceleration-related keywords.
 
-2. Calcular el vector suma para ambas vueltas:
+2. Compute the sum vector for both laps:
 
    $$G_{sum} = \sqrt{G_{lat}^2 + G_{lon}^2}$$
 
@@ -187,133 +189,133 @@ La forma del diagrama G-G es, por tanto, una huella digital del estilo de pilota
    df_aligned["G_Sum_Fast"] = np.sqrt(g_lat**2 + g_lon**2)
    ```
 
-3. Determinar `g_max` como el percentil 95 de `G_Sum_Fast`. Se aplica el guardián de 0.1 G para datos corruptos.
+3. Determine `g_max` as the 95th percentile of `G_Sum_Fast`. The 0.1 G guard is applied for corrupt data.
 
-4. Calcular `G_Efficiency_Fast` y `G_Efficiency_Slow` normalizando contra `g_max`.
+4. Compute `G_Efficiency_Fast` and `G_Efficiency_Slow` by normalising against `g_max`.
 
-5. Devolver el DataFrame enriquecido y el escalar `g_max` para que los módulos de visualización puedan dibujar el círculo de referencia.
+5. Return the enriched DataFrame and the scalar `g_max` so that visualisation modules can draw the reference circle.
 
-### 3.3 Construcción de Puntos G-G — `_build_gg_points`
+### 3.3 G-G Point Construction — `_build_gg_points`
 
-**Archivo**: `src/analytics/dynamics.py`, línea 103.
+**File**: `src/analytics/dynamics.py`, line 103.
 
-Esta función prepara la estructura de datos JSON para el frontend React. Opera un diezmado proporcional cuando el número de puntos supera `max_points` (por defecto 500) para evitar saturar la red:
+This function prepares the JSON data structure for the React frontend. It performs proportional decimation when the number of points exceeds `max_points` (default 500) to avoid saturating the network:
 
 ```python
 if len(subset) > max_points:
     subset = subset.iloc[:: len(subset) // max_points]
 ```
 
-Cada punto exportado contiene tres valores: `lat` (G lateral), `lon` (G longitudinal) y `eff` (eficiencia en %). Esta terna es suficiente para que el componente `GGDiagramChart.jsx` aplique el mapeado de color por eficiencia en el cliente.
+Each exported point contains three values: `lat` (lateral G), `lon` (longitudinal G), and `eff` (efficiency in %). This triple is sufficient for the `GGDiagramChart.jsx` component to apply colour mapping by efficiency on the client side.
 
-### 3.4 Detección de Sub/Sobreviraje
+### 3.4 Under/Oversteer Detection
 
-**Archivo**: `src/analytics/dynamics.py`, línea 176.
+**File**: `src/analytics/dynamics.py`, line 176.
 
-El algoritmo analiza ventanas de ±60 m alrededor de cada vértice de curva (apex) previamente detectado por el módulo de geometría:
+The algorithm analyses windows of ±60 m around each corner apex previously detected by the geometry module:
 
-**Subviraje** — Se detecta cuando el ángulo de volante crece (piloto pide más giro) pero la aceleración lateral no responde de forma proporcional:
+**Understeer** — Detected when the steering angle increases (driver requests more lock) but lateral acceleration does not respond proportionally:
 
 $$
-\frac{d\delta_{steer}}{ds} > 0.1 \quad \text{y} \quad \left|\frac{dG_{lat}}{ds}\right| < u_{sub} \cdot |\delta_{steer}|
+\frac{d\delta_{steer}}{ds} > 0.1 \quad \text{and} \quad \left|\frac{dG_{lat}}{ds}\right| < u_{sub} \cdot |\delta_{steer}|
 $$
 
-con $u_{sub} = 0.15$ (umbral por defecto). Se aplica suavizado rolling (ventana 3) antes de calcular gradientes para filtrar ruido de alta frecuencia del canal de volante.
+with $u_{sub} = 0.15$ (default threshold). Rolling smoothing (window 3) is applied before computing gradients to filter high-frequency noise from the steering channel.
 
-**Sobreviraje** — Se detecta mediante la detección de jerk lateral (variación brusca de $G_{lat}$) combinada con una corrección de volante opuesta al giro:
+**Oversteer** — Detected via lateral jerk (sharp variation in $G_{lat}$) combined with a counter-steering correction:
 
 $$
 \text{jerk}_{lat} = |G_{lat}(i+1) - G_{lat}(i-1)| > u_{over}
 $$
 
-con $u_{over} = 0.5$ G por muestra. La corrección de volante se verifica comprobando que $|\delta_{after}|$ difiere de $|\delta_{before}|$ en más de un 30 %.
+with $u_{over} = 0.5$ G per sample. The steering correction is verified by checking that $|\delta_{after}|$ differs from $|\delta_{before}|$ by more than 30 %.
 
-Los eventos se clasifican en tres niveles de severidad (leve, media, crítico) y se acompañan de un diagnóstico textual con recomendaciones de setup específicas.
+Events are classified into three severity levels (mild, moderate, critical) and accompanied by a textual diagnosis with specific setup recommendations.
 
 ---
 
-## Parámetros Clave
+## Key Parameters
 
-| Parámetro | Valor por defecto | Descripción | Efecto sobre el análisis |
+| Parameter | Default value | Description | Effect on analysis |
 |---|---|---|---|
-| `canal_speed` | `"Speed"` | Nombre base del canal de velocidad en el CSV | Selecciona las columnas `Speed_Fast` y `Speed_Slow` |
-| `canal_lat` | `"LateralG"` | Nombre base del canal de G lateral | Permite usar canales personalizados de IMU |
-| `canal_long` | `"LongitudinalG"` | Nombre base del canal de G longitudinal | Idem para aceleración longitudinal |
-| `g` (constante) | `9.81 m/s²` | Aceleración de la gravedad estándar | Divide las aceleraciones físicas para obtener unidades g |
-| `fill_value` curvatura | `0.0 m⁻¹` | Valor fuera del rango del GPS | Zonas sin datos de curvatura se tratan como recta |
-| `clip_speed_min` | `0.5 m/s` | Velocidad mínima para evitar división por cero | Afecta al G longitudinal cuando el vehículo está casi parado |
-| Percentil G_limit | `95` | Percentil de `G_Sum_Fast` usado como referencia | Determina el denominador de la eficiencia; aumentarlo eleva el estándar |
-| `g_max` guardián | `1.0 G` | Valor mínimo de `g_max` si los datos son degenerados | Evita eficiencias artificialmente elevadas o NaN |
-| `max_points` (GG export) | `500` | Máximo de puntos enviados al frontend | Controla el tamaño del JSON; reducir mejora latencia de red |
-| `ventana_m` | `60 m` | Semiancho de ventana alrededor del apex | Ventanas más amplias detectan eventos más lejos del vértice |
-| `umbral_sub` | `0.15` | Sensibilidad de detección de subviraje | Bajar el umbral produce más detecciones (posibles falsos positivos) |
-| `umbral_over` | `0.5 G/muestra` | Umbral de jerk lateral para sobreviraje | Ajustar según la suspensión del vehículo (más rígida → mayor jerk normal) |
-| Suavizado rolling | ventana 3 | Promedio móvil antes de gradientes | Reduce falsos positivos por ruido eléctrico en el canal de volante |
+| `canal_speed` | `"Speed"` | Base name of the speed channel in the CSV | Selects columns `Speed_Fast` and `Speed_Slow` |
+| `canal_lat` | `"LateralG"` | Base name of the lateral G channel | Allows using custom IMU channels |
+| `canal_long` | `"LongitudinalG"` | Base name of the longitudinal G channel | Same for longitudinal acceleration |
+| `g` (constant) | `9.81 m/s²` | Standard gravitational acceleration | Divides physical accelerations to obtain g units |
+| `fill_value` curvature | `0.0 m⁻¹` | Value outside the GPS range | Zones without curvature data are treated as straights |
+| `clip_speed_min` | `0.5 m/s` | Minimum speed to avoid division by zero | Affects longitudinal G when the vehicle is nearly stationary |
+| G_limit percentile | `95` | Percentile of `G_Sum_Fast` used as reference | Determines the efficiency denominator; increasing it raises the standard |
+| `g_max` guard | `1.0 G` | Minimum value of `g_max` if data is degenerate | Prevents artificially high efficiencies or NaN |
+| `max_points` (GG export) | `500` | Maximum points sent to the frontend | Controls JSON size; reducing it improves network latency |
+| `ventana_m` | `60 m` | Half-width of window around the apex | Wider windows detect events further from the vertex |
+| `umbral_sub` | `0.15` | Understeer detection sensitivity | Lowering the threshold produces more detections (possible false positives) |
+| `umbral_over` | `0.5 G/sample` | Lateral jerk threshold for oversteer | Adjust according to vehicle suspension (stiffer → higher normal jerk) |
+| Rolling smoothing | window 3 | Moving average before gradients | Reduces false positives from electrical noise in the steering channel |
 
 ---
 
-## Interpretación de Resultados
+## Interpreting Results
 
-### Diagrama G-G (Círculo de Fricción)
+### G-G Diagram (Friction Circle)
 
-**Figura circular densa hacia los bordes** — El piloto trabaja la adherencia al límite de forma consistente. La nube de puntos debe "rozar" el círculo de fricción en los cuadrantes de máxima frenada (S) y máxima aceleración (N).
+**Dense circular figure towards the edges** — The driver works the grip at the limit consistently. The point cloud should "brush" the friction circle in the maximum braking (S) and maximum acceleration (N) quadrants.
 
-**Figura concentrada en el centro** — El piloto no explota el neumático. Puede indicar exceso de precaución, circuit familiarity baja o setup extremadamente subvirante que impide confiar en el neumático.
+**Figure concentrated in the centre** — The driver is not exploiting the tyre. May indicate excessive caution, low circuit familiarity, or an extremely understeering setup that prevents trusting the tyre.
 
-**Forma de diamante extendida hacia SE y SW** — El piloto usa trail braking eficiente, aprovechando frenada lateral combinada en la entrada de curva. Es la firma de pilotos de nivel avanzado.
+**Diamond shape extended towards SE and SW** — The driver uses efficient trail braking, combining lateral braking on corner entry. This is the signature of advanced-level drivers.
 
-**Puntos más allá del círculo de referencia** — Implican que en esos instantes $G_{sum} > G_{limit}$. Pueden ser picos reales de adherencia en condiciones favorables (pista gummed up) o ruido del sensor/estimación. Si aparecen sistemáticamente, reconsiderar el percentil de referencia.
+**Points beyond the reference circle** — Imply that at those instants $G_{sum} > G_{limit}$. These may be real grip peaks under favourable conditions (gummed-up track) or sensor/estimation noise. If they appear systematically, reconsider the reference percentile.
 
-### Eficiencia a lo largo de la Vuelta
+### Efficiency over the Lap
 
-**Caídas de eficiencia largas (>100 m de distancia)** — Zonas donde el piloto levanta mucho el pie o gira de forma muy conservadora. Potencial de mejora inmediato mediante análisis del punto de frenada o de la velocidad mínima en el vértice.
+**Long efficiency drops (>100 m distance)** — Zones where the driver lifts significantly or turns very conservatively. Immediate improvement potential through analysis of the braking point or minimum apex speed.
 
-**Eficiencia media de vuelta < 60 %** — Señal de subutilización global. En un piloto experimentado sugiere problemas de confianza en el setup (ej. sobreviraje crónico que obliga a pilotaje defensivo).
+**Average lap efficiency < 60 %** — Sign of global under-exploitation. In an experienced driver this suggests confidence issues with the setup (e.g. chronic oversteer forcing defensive driving).
 
-**Picos de eficiencia > 105 %** — El piloto supera el círculo de referencia. Si son frecuentes, el límite p95 puede estar subestimando la capacidad real (vuelta de referencia con neumáticos fríos).
+**Efficiency peaks > 105 %** — The driver exceeds the reference circle. If frequent, the p95 limit may be underestimating real capacity (reference lap with cold tyres).
 
-### Comparación Sensor vs Estimación Cinemática
+### Sensor vs Kinematic Estimation Comparison
 
-Cuando las dos curvas muestran buen acuerdo (error < 10 %) la estimación cinemática es fiable y puede usarse como substituto de la IMU. Divergencias significativas en zona de vértice suelen indicar deslizamiento lateral real (el vehículo no sigue exactamente la trazada GPS). En la fase de frenada, la estimación cinemática puede subestimar el pico de $G_{lon}$ si el muestreo de velocidad es bajo (< 10 Hz).
+When both curves show good agreement (error < 10 %) the kinematic estimation is reliable and can be used as a substitute for the IMU. Significant divergences in the apex zone usually indicate real lateral slip (the vehicle does not follow the GPS line exactly). During the braking phase, the kinematic estimation may underestimate the $G_{lon}$ peak if speed sampling is low (< 10 Hz).
 
-### Señales de Alerta Automáticas
+### Automatic Alert Signals
 
-| Severidad | Criterio de activación | Acción recomendada |
+| Severity | Activation criterion | Recommended action |
 |---|---|---|
-| **Subviraje crítico** | $d\delta/ds \geq 0.6$ o $\delta > 15°$ | Revisar presión delantera, suavizar barra estabilizadora delantera |
-| **Subviraje moderado** | $d\delta/ds \geq 0.3$ o $\delta > 8°$ | Revisar trazada de entrada, evaluar balance de frenada |
-| **Sobreviraje crítico** | jerk $\geq 2.5 \times u_{over}$ | Revisar presión trasera, dureza barra trasera, mapa de diferencial |
-| **Sobreviraje moderado** | jerk $\geq 1.5 \times u_{over}$ | Evaluar ajuste de diferencial, entrada de curva |
+| **Critical understeer** | $d\delta/ds \geq 0.6$ or $\delta > 15°$ | Check front tyre pressure, soften front anti-roll bar |
+| **Moderate understeer** | $d\delta/ds \geq 0.3$ or $\delta > 8°$ | Review corner entry line, evaluate brake balance |
+| **Critical oversteer** | jerk $\geq 2.5 \times u_{over}$ | Check rear tyre pressure, rear bar stiffness, differential map |
+| **Moderate oversteer** | jerk $\geq 1.5 \times u_{over}$ | Evaluate differential adjustment, corner entry |
 
 ---
 
-## Recomendaciones para el Piloto
+## Recommendations for the Driver
 
-**1. Rellenar el diagrama G-G en los cuadrantes de transición (NE, SW)**
+**1. Fill the G-G diagram in the transition quadrants (NE, SW)**
 
-Los cuadrantes noreste (aceleración + giro derecha) y suroeste (frenada + giro izquierda) suelen estar vacíos en pilotos en desarrollo. La técnica para rellenarlos es el **trail braking progresivo**: mantener presión de freno decreciente mientras se inicia el giro, de forma que el vector de fuerza rote suavemente desde el sur (frenada pura) hasta el este/oeste (lateral puro), sin pasar por el centro del diagrama.
+The northeast quadrant (acceleration + right turn) and southwest quadrant (braking + left turn) are often empty in developing drivers. The technique to fill them is **progressive trail braking**: maintain decreasing brake pressure while initiating the turn, so that the force vector rotates smoothly from south (pure braking) to east/west (pure lateral), without passing through the centre of the diagram.
 
-**2. Minimizar el tiempo con eficiencia < 70 %**
+**2. Minimise time with efficiency < 70 %**
 
-Cada muestra con $\eta < 70\%$ es tiempo sobre la mesa. Las zonas de baja eficiencia suelen coincidir con: (a) exceso de braking antes de la entrada de curva, (b) suelta prematura de freno, (c) aplicación tardía del acelerador en la salida. Identificar la distancia exacta de cada caída usando el gráfico de eficiencia sobre distancia.
+Every sample with $\eta < 70\%$ is time left on the table. Low-efficiency zones typically coincide with: (a) excessive braking before corner entry, (b) premature brake release, (c) delayed throttle application on exit. Identify the exact distance of each drop using the efficiency-over-distance chart.
 
-**3. Consistencia entre vueltas**
+**3. Consistency between laps**
 
-Superponer el diagrama G-G de la vuelta rápida con la vuelta lenta. Las zonas donde la vuelta lenta tiene menos puntos en la periferia del círculo revelan dónde el piloto no replica el ritmo. La eficiencia en vértices de curvas lentas (velocidad < 80 km/h) es especialmente sensible a la técnica de frenada.
+Overlay the G-G diagram of the fast lap with the slow lap. Zones where the slow lap has fewer points at the circle periphery reveal where the driver fails to replicate the pace. Efficiency at the apex of slow corners (speed < 80 km/h) is especially sensitive to braking technique.
 
-**4. Interpretar el sobreviraje detectado antes de tocar el setup**
+**4. Interpret detected oversteer before touching the setup**
 
-Un evento de sobreviraje en la base del análisis puede tener origen técnico (subviraje crónico que el piloto corrige con agresividad) o de setup (diferencial demasiado cerrado en aceleración). Revisar en qué fase del arco de curva ocurre: si es en la entrada → técnica de frenada; si es en la salida → diferencial/presión trasera; si es en el vértice → equilibrio de balance mecánico.
+An oversteer event in the base of the analysis may have a technical origin (chronic understeer that the driver corrects aggressively) or a setup origin (differential too locked under acceleration). Review which phase of the corner arc it occurs in: if on entry → braking technique; if on exit → differential/rear pressure; if at the apex → mechanical balance.
 
-**5. Usar $G_{limit}$ como KPI de evolución de neumático**
+**5. Use $G_{limit}$ as a tyre evolution KPI**
 
-El valor de `g_max` (percentil 95 de $G_{sum}$) sube conforme el neumático alcanza su temperatura óptima. Comparar `g_max` entre el primer sector y el tercero de la misma vuelta para verificar que la goma está completamente trabajada. Una diferencia superior al 8 % sugiere que las primeras curvas se están pilotando con neumático frío.
+The value of `g_max` (95th percentile of $G_{sum}$) rises as the tyre reaches its optimal temperature. Compare `g_max` between the first and third sector of the same lap to verify the tyre is fully worked. A difference above 8 % suggests the first corners are being driven on a cold tyre.
 
 ---
 
-## Visualizaciones
+## Visualizations
 
-Para regenerar todas las imágenes de esta sección ejecutar:
+To regenerate all images in this section run:
 
 ```bash
 python scripts/docs/gen_gg_diagram.py
@@ -321,46 +323,50 @@ python scripts/docs/gen_gg_diagram.py
 
 ---
 
-### Figura 1 — Círculo de Fricción
+### Figure 1 — Friction Circle
 
-![Diagrama G-G — Círculo de Fricción](./images/gg_diagram/friction_circle.png)
+![G-G Diagram — Friction Circle](./images/gg_diagram/friction_circle.png)
 
-Diagrama G-G polar con todos los puntos de la vuelta coloreados por eficiencia de adherencia. El eje X es $G_{lateral}$ (derecha positivo), el eje Y es $G_{longitudinal}$ (aceleración positivo, frenada negativo). La circunferencia blanca discontinua representa el límite de fricción $G_{limit} = \text{p95}(G_{sum})$. Los puntos verdes ($\eta \geq 90\%$) indican aprovechamiento óptimo del neumático; los rojos ($\eta < 50\%$) indican zonas con margen de mejora significativo. Una nube bien desarrollada toca el límite en los cuadrantes Norte (aceleración) y Sur (frenada), y muestra una forma de diamante extendida en los cuadrantes de transición cuando el piloto usa trail braking.
-
----
-
-### Figura 2 — Eficiencia sobre Distancia
-
-![Eficiencia del Círculo de Fricción a lo largo de la vuelta](./images/gg_diagram/efficiency_over_distance.png)
-
-Serie temporal de la eficiencia $\eta(t)$ a lo largo de la vuelta expresada en distancia (km). Las líneas de referencia horizontales marcan los umbrales del 90 % (verde discontinuo) y 70 % (ámbar discontinuo). El relleno entre la curva y el 100 % se colorea en función de la banda de eficiencia: verde para zonas por encima del 90 %, ámbar entre 70 % y 90 %, y rojo para caídas por debajo del 70 %. Las caídas de eficiencia pronunciadas y prolongadas son el objetivo inmediato de coaching, pues representan distancia recorrida sin maximizar el uso del neumático.
+Polar G-G diagram with all lap points coloured by grip efficiency. The X axis is $G_{lateral}$ (right positive), the Y axis is $G_{longitudinal}$ (acceleration positive, braking negative). The dashed white circle represents the friction limit $G_{limit} = \text{p95}(G_{sum})$. Green points ($\eta \geq 90\%$) indicate optimal tyre exploitation; red points ($\eta < 50\%$) indicate zones with significant improvement potential. A well-developed cloud touches the limit in the North (acceleration) and South (braking) quadrants, and shows a diamond shape extended in the transition quadrants when the driver uses trail braking.
 
 ---
 
-### Figura 3 — Estimación Cinemática vs Sensor
+### Figure 2 — Efficiency over Distance
 
-![Comparación Sensor vs Estimación Cinemática](./images/gg_diagram/kinematic_vs_sensor.png)
+![Friction Circle Efficiency over the lap](./images/gg_diagram/efficiency_over_distance.png)
 
-Panel dual mostrando la comparación entre la lectura del sensor IMU (línea sólida) y la estimación cinemática (línea discontinua) para $G_{lateral}$ (panel superior, cyan/ámbar) y $G_{longitudinal}$ (panel inferior, verde/morado). La zona sombreada en rojo identifica la fase de frenada más intensa de la vuelta. Un buen acuerdo entre ambas curvas (desviaciones < 10 %) valida la estimación cinemática como substituto del acelerómetro. Divergencias sistemáticas en el pico de frenada o en el vértice de curva suelen indicar deslizamiento real o saturación del neumático.
-
----
-
-### Figura 4 — Cuadrantes de Fase de Conducción
-
-![Diagrama G-G — Cuadrantes de Fase de Conducción](./images/gg_diagram/gg_quadrant.png)
-
-Versión del diagrama G-G con los puntos coloreados por fase de conducción: aceleración + giro derecha (verde, NE), aceleración + giro izquierda (cyan, NW), frenada + giro derecha (rojo, SE), frenada + giro izquierda (morado, SW). Esta representación permite identificar desequilibrios entre curvas derechas e izquierdas, y evaluar si el piloto usa con igual eficacia la combinación de frenada-giro en ambas direcciones. Un circuito con predominancia de curvas a derechas mostrará más densidad de puntos en los cuadrantes SE y NE.
+Time series of efficiency $\eta(t)$ over the lap expressed in distance (km). Horizontal reference lines mark the 90 % (dashed green) and 70 % (dashed amber) thresholds. The fill between the curve and 100 % is coloured according to the efficiency band: green for zones above 90 %, amber between 70 % and 90 %, and red for drops below 70 %. Pronounced, prolonged efficiency drops are the immediate coaching target, as they represent distance covered without maximising tyre usage.
 
 ---
 
-## Referencias
+### Figure 3 — Kinematic Estimation vs Sensor
 
-1. **Milliken, W. F. & Milliken, D. L.** (1995). *Race Car Vehicle Dynamics*. SAE International. — Capítulo 5 (Steady-State Cornering), Capítulo 8 (Friction Circle). Referencia canónica para el círculo de fricción y el modelo de neumático de Coulomb.
+![Sensor vs Kinematic Estimation Comparison](./images/gg_diagram/kinematic_vs_sensor.png)
 
-2. **Segers, J.** (2014). *Analysis Techniques for Racecar Data Acquisition*, 2nd ed. SAE International. — Capítulos 4 y 6, metodología de análisis G-G, cálculo de eficiencia de adherencia y técnicas de normalización entre vueltas.
+Dual panel showing the comparison between the IMU sensor reading (solid line) and the kinematic estimation (dashed line) for $G_{lateral}$ (upper panel, cyan/amber) and $G_{longitudinal}$ (lower panel, green/purple). The red-shaded area identifies the most intense braking phase of the lap. Good agreement between both curves (deviations < 10 %) validates the kinematic estimation as an accelerometer substitute. Systematic divergences at the braking peak or corner apex typically indicate real slip or tyre saturation.
 
-3. **Beckman, B.** (1991). *The Physics of Racing*. Series of technical articles. — Derivación intuitiva del círculo de fricción como consecuencia directa del modelo de Coulomb aplicado a neumáticos en competición.
+---
 
-4. **Kelly, D. P.** (2008). *Lap time simulation with transient vehicle and tyre dynamics*. PhD Thesis, Cranfield University. — Validación experimental de la estimación cinemática de G y sus límites de aplicabilidad en presencia de deslizamiento lateral.
+### Figure 4 — Driving Phase Quadrants
 
-5. **Siegler, B., Deakin, A. & Crolla, D.** (2000). *Lap time simulation: comparison of steady state, quasi-static and transient racing car cornering strategies*. SAE Technical Paper 2000-01-3563. — Comparación cuantitativa entre modelos de tracción estacionaria y transitoria, con implicaciones directas sobre la interpretación del diagrama G-G en frenada con trail braking.
+![G-G Diagram — Driving Phase Quadrants](./images/gg_diagram/gg_quadrant.png)
+
+Version of the G-G diagram with points coloured by driving phase: acceleration + right turn (green, NE), acceleration + left turn (cyan, NW), braking + right turn (red, SE), braking + left turn (purple, SW). This representation allows identifying imbalances between right and left corners, and evaluating whether the driver uses the braking-turning combination equally effectively in both directions. A circuit with a predominance of right-hand corners will show higher point density in the SE and NE quadrants.
+
+---
+
+## References
+
+1. **Milliken, W. F. & Milliken, D. L.** (1995). *Race Car Vehicle Dynamics*. SAE International. — Chapter 5 (Steady-State Cornering), Chapter 8 (Friction Circle). Canonical reference for the friction circle and the Coulomb tyre model.
+
+2. **Segers, J.** (2014). *Analysis Techniques for Racecar Data Acquisition*, 2nd ed. SAE International. — Chapters 4 and 6, G-G analysis methodology, grip efficiency calculation, and lap normalisation techniques.
+
+3. **Beckman, B.** (1991). *The Physics of Racing*. Series of technical articles. — Intuitive derivation of the friction circle as a direct consequence of the Coulomb model applied to competition tyres.
+
+4. **Kelly, D. P.** (2008). *Lap time simulation with transient vehicle and tyre dynamics*. PhD Thesis, Cranfield University. — Experimental validation of kinematic G estimation and its applicability limits in the presence of lateral slip.
+
+5. **Siegler, B., Deakin, A. & Crolla, D.** (2000). *Lap time simulation: comparison of steady state, quasi-static and transient racing car cornering strategies*. SAE Technical Paper 2000-01-3563. — Quantitative comparison between steady-state and transient traction models, with direct implications for the interpretation of the G-G diagram under trail braking.
+
+---
+
+*This document is the English translation of [03_gg_diagram.es.md](./03_gg_diagram.es.md).*

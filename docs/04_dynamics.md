@@ -1,192 +1,194 @@
-# Detección de Subviraje y Sobreviraje — Análisis Dinámico
+# Understeer and Oversteer Detection — Dynamic Analysis
 
-**Módulo:** `src/analytics/dynamics.py`  
-**Versión de referencia:** pipeline commit `22dd1ae`  
-**Fecha de revisión:** 2026-06-11
+🌐 [Ver en Español](./04_dynamics.es.md)
 
----
-
-## Tabla de Contenidos
-
-1. [Descripción General](#descripción-general)
-2. [Fundamentos Científicos](#fundamentos-científicos)
-   - 2.1 [Estimación de G desde cinemática](#21-estimación-de-g-desde-cinemática)
-   - 2.2 [Física del Subviraje](#22-física-del-subviraje)
-   - 2.3 [Física del Sobreviraje](#23-física-del-sobreviraje)
-   - 2.4 [Sistema de Severidad en Tres Niveles](#24-sistema-de-severidad-en-tres-niveles)
-3. [Algoritmo e Implementación](#algoritmo-e-implementación)
-   - 3.1 [G cinemático: `calcular_g_desde_cinematica`](#31-g-cinemático-calcular_g_desde_cinematica)
-   - 3.2 [Límites de adherencia: `calcular_limites_dinamicos`](#32-límites-de-adherencia-calcular_limites_dinamicos)
-   - 3.3 [Detección por apex: `detectar_subviraje_sobreviraje`](#33-detección-por-apex-detectar_subviraje_sobreviraje)
-4. [Parámetros Clave](#parámetros-clave)
-5. [Interpretación de Resultados](#interpretación-de-resultados)
-6. [Recomendaciones para el Piloto](#recomendaciones-para-el-piloto)
-7. [Visualizaciones](#visualizaciones)
-8. [Referencias](#referencias)
+**Module:** `src/analytics/dynamics.py`  
+**Reference version:** pipeline commit `22dd1ae`  
+**Review date:** 2026-06-11
 
 ---
 
-## Descripción General
+## Table of Contents
 
-El módulo de dinámica lateral analiza el comportamiento del vehículo en cada curva para determinar si el tren delantero (subviraje) o el tren trasero (sobreviraje) están operando fuera del límite de adherencia. A diferencia de un enfoque puramente estadístico, el módulo trabaja evento a evento: para cada apex detectado en la pista, se extrae una ventana temporal alrededor del punto de máxima curvatura y se aplican dos detectores independientes basados en la física del neumático.
-
-Cuando el coche de telemetría no dispone de sensores de fuerza G, el módulo los estima desde la cinemática del vehículo utilizando la curvatura del trazado y la velocidad instantánea. Esto permite operar con datos de bajo coste (GPS + encoder de velocidad) manteniendo la exactitud necesaria para el diagnóstico de setup. La salida del módulo es una lista de eventos con tipo, severidad, coordenada de distancia y texto de diagnóstico listo para presentar al ingeniero de carrera.
+1. [Overview](#overview)
+2. [Scientific Foundations](#scientific-foundations)
+   - 2.1 [G Estimation from Kinematics](#21-g-estimation-from-kinematics)
+   - 2.2 [Physics of Understeer](#22-physics-of-understeer)
+   - 2.3 [Physics of Oversteer](#23-physics-of-oversteer)
+   - 2.4 [Three-Level Severity System](#24-three-level-severity-system)
+3. [Algorithm and Implementation](#algorithm-and-implementation)
+   - 3.1 [Kinematic G: `calcular_g_desde_cinematica`](#31-kinematic-g-calcular_g_desde_cinematica)
+   - 3.2 [Grip limits: `calcular_limites_dinamicos`](#32-grip-limits-calcular_limites_dinamicos)
+   - 3.3 [Apex-based detection: `detectar_subviraje_sobreviraje`](#33-apex-based-detection-detectar_subviraje_sobreviraje)
+4. [Key Parameters](#key-parameters)
+5. [Interpreting Results](#interpreting-results)
+6. [Recommendations for the Driver](#recommendations-for-the-driver)
+7. [Visualizations](#visualizations)
+8. [References](#references)
 
 ---
 
-## Fundamentos Científicos
+## Overview
 
-### 2.1 Estimación de G desde cinemática
+The lateral dynamics module analyses the vehicle's behaviour at each corner to determine whether the front axle (understeer) or the rear axle (oversteer) is operating beyond the grip limit. Unlike a purely statistical approach, the module works event by event: for each apex detected on the track, a time window is extracted around the point of maximum curvature and two independent physics-based detectors are applied.
 
-Cuando el CSV de telemetría no contiene canales de aceleración directa, el módulo reconstruye las aceleraciones mediante la relación entre velocidad, distancia y curvatura de pista.
+When the telemetry car does not have G-force sensors, the module estimates them from vehicle kinematics using track curvature and instantaneous speed. This allows operation with low-cost data (GPS + speed encoder) while maintaining the accuracy required for setup diagnosis. The module's output is a list of events with type, severity, distance coordinate, and diagnostic text ready to present to the race engineer.
 
-**Aceleración longitudinal** — se aplica la regla de la cadena sobre la derivada de velocidad respecto a la distancia recorrida:
+---
+
+## Scientific Foundations
+
+### 2.1 G Estimation from Kinematics
+
+When the telemetry CSV does not contain direct acceleration channels, the module reconstructs the accelerations using the relationship between speed, distance, and track curvature.
+
+**Longitudinal acceleration** — the chain rule is applied to the derivative of speed with respect to distance travelled:
 
 $$
 a_{lon} = \frac{dv}{dt} = \frac{dv}{ds} \cdot \frac{ds}{dt} = \frac{dv}{ds} \cdot v
 $$
 
-En unidades de g:
+In g units:
 
 $$
 G_{lon} = \frac{v \cdot \dfrac{dv}{ds}}{9.81}
 $$
 
-donde $v$ es la velocidad instantánea en m/s y $s$ es la distancia acumulada en metros. La derivada $dv/ds$ se estima con diferencias centradas usando `numpy.gradient`.
+where $v$ is instantaneous speed in m/s and $s$ is accumulated distance in metres. The derivative $dv/ds$ is estimated with centred differences using `numpy.gradient`.
 
-**Aceleración lateral** — un vehículo que sigue una trayectoria de curvatura $\kappa$ a velocidad $v$ experimenta aceleración centrípeta:
+**Lateral acceleration** — a vehicle following a trajectory of curvature $\kappa$ at speed $v$ experiences centripetal acceleration:
 
 $$
 a_{lat} = v^2 \cdot \kappa
 $$
 
-En unidades de g:
+In g units:
 
 $$
 G_{lat} = \frac{v^2 \cdot \kappa}{9.81}
 $$
 
-donde $\kappa$ (m⁻¹) es la curvatura de la línea de referencia de la pista, interpolada sobre el eje de distancia del lap alineado. El valor de $\kappa$ se obtiene del módulo de geometría de pista y se interpola linealmente sobre los puntos del lap con `scipy.interpolate.interp1d`.
+where $\kappa$ (m⁻¹) is the curvature of the track reference line, interpolated over the aligned lap's distance axis. The value of $\kappa$ is obtained from the track geometry module and linearly interpolated over the lap points using `scipy.interpolate.interp1d`.
 
-> **Nota de precisión:** Esta estimación supone que el piloto sigue fielmente la línea de referencia. En condiciones de subviraje o sobreviraje activo, el coche se desvía de la línea y el $G_{lat}$ real puede diferir del estimado. Esta discrepancia es precisamente la señal que el detector de subviraje aprovecha.
+> **Accuracy note:** This estimation assumes the driver faithfully follows the reference line. Under active understeer or oversteer conditions, the car deviates from the line and the actual $G_{lat}$ may differ from the estimate. This discrepancy is precisely the signal exploited by the understeer detector.
 
 ---
 
-### 2.2 Física del Subviraje
+### 2.2 Physics of Understeer
 
-El subviraje ocurre cuando el eje delantero alcanza la saturación de adherencia antes que el trasero. El piloto percibe que, al añadir ángulo de volante, el coche no gira más sino que tiende a seguir recto (el vector de fuerza lateral delantera no aumenta con el ángulo de deslizamiento).
+Understeer occurs when the front axle reaches grip saturation before the rear. The driver perceives that, upon adding steering angle, the car does not turn further but instead tends to go straight (the front lateral force vector does not increase with the slip angle).
 
-**Criterio cinemático de detección:**
+**Kinematic detection criterion:**
 
 $$
-\text{Subviraje} \iff \underbrace{\frac{d\delta}{dt} > \theta_{sub}}_{\text{volante en aumento}} \quad \wedge \quad \underbrace{\left|\frac{dG_{lat}}{dt}\right| < \epsilon_{sub} \cdot |\delta|}_{\text{respuesta lateral plana}}
+\text{Understeer} \iff \underbrace{\frac{d\delta}{dt} > \theta_{sub}}_{\text{steering increasing}} \quad \wedge \quad \underbrace{\left|\frac{dG_{lat}}{dt}\right| < \epsilon_{sub} \cdot |\delta|}_{\text{flat lateral response}}
 $$
 
-donde:
-- $\delta$ es el ángulo de volante en grados (canal `SteerAngle_Fast`)
-- $\theta_{sub} = 0.10\ \text{rad/muestra}$ es la tasa mínima de aplicación de volante
-- $\epsilon_{sub} = 0.15$ es el umbral de proporcionalidad (`umbral_sub` en código)
-- La condición se evalúa únicamente en la fase de entrada a curva: $d_{apex} - d_i > 0$
+where:
+- $\delta$ is the steering angle in degrees (channel `SteerAngle_Fast`)
+- $\theta_{sub} = 0.10\ \text{rad/sample}$ is the minimum steering application rate
+- $\epsilon_{sub} = 0.15$ is the proportionality threshold (`umbral_sub` in code)
+- The condition is evaluated only during the corner entry phase: $d_{apex} - d_i > 0$
 
-**Aceleración lateral esperada** (referencia teórica para el diagrama de fases):
+**Expected lateral acceleration** (theoretical reference for the phase diagram):
 
 $$
 G_{lat,\text{expected}}(v, \kappa) = \frac{v^2 \kappa}{9.81}
 $$
 
-Un $G_{lat}$ medido significativamente inferior a $G_{lat,\text{expected}}$ con $\delta$ elevado es la firma del subviraje.
+A measured $G_{lat}$ significantly lower than $G_{lat,\text{expected}}$ with a high $\delta$ is the signature of understeer.
 
-**Umbrales de tasa de volante y ángulo:**
+**Steering rate and angle thresholds:**
 
 $$
-\text{Severidad} =
+\text{Severity} =
 \begin{cases}
-\text{crítico} & \text{si } \dot\delta \geq 0.6 \text{ rad/s} \;\text{ó}\; \delta > 15° \\
-\text{media}   & \text{si } \dot\delta \geq 0.3 \text{ rad/s} \;\text{ó}\; \delta > 8° \\
-\text{leve}    & \text{en otro caso}
+\text{critical} & \text{if } \dot\delta \geq 0.6 \text{ rad/s} \;\text{or}\; \delta > 15° \\
+\text{medium}   & \text{if } \dot\delta \geq 0.3 \text{ rad/s} \;\text{or}\; \delta > 8° \\
+\text{mild}     & \text{otherwise}
 \end{cases}
 $$
 
 ---
 
-### 2.3 Física del Sobreviraje
+### 2.3 Physics of Oversteer
 
-El sobreviraje se produce cuando el eje trasero pierde adherencia antes que el delantero. El vehículo rota más allá de la demanda de yaw comandada por el ángulo de volante; el piloto debe corregir en sentido contrario a la curva. La firma en telemetría es un **pico brusco de G lateral** seguido de una corrección rápida de volante.
+Oversteer occurs when the rear axle loses grip before the front. The vehicle rotates beyond the yaw demand commanded by the steering angle; the driver must correct in the opposite direction to the corner. The telemetry signature is a **sharp lateral G spike** followed by a rapid steering correction.
 
-**Indicador de jerk lateral:**
+**Lateral jerk indicator:**
 
 $$
 J_{lat}[i] = \left| G_{lat}[i+1] - G_{lat}[i-1] \right|
 $$
 
-Esta diferencia centrada de dos muestras actúa como una aproximación de la derivada temporal discreta de la aceleración lateral (jerk). El jerk es la magnitud física que distingue un cambio gradual de carga lateral (curva larga, sin problema) de un salto repentino (pérdida de adherencia trasera).
+This two-sample centred difference acts as an approximation of the discrete time derivative of lateral acceleration (jerk). Jerk is the physical quantity that distinguishes a gradual change in lateral load (long corner, no problem) from a sudden jump (rear grip loss).
 
-**Criterio de detección de sobreviraje:**
-
-$$
-\text{Sobreviraje} \iff J_{lat}[i] > \theta_{over} \;\wedge\; \text{corrección de volante}
-$$
-
-donde $\theta_{over} = 0.5\ \text{g}$ (`umbral_over` en código) y la corrección de volante se detecta como:
+**Oversteer detection criterion:**
 
 $$
-\text{corrección} \iff \frac{|\delta_{i+1}|}{|\delta_{i-1}|} < 0.7 \;\;\text{ó}\;\; \frac{|\delta_{i+1}|}{|\delta_{i-1}|} > 1.3
+\text{Oversteer} \iff J_{lat}[i] > \theta_{over} \;\wedge\; \text{steering correction}
 $$
 
-Es decir, el volante cambia de magnitud en más de un 30 % en dos muestras, indicando una acción correctiva del piloto.
-
-**Umbrales de severidad basados en múltiplo del umbral base:**
+where $\theta_{over} = 0.5\ \text{g}$ (`umbral_over` in code) and the steering correction is detected as:
 
 $$
-\text{Severidad} =
+\text{correction} \iff \frac{|\delta_{i+1}|}{|\delta_{i-1}|} < 0.7 \;\;\text{or}\;\; \frac{|\delta_{i+1}|}{|\delta_{i-1}|} > 1.3
+$$
+
+That is, the steering changes magnitude by more than 30% in two samples, indicating a corrective action by the driver.
+
+**Severity thresholds based on multiples of the base threshold:**
+
+$$
+\text{Severity} =
 \begin{cases}
-\text{crítico} & \text{si } J_{lat} \geq 2.5 \cdot \theta_{over} = 1.25 \text{ g} \\
-\text{media}   & \text{si } J_{lat} \geq 1.5 \cdot \theta_{over} = 0.75 \text{ g} \\
-\text{leve}    & \text{si } J_{lat} \geq 1.0 \cdot \theta_{over} = 0.50 \text{ g}
+\text{critical} & \text{if } J_{lat} \geq 2.5 \cdot \theta_{over} = 1.25 \text{ g} \\
+\text{medium}   & \text{if } J_{lat} \geq 1.5 \cdot \theta_{over} = 0.75 \text{ g} \\
+\text{mild}     & \text{if } J_{lat} \geq 1.0 \cdot \theta_{over} = 0.50 \text{ g}
 \end{cases}
 $$
 
 ---
 
-### 2.4 Sistema de Severidad en Tres Niveles
+### 2.4 Three-Level Severity System
 
-El sistema de severidad es independiente para subviraje y sobreviraje. La escala es la siguiente:
+The severity system is independent for understeer and oversteer. The scale is as follows:
 
-| Nivel | Código | Implicación física | Urgencia de acción |
+| Level | Code | Physical implication | Action urgency |
 |---|---|---|---|
-| Leve | `leve` | El neumático opera cerca del límite pero el piloto mantiene control | Monitorear, revisar en siguiente sesión |
-| Media | `media` | Saturación parcial repetida; tiempo de vuelta penalizado | Ajuste de setup recomendado antes de la siguiente salida |
-| Crítico | `critico` | Saturación completa o pérdida de control potencial | Acción inmediata: balance de setup, trazada, o reducción de velocidad |
+| Mild | `leve` | The tyre is operating near the limit but the driver maintains control | Monitor, review at next session |
+| Medium | `media` | Repeated partial saturation; lap time penalised | Setup adjustment recommended before next run |
+| Critical | `critico` | Full saturation or potential loss of control | Immediate action: setup balance, driving line, or speed reduction |
 
 ---
 
-## Algoritmo e Implementación
+## Algorithm and Implementation
 
-### 3.1 G cinemático: `calcular_g_desde_cinematica`
+### 3.1 Kinematic G: `calcular_g_desde_cinematica`
 
 ```
-Entradas:
-  df_aligned  — DataFrame indexado por distancia (pasos de 1 m)
-  df_geo      — DataFrame con columnas Distance y Curvature
-  canal_speed — nombre del canal de velocidad (default: "Speed")
+Inputs:
+  df_aligned  — DataFrame indexed by distance (1 m steps)
+  df_geo      — DataFrame with Distance and Curvature columns
+  canal_speed — name of the speed channel (default: "Speed")
 
-Proceso:
-  1. Interpolar κ(s) desde df_geo sobre el eje de distancia de df_aligned
-     usando interp1d(kind='linear', fill_value=0.0)
-  2. Para cada lap (Fast, Slow):
-     a. Convertir velocidad de km/h → m/s; aplicar clip(0.5) para evitar ÷0
+Process:
+  1. Interpolate κ(s) from df_geo over the distance axis of df_aligned
+     using interp1d(kind='linear', fill_value=0.0)
+  2. For each lap (Fast, Slow):
+     a. Convert speed from km/h → m/s; apply clip(0.5) to avoid ÷0
      b. LongitudinalG = gradient(v, 1.0) * v / 9.81   [chain rule]
      c. LateralG      = v² * κ / 9.81
-  3. Escribir columnas LateralG_Fast, LateralG_Slow, LongitudinalG_Fast, LongitudinalG_Slow
+  3. Write columns LateralG_Fast, LateralG_Slow, LongitudinalG_Fast, LongitudinalG_Slow
 ```
 
-El `clip(0.5)` inferior en velocidad es una guardia numérica que evita errores de magnitud al calcular $v^2 \kappa$ cuando el coche está casi parado (pit lane, safety car).
+The lower `clip(0.5)` on speed is a numerical guard that avoids magnitude errors when computing $v^2 \kappa$ while the car is nearly stationary (pit lane, safety car).
 
 ---
 
-### 3.2 Límites de adherencia: `calcular_limites_dinamicos`
+### 3.2 Grip limits: `calcular_limites_dinamicos`
 
-Esta función calcula el vector resultante de G en cada punto del lap y la eficiencia respecto al límite de adherencia del vehículo:
+This function computes the resultant G vector at each point of the lap and the efficiency relative to the vehicle's grip limit:
 
 $$
 G_{sum} = \sqrt{G_{lat}^2 + G_{lon}^2}
@@ -196,15 +198,15 @@ $$
 \eta_G = \frac{G_{sum}}{G_{max,p95}} \times 100\%
 $$
 
-donde $G_{max,p95}$ es el percentil 95 de `G_Sum_Fast` sobre el lap completo. El uso del percentil 95 (en lugar del máximo absoluto) hace la métrica robusta frente a picos espúreos de ruido en la telemetría.
+where $G_{max,p95}$ is the 95th percentile of `G_Sum_Fast` over the complete lap. Using the 95th percentile (rather than the absolute maximum) makes the metric robust against spurious noise spikes in the telemetry.
 
-La eficiencia $\eta_G$ es la base del diagrama GG: puntos con $\eta_G < 60\%$ indican tramos donde el piloto tiene margen de carga sin explotar.
+Efficiency $\eta_G$ is the basis of the GG diagram: points with $\eta_G < 60\%$ indicate sections where the driver has unexploited load capacity.
 
 ---
 
-### 3.3 Detección por apex: `detectar_subviraje_sobreviraje`
+### 3.3 Apex-based detection: `detectar_subviraje_sobreviraje`
 
-**Firma de la función:**
+**Function signature:**
 
 ```python
 detectar_subviraje_sobreviraje(
@@ -218,178 +220,182 @@ detectar_subviraje_sobreviraje(
 ) -> list[dict]
 ```
 
-**Flujo por cada apex:**
+**Flow for each apex:**
 
 ```
-Para cada apex en apexes:
-  1. Extraer ventana de distancia:
+For each apex in apexes:
+  1. Extract distance window:
        [d_apex - ventana_m,  d_apex + ventana_m * 0.5]
        = [d_apex - 60 m,     d_apex + 30 m]
-     (pre-apex más largo: el subviraje se manifiesta en la entrada)
+     (longer pre-apex: understeer manifests during entry)
 
-  2. Suavizado: rolling mean (ventana 3, centrado) sobre SteerAngle y LateralG
+  2. Smoothing: rolling mean (window 3, centred) over SteerAngle and LateralG
      → steer_smooth, lat_smooth
 
-  3. Derivadas:  d_steer = gradient(steer_smooth)
-                 d_lat   = gradient(lat_smooth)
+  3. Derivatives:  d_steer = gradient(steer_smooth)
+                   d_lat   = gradient(lat_smooth)
 
-  4. Detección de subviraje (loop por muestra i):
-       Si steer_smooth[i] < 3°  → skip (no hay entrada real a curva)
+  4. Understeer detection (loop per sample i):
+       If steer_smooth[i] < 3°  → skip (no real corner entry)
        steer_rising = d_steer[i] > 0.1
        lat_flat     = |d_lat[i]| < umbral_sub * |steer_smooth[i]|
-       Si steer_rising AND lat_flat AND muestra antes del apex:
-         → calcular severidad con _sev_subviraje(d_steer[i], steer_smooth[i])
-         → registrar evento y break (un evento por curva)
+       If steer_rising AND lat_flat AND sample before apex:
+         → compute severity with _sev_subviraje(d_steer[i], steer_smooth[i])
+         → record event and break (one event per corner)
 
-  5. Detección de sobreviraje (loop por muestra i):
-       Si |lat_smooth[i]| < 0.3 g → skip (G muy bajo, no hay carga lateral)
+  5. Oversteer detection (loop per sample i):
+       If |lat_smooth[i]| < 0.3 g → skip (G too low, no lateral load)
        lat_jerk = |lat_smooth[i+1] - lat_smooth[i-1]|
-       steer_correction = ratio antes/después > 1.3 ó < 0.7
-       Si lat_jerk > umbral_over AND steer_correction:
-         → calcular severidad con _sev_sobreviraje(lat_jerk, umbral_over)
-         → registrar evento y break
+       steer_correction = before/after ratio > 1.3 or < 0.7
+       If lat_jerk > umbral_over AND steer_correction:
+         → compute severity with _sev_sobreviraje(lat_jerk, umbral_over)
+         → record event and break
 
-  6. Retornar lista de dicts con campos:
+  6. Return list of dicts with fields:
        tipo, curva, distancia, steer_angle/lat_g/jerkyness, severidad, diagnostico
 ```
 
-**Ventana asimétrica:** la ventana pre-apex es de 60 m y la post-apex de 30 m (`ventana_m * 0.5`). Esta asimetría refleja la física: el subviraje ocurre en la fase de entrada (frenada y rotación), mientras que el sobreviraje puede aparecer tanto en la cima como en la salida (potencia + grip). Para pistas con apexes tardíos puede ser necesario ampliar la ventana post-apex ajustando `ventana_m`.
+**Asymmetric window:** the pre-apex window is 60 m and the post-apex window is 30 m (`ventana_m * 0.5`). This asymmetry reflects the physics: understeer occurs during the entry phase (braking and rotation), while oversteer can appear at both the apex and the exit (power + grip). For tracks with late apexes it may be necessary to widen the post-apex window by adjusting `ventana_m`.
 
 ---
 
-## Parámetros Clave
+## Key Parameters
 
-| Parámetro | Valor por defecto | Descripción | Efecto al aumentar |
+| Parameter | Default value | Description | Effect when increased |
 |---|---|---|---|
-| `ventana_m` | 60.0 m | Distancia pre-apex de análisis | Mayor cobertura de curvas lentas; puede incluir tramos de frenada alejados |
-| `umbral_sub` | 0.15 | Coeficiente de proporcionalidad steer→G para subviraje | Más alto: menos eventos detectados (solo subviraje severo) |
-| `umbral_over` | 0.5 g | Jerk lateral mínimo para declarar sobreviraje | Más alto: solo eventos de sobreviraje muy bruscos |
-| `d_steer` leve | 0.10 rad/muestra | Tasa de volante mínima para iniciar detección | — |
-| `d_steer` media | 0.30 rad/muestra | Umbral de clasificación media | — |
-| `d_steer` crítico | 0.60 rad/muestra | Umbral de clasificación crítico | — |
-| Multiplicador jerk media | 1.5 × `umbral_over` | = 0.75 g | — |
-| Multiplicador jerk crítico | 2.5 × `umbral_over` | = 1.25 g | — |
-| `steer_angle` media | 8° | Umbral de ángulo absoluto para severidad media (subviraje) | — |
-| `steer_angle` crítico | 15° | Umbral de ángulo absoluto para severidad crítico | — |
-| Smoothing window | 3 muestras | Rolling mean sobre steer y G antes de derivar | Mayor ventana: detecta solo eventos sostenidos |
-| `max_points` GG | 500 | Máximo de puntos en diagrama GG para el frontend | Reducir si hay lentitud en renderizado web |
-| `g_max` percentil | 95 | Percentil de G_Sum_Fast para calcular límite de adherencia | Más bajo: estima límite más conservador |
+| `ventana_m` | 60.0 m | Pre-apex analysis distance | Wider coverage of slow corners; may include distant braking zones |
+| `umbral_sub` | 0.15 | Proportionality coefficient steer→G for understeer | Higher: fewer events detected (only severe understeer) |
+| `umbral_over` | 0.5 g | Minimum lateral jerk to declare oversteer | Higher: only very abrupt oversteer events |
+| `d_steer` mild | 0.10 rad/sample | Minimum steering rate to start detection | — |
+| `d_steer` medium | 0.30 rad/sample | Medium classification threshold | — |
+| `d_steer` critical | 0.60 rad/sample | Critical classification threshold | — |
+| Jerk multiplier medium | 1.5 × `umbral_over` | = 0.75 g | — |
+| Jerk multiplier critical | 2.5 × `umbral_over` | = 1.25 g | — |
+| `steer_angle` medium | 8° | Absolute angle threshold for medium severity (understeer) | — |
+| `steer_angle` critical | 15° | Absolute angle threshold for critical severity | — |
+| Smoothing window | 3 samples | Rolling mean over steer and G before differentiating | Larger window: detects only sustained events |
+| `max_points` GG | 500 | Maximum points in the GG diagram for the frontend | Reduce if web rendering is slow |
+| `g_max` percentile | 95 | Percentile of G_Sum_Fast to compute grip limit | Lower: produces a more conservative limit estimate |
 
 ---
 
-## Interpretación de Resultados
+## Interpreting Results
 
-### Evento de subviraje
+### Understeer event
 
-Un evento tiene los campos:
-- `steer_angle`: ángulo de volante en el momento del evento (grados). Valores > 10° con G_lat < 0.5 g son señal de saturación pronunciada.
-- `lat_g`: G lateral en el instante detectado. Si es < 0.4 g en una curva donde el coche podría mantener > 0.9 g, hay un problema de entrada.
-- `severidad`: ver tabla anterior. Un evento `critico` en la misma curva en más del 50 % de las vueltas indica un problema estructural de setup o trazada.
+An event has the following fields:
+- `steer_angle`: steering angle at the moment of the event (degrees). Values > 10° with G_lat < 0.5 g are a sign of pronounced saturation.
+- `lat_g`: lateral G at the detected instant. If < 0.4 g in a corner where the car could sustain > 0.9 g, there is an entry problem.
+- `severidad`: see the table above. A `critico` event in the same corner on more than 50% of laps indicates a structural setup or driving-line problem.
 
-**Banderas rojas:**
-- Tres o más curvas consecutivas con subviraje `media` o `critico` sugieren un balance general del vehículo inclinado hacia el morro pesado.
-- Subviraje `critico` en curvas rápidas (alta velocidad) implica riesgo de seguridad por posible falta de respuesta del eje delantero.
-- Si `steer_angle` crece hacia la cima (apex) sin aumento de `lat_g`, el piloto está realizando correcciones ineficaces que generan resistencia aerodinámica.
+**Red flags:**
+- Three or more consecutive corners with `media` or `critico` understeer suggest a general vehicle balance biased towards a heavy front end.
+- `critico` understeer in fast corners (high speed) implies a safety risk due to potential lack of front-axle response.
+- If `steer_angle` increases towards the apex without an increase in `lat_g`, the driver is making ineffective corrections that generate aerodynamic drag.
 
-### Evento de sobreviraje
+### Oversteer event
 
-- `jerkyness`: magnitud del jerk lateral en g. Valores > 1.0 g en curvas lentas son indicativos de sobreviraje repentino, posiblemente por aceleración anticipada o diferencial muy cerrado.
-- `lat_g` en el momento del evento: valores muy altos (> 1.5 g) con jerk elevado indican que el piloto ha excedido el límite de adherencia trasero bajo alta carga lateral.
+- `jerkyness`: magnitude of lateral jerk in g. Values > 1.0 g in slow corners are indicative of sudden oversteer, possibly due to early throttle application or a very locked differential.
+- `lat_g` at the moment of the event: very high values (> 1.5 g) combined with high jerk indicate the driver has exceeded the rear grip limit under high lateral load.
 
-**Banderas rojas:**
-- Sobreviraje `critico` recurrente en la salida de curvas de baja velocidad: diferencial demasiado cerrado o neumáticos traseros sobretemperados.
-- Sobreviraje `media` en curvas de alta velocidad: potencialmente peligroso; revisar balance aerodinámico (downforce trasero insuficiente).
-- Múltiples eventos `leve` en la misma curva en diferentes vueltas: barra estabilizadora trasera demasiado rígida o presión trasera elevada.
+**Red flags:**
+- Recurring `critico` oversteer at the exit of low-speed corners: differential too locked or rear tyres over-temperature.
+- `media` oversteer in high-speed corners: potentially dangerous; review aerodynamic balance (insufficient rear downforce).
+- Multiple `leve` events in the same corner on different laps: rear anti-roll bar too stiff or elevated rear tyre pressure.
 
-### G Efficiency y diagrama GG
+### G Efficiency and GG diagram
 
-- $\eta_G < 60\%$ en un tramo largo: el piloto está infrautilizando la capacidad del coche. Puede indicar exceso de precaución o trazada subóptima.
-- La forma del diagrama GG (nube de puntos `G_lat` vs `G_lon`) debe aproximar una elipse simétrica para un setup equilibrado. Una nube asimétrica hacia los cuadrantes de frenada o aceleración indica desequilibrio.
-
----
-
-## Recomendaciones para el Piloto
-
-Las siguientes recomendaciones se derivan directamente del diagnóstico generado por `_diag_subviraje` y `_diag_sobreviraje`:
-
-**Subviraje leve** (`leve`)
-- La velocidad de entrada es marginalmente elevada. Retrasar el punto de frenado 5–10 m y verificar si desaparece el evento antes de tocar el setup.
-- Si el evento persiste con la misma trazada, evaluar suavizar la barra estabilizadora delantera un clic.
-
-**Subviraje moderado** (`media`)
-- El piloto está añadiendo volante sin obtener rotación. Revisar el punto de apuntado: entrar más tarde y más lento permite al coche rotar antes del apex.
-- Setup: incrementar el balance de frenada hacia atrás (más freno trasero) para ayudar a la rotación de entrada.
-- Verificar presión delantera: presión elevada reduce el área de contacto y puede causar subviraje en frío.
-
-**Subviraje crítico** (`critico`)
-- El tren delantero está completamente saturado. No intentar compensar con más volante; esto aumenta el ángulo de deslizamiento y reduce aún más la fuerza lateral.
-- Reducir la velocidad de entrada de forma significativa (> 10 km/h) y trabajar con el ingeniero en el balance de setup (muelle delantero, barra estabilizadora, geometría de suspensión).
-
-**Sobreviraje leve** (`leve`)
-- Movimiento de cola controlado. Monitorear temperatura de neumáticos traseros: si están en el límite superior de la ventana operativa, reducir presión 0.1 bar.
-- No requiere acción inmediata; documentar condiciones de pista (temperatura, degradación).
-
-**Sobreviraje moderado** (`media`)
-- Evaluar la apertura del diferencial en la fase de aceleración de salida de curva.
-- Reducir la rigidez de la barra estabilizadora trasera o incrementar el rebote trasero puede reducir la brusquedad de la transferencia de carga.
-
-**Sobreviraje crítico** (`critico`)
-- El tren trasero se desplaza violentamente. Verificar presión de neumáticos traseros, desgaste asimétrico y temperatura de diferencial.
-- Revisar la configuración de diferencial (rampa de aceleración). Un diferencial demasiado cerrado en aceleración bloquea el eje trasero y provoca sobreviraje de potencia.
-- Considerar reducir el ángulo de salida (más trazada exterior antes de aplicar gas) hasta resolver el problema de setup.
+- $\eta_G < 60\%$ over a long section: the driver is underutilising the car's capacity. This may indicate excessive caution or a suboptimal driving line.
+- The shape of the GG diagram (scatter plot of `G_lat` vs `G_lon`) should approximate a symmetric ellipse for a balanced setup. A cloud skewed towards the braking or acceleration quadrants indicates an imbalance.
 
 ---
 
-## Visualizaciones
+## Recommendations for the Driver
 
-Las siguientes figuras son generadas por `scripts/docs/gen_dynamics.py` con datos sintéticos que replican los patrones reales detectados por el módulo.
+The following recommendations are derived directly from the diagnostic generated by `_diag_subviraje` and `_diag_sobreviraje`:
+
+**Mild understeer** (`leve`)
+- Entry speed is marginally too high. Delay the braking point by 5–10 m and verify whether the event disappears before touching the setup.
+- If the event persists with the same driving line, consider softening the front anti-roll bar by one click.
+
+**Moderate understeer** (`media`)
+- The driver is adding steering lock without obtaining rotation. Review the turn-in point: entering later and slower allows the car to rotate before the apex.
+- Setup: shift the brake bias rearward (more rear brake) to aid entry rotation.
+- Check front tyre pressure: elevated pressure reduces the contact patch and can cause cold understeer.
+
+**Critical understeer** (`critico`)
+- The front axle is fully saturated. Do not attempt to compensate with more steering lock; this increases the slip angle and further reduces lateral force.
+- Reduce entry speed significantly (> 10 km/h) and work with the engineer on setup balance (front spring, anti-roll bar, suspension geometry).
+
+**Mild oversteer** (`leve`)
+- Controlled tail movement. Monitor rear tyre temperatures: if they are at the upper limit of the operating window, reduce pressure by 0.1 bar.
+- No immediate action required; document track conditions (temperature, degradation).
+
+**Moderate oversteer** (`media`)
+- Evaluate the differential opening during the corner-exit acceleration phase.
+- Reducing rear anti-roll bar stiffness or increasing rear rebound can reduce the abruptness of the load transfer.
+
+**Critical oversteer** (`critico`)
+- The rear axle is displacing violently. Check rear tyre pressures, asymmetric wear, and differential temperature.
+- Review the differential configuration (acceleration ramp). A differential that is too locked under acceleration locks the rear axle and causes power oversteer.
+- Consider running a wider exit line (more track on the outside before applying throttle) until the setup issue is resolved.
 
 ---
 
-### Figura 1 — Detección de Subviraje
+## Visualizations
+
+The following figures are generated by `scripts/docs/gen_dynamics.py` using synthetic data that replicates the real patterns detected by the module.
+
+---
+
+### Figure 1 — Understeer Detection
 
 ![Understeer Detection](./images/dynamics/understeer_detection.png)
 
-**Panel superior (Steer Angle):** Serie temporal del ángulo de volante. La zona sombreada en rojo corresponde al intervalo donde el detector identifica subviraje: el ángulo de volante sube de forma continua (tasa > 0.1 rad/muestra) mientras que la respuesta lateral no aumenta proporcionalmente. Las líneas horizontales discontinuas marcan los umbrales de severidad media (8°, naranja) y crítico (15°, rojo). La anotación señala el instante de mayor tasa de aplicación de volante.
+**Upper panel (Steer Angle):** Time series of steering angle. The red shaded zone corresponds to the interval where the detector identifies understeer: the steering angle rises continuously (rate > 0.1 rad/sample) while the lateral response does not increase proportionally. The dashed horizontal lines mark the medium severity threshold (8°, orange) and the critical threshold (15°, red). The annotation indicates the instant of maximum steering application rate.
 
-**Panel inferior (Lateral G):** G lateral registrado en el mismo intervalo de tiempo. La línea discontinua cian marca el $G_{lat,\text{expected}}$ calculado a partir de velocidad y curvatura de pista. La divergencia creciente entre la línea esperada y la medida es la firma característica del subviraje: el coche debería generar 0.80 g pero el eje delantero saturado solo entrega ~0.70 g.
+**Lower panel (Lateral G):** Lateral G recorded over the same time interval. The dashed cyan line marks the $G_{lat,\text{expected}}$ computed from speed and track curvature. The growing divergence between the expected line and the measured value is the characteristic signature of understeer: the car should be generating 0.80 g but the saturated front axle delivers only ~0.70 g.
 
 ---
 
-### Figura 2 — Detección de Sobreviraje
+### Figure 2 — Oversteer Detection
 
 ![Oversteer Detection](./images/dynamics/oversteer_detection.png)
 
-**Panel superior (Lateral G):** El pico abrupto de G lateral alrededor de t = 4–5 s indica el instante en que el tren trasero pierde adherencia. La velocidad de cambio (pendiente) es mucho mayor que en una curva normal. La zona sombreada en rojo delimita el evento de sobreviraje completo (inicio del pico hasta la corrección).
+**Upper panel (Lateral G):** The abrupt lateral G spike around t = 4–5 s indicates the instant at which the rear axle loses grip. The rate of change (slope) is much greater than in a normal corner. The red shaded zone delimits the complete oversteer event (from the start of the spike to the correction).
 
-**Panel inferior (Lateral Jerk):** Magnitud del jerk lateral $J_{lat} = |G_{lat}[i+1] - G_{lat}[i-1]|$. Las tres líneas discontinuas horizontales marcan los umbrales de severidad: verde (leve, 0.50 g/s), naranja (media, 0.75 g/s) y rojo (crítico, 1.25 g/s). El pico del jerk en la figura supera el umbral crítico, lo que clasifica el evento como `critico`. Nótese que el jerk decae rápidamente después del pico, reflejando la corrección del piloto.
+**Lower panel (Lateral Jerk):** Magnitude of lateral jerk $J_{lat} = |G_{lat}[i+1] - G_{lat}[i-1]|$. The three dashed horizontal lines mark the severity thresholds: green (mild, 0.50 g/s), orange (medium, 0.75 g/s), and red (critical, 1.25 g/s). The jerk peak in the figure exceeds the critical threshold, classifying the event as `critico`. Note that the jerk decays rapidly after the peak, reflecting the driver's correction.
 
 ---
 
-### Figura 3 — Diagrama de Severidad: Subviraje vs Sobreviraje
+### Figure 3 — Severity Diagram: Understeer vs Oversteer
 
 ![Severity Diagram](./images/dynamics/severity_diagram.png)
 
-Diagrama de dispersión bidimensional de todos los eventos detectados en el análisis de un lap completo. El eje X representa la tasa de aplicación de volante (`steer_rate`, rad/muestra) y el eje Y el jerk lateral normalizado (`lat_jerk / umbral_over`).
+Two-dimensional scatter plot of all events detected in the analysis of a complete lap. The X axis represents the steering application rate (`steer_rate`, rad/sample) and the Y axis represents normalised lateral jerk (`lat_jerk / umbral_over`).
 
-**Cuadrantes:**
-- **Superior izquierdo (Sobreviraje dominante):** eventos con jerk elevado y steer_rate bajo. Son los eventos de pérdida trasera, típicamente en la salida de curva.
-- **Inferior derecho (Subviraje dominante):** steer_rate alto pero jerk bajo. El piloto añade volante sin que el coche responda.
-- **Superior derecho (Mixto inestable):** alta actividad en ambos canales. Puede indicar un coche nervioso con balance incorrecto o condiciones de pista variables.
-- **Inferior izquierdo (Zona neutra):** eventos de baja intensidad. No requieren acción inmediata.
+**Quadrants:**
+- **Upper left (Oversteer dominant):** events with high jerk and low steer_rate. These are rear-loss events, typically at corner exit.
+- **Lower right (Understeer dominant):** high steer_rate but low jerk. The driver is adding steering lock without the car responding.
+- **Upper right (Mixed, unstable):** high activity in both channels. May indicate a nervous car with incorrect balance or variable track conditions.
+- **Lower left (Neutral zone):** low-intensity events. No immediate action required.
 
-El **tamaño de cada punto** representa la severidad (leve = 40, media = 100, crítico = 220). El **color** distingue el tipo de evento: cian para subviraje, rojo para sobreviraje. Los ingenieros de carrera deben prestar especial atención a los puntos grandes en los cuadrantes extremos.
+The **size of each point** represents severity (mild = 40, medium = 100, critical = 220). The **colour** distinguishes event type: cyan for understeer, red for oversteer. Race engineers should pay particular attention to large points in the extreme quadrants.
 
 ---
 
-## Referencias
+## References
 
-1. Milliken, W. F., & Milliken, D. L. (1995). *Race Car Vehicle Dynamics*. SAE International. — Capítulo 5: Steady-state cornering; Capítulo 18: Transient response and lateral jerk in oversteer detection.
+1. Milliken, W. F., & Milliken, D. L. (1995). *Race Car Vehicle Dynamics*. SAE International. — Chapter 5: Steady-state cornering; Chapter 18: Transient response and lateral jerk in oversteer detection.
 
-2. Beckman, B. (1991). *The Physics of Racing*. Series self-published. Parts 1–12. — Derivación de G lateral desde curvatura cinemática; análisis de saturación de neumático.
+2. Beckman, B. (1991). *The Physics of Racing*. Series self-published. Parts 1–12. — Derivation of lateral G from kinematic curvature; analysis of tyre saturation.
 
-3. Dixon, J. C. (1996). *Tires, Suspension and Handling* (2nd ed.). SAE International. — Modelos de saturación del neumático; relación entre ángulo de deslizamiento y fuerza lateral; comportamiento en límite de adherencia.
+3. Dixon, J. C. (1996). *Tires, Suspension and Handling* (2nd ed.). SAE International. — Tyre saturation models; relationship between slip angle and lateral force; behaviour at the grip limit.
 
-4. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Métodos de detección de subviraje/sobreviraje desde canales de steer angle y aceleración lateral; análisis de derivadas temporales de telemetría.
+4. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Understeer/oversteer detection methods from steer angle and lateral acceleration channels; analysis of temporal derivatives in telemetry.
 
-5. Pacejka, H. B. (2012). *Tire and Vehicle Dynamics* (3rd ed.). Butterworth-Heinemann / Elsevier. — Modelo de Magic Formula; explicación matemática de la transición a sobreviraje como pérdida de estabilidad del eje trasero (Capítulo 7).
+5. Pacejka, H. B. (2012). *Tire and Vehicle Dynamics* (3rd ed.). Butterworth-Heinemann / Elsevier. — Magic Formula model; mathematical explanation of the transition to oversteer as rear-axle stability loss (Chapter 7).
+
+---
+
+*This document is the English translation of [04_dynamics.es.md](./04_dynamics.es.md). The source language is Spanish. All equations, pseudocode, Python code, and file paths are kept verbatim from the original.*

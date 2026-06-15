@@ -1,115 +1,117 @@
-# Brake Fade — Eficiencia y Degradación de Frenado
+# Brake Fade — Braking Efficiency & Degradation
 
-**Módulo:** `src/analytics/brake_fade.py`  
-**Fecha de revisión:** 2026-06-12
+🌐 [Ver en Español](./10_brake_fade.es.md)
+
+**Module:** `src/analytics/brake_fade.py`  
+**Review date:** 2026-06-12
 
 ---
 
-## Tabla de Contenidos
+## Table of Contents
 
-1. [Descripción General](#descripción-general)
-2. [Fundamentos Científicos](#fundamentos-científicos)
-   - 2.1 [Física del Brake Fade](#21-física-del-brake-fade)
-   - 2.2 [Métrica de Eficiencia de Frenado](#22-métrica-de-eficiencia-de-frenado)
-   - 2.3 [Detección de Degradación Progresiva](#23-detección-de-degradación-progresiva)
-3. [Algoritmo e Implementación](#algoritmo-e-implementación)
+1. [Overview](#overview)
+2. [Scientific Background](#scientific-background)
+   - 2.1 [Physics of Brake Fade](#21-physics-of-brake-fade)
+   - 2.2 [Braking Efficiency Metric](#22-braking-efficiency-metric)
+   - 2.3 [Progressive Degradation Detection](#23-progressive-degradation-detection)
+3. [Algorithm & Implementation](#algorithm--implementation)
    - 3.1 [`_efficiency_series`](#31-_efficiency_series)
    - 3.2 [`_fade_zones`](#32-_fade_zones)
-   - 3.3 [`analizar_eficiencia_frenado`](#33-analizar_eficiencia_frenado)
-4. [Parámetros Clave](#parámetros-clave)
-5. [Interpretación de Resultados](#interpretación-de-resultados)
-6. [Recomendaciones para el Piloto](#recomendaciones-para-el-piloto)
-7. [Visualizaciones](#visualizaciones)
-8. [Referencias](#referencias)
+   - 3.3 [`analyse_braking_efficiency`](#33-analyse_braking_efficiency)
+4. [Key Parameters](#key-parameters)
+5. [Result Interpretation](#result-interpretation)
+6. [Pilot Recommendations](#pilot-recommendations)
+7. [Visualizations](#visualizations)
+8. [References](#references)
 
 ---
 
-## Descripción General
+## Overview
 
-El módulo de brake fade cuantifica la eficiencia del sistema de frenado vuelta a vuelta cruzando la presión ejercida sobre el pedal (canal `Brake`, en % de recorrido) con la desaceleración longitudinal generada (canal `LongitudinalG`, en g). Un piloto que aplica la misma presión pero obtiene menos G de desaceleración al final del stint está experimentando brake fade térmico: la temperatura acumulada en los discos reduce el coeficiente de rozamiento del compuesto de freno.
+The brake fade module quantifies braking system efficiency lap by lap by crossing the pedal pressure applied (`Brake` channel, in % travel) with the longitudinal deceleration generated (`LongitudinalG` channel, in g). A driver applying the same pressure but obtaining less deceleration G at the end of the stint is experiencing thermal brake fade: the heat accumulated in the discs reduces the friction coefficient of the brake pad compound.
 
-El módulo trabaja sobre el DataFrame alineado (sufijos `_Fast` / `_Slow`) para comparar la evolución de la eficiencia entre dos vueltas y localizar las zonas de la pista donde la degradación es más pronunciada.
+The module works on the aligned DataFrame (`_Fast` / `_Slow` suffixes) to compare efficiency evolution between two laps and locate the track zones where degradation is most pronounced.
 
 ---
 
-## Fundamentos Científicos
+## Scientific Background
 
-### 2.1 Física del Brake Fade
+### 2.1 Physics of Brake Fade
 
-El brake fade ocurre cuando la temperatura de los discos supera el rango operativo del compuesto de pastilla. Existen dos mecanismos principales:
+Brake fade occurs when disc temperature exceeds the pad compound's operating range. There are two main mechanisms:
 
-**Fade de compuesto (pad fade):** La resina aglomerante de la pastilla comienza a volatilizarse, creando una capa de gas entre la pastilla y el disco que actúa como lubricante y reduce el coeficiente de rozamiento μ:
+**Compound fade (pad fade):** The binder resin in the pad begins to vaporise, creating a gas layer between pad and disc that acts as a lubricant and reduces the friction coefficient μ:
 
 $$
 \mu_{fade}(T) \approx \mu_0 \cdot \left(1 - k_{fade} \cdot \frac{T - T_{fade}}{T_{ref}}\right)
 $$
 
-donde $T_{fade}$ es la temperatura de inicio del fade y $k_{fade}$ es la tasa de degradación específica del compuesto.
+where $T_{fade}$ is the fade onset temperature and $k_{fade}$ is the compound-specific degradation rate.
 
-**Fade de fluido (fluid fade):** El líquido de frenos hierve en las tuberías o en el cilindro de rueda, generando burbujas de vapor compresibles que hacen que el pedal se hunda antes de generar presión efectiva. Este tipo de fade es más brusco e impredecible.
+**Fluid fade:** The brake fluid boils in the lines or wheel cylinder, generating compressible vapour bubbles that cause the pedal to sink before generating effective pressure. This type of fade is more abrupt and unpredictable.
 
-En ambos casos, la señal en telemetría es la misma: la presión del pedal aumenta (o se mantiene constante) mientras la desaceleración generada disminuye.
-
----
-
-### 2.2 Métrica de Eficiencia de Frenado
-
-La eficiencia instantánea en cada punto de frenada se define como:
-
-$$
-\eta_{freno}(s) = \frac{|G_{lon}(s)|}{p_{brake}(s) / 100}
-$$
-
-donde:
-- $|G_{lon}(s)|$ es la desaceleración longitudinal en g (valor absoluto; la señal es negativa durante la frenada)
-- $p_{brake}(s)$ es la presión del pedal como porcentaje del recorrido máximo (0–100%)
-- El cociente tiene unidades de **g por unidad de presión relativa**
-
-La métrica solo se computa en zonas de frenada activa:
-
-$$
-\text{zona de frenado} \iff p_{brake}(s) \geq 15\% \;\wedge\; G_{lon}(s) < -0.05 \text{ g}
-$$
-
-Fuera de estas zonas, $\eta_{freno}$ se deja como NaN para no contaminar el análisis.
+In both cases, the telemetry signal is the same: pedal pressure increases (or remains constant) while the deceleration generated decreases.
 
 ---
 
-### 2.3 Detección de Degradación Progresiva
+### 2.2 Braking Efficiency Metric
 
-El baseline de eficiencia se calcula como la media de $\eta_{freno}$ en el **primer tercio de la vuelta**, donde los frenos aún no han alcanzado la temperatura máxima del stint. Una caída relativa superior al umbral `FADE_DROP` respecto al baseline indica fade activo:
-
-$$
-\text{Fade} \iff \eta_{freno}(s) < \text{baseline} \cdot (1 - \Delta_{fade})
-$$
-
-donde $\Delta_{fade} = 0.15$ (15% de caída relativa respecto al baseline inicial).
-
-Las zonas de fade se agrupan en intervalos contiguos y se reportan con su severidad:
+Instantaneous efficiency at each braking point is defined as:
 
 $$
-\text{severity}_z = 1 - \frac{\min(\eta_{freno}) \text{ en zona}}{\text{baseline}}
+\eta_{brake}(s) = \frac{|G_{lon}(s)|}{p_{brake}(s) / 100}
+$$
+
+where:
+- $|G_{lon}(s)|$ is the longitudinal deceleration in g (absolute value; the signal is negative during braking)
+- $p_{brake}(s)$ is the pedal pressure as a percentage of maximum travel (0–100%)
+- The ratio has units of **g per unit of relative pressure**
+
+The metric is only computed in active braking zones:
+
+$$
+\text{braking zone} \iff p_{brake}(s) \geq 15\% \;\wedge\; G_{lon}(s) < -0.05 \text{ g}
+$$
+
+Outside these zones, $\eta_{brake}$ is left as NaN to avoid contaminating the analysis.
+
+---
+
+### 2.3 Progressive Degradation Detection
+
+The efficiency baseline is calculated as the mean of $\eta_{brake}$ in the **first third of the lap**, where the brakes have not yet reached the stint's peak temperature. A relative drop greater than the `FADE_DROP` threshold with respect to the baseline indicates active fade:
+
+$$
+\text{Fade} \iff \eta_{brake}(s) < \text{baseline} \cdot (1 - \Delta_{fade})
+$$
+
+where $\Delta_{fade} = 0.15$ (15% relative drop from the initial baseline).
+
+Fade zones are grouped into contiguous intervals and reported with their severity:
+
+$$
+\text{severity}_z = 1 - \frac{\min(\eta_{brake}) \text{ in zone}}{\text{baseline}}
 $$
 
 ---
 
-## Algoritmo e Implementación
+## Algorithm & Implementation
 
 ### 3.1 `_efficiency_series`
 
 ```
-Entradas:
-  brake  — presión de pedal (%, Series)
-  lon_g  — aceleración longitudinal (g, Series)
+Inputs:
+  brake  — pedal pressure (%, Series)
+  lon_g  — longitudinal acceleration (g, Series)
 
-Proceso:
-  1. Crear máscara: braking = (brake >= 15%) AND (lon_g < -0.05 g)
-  2. Para muestras en braking:
+Process:
+  1. Create mask: braking = (brake >= 15%) AND (lon_g < -0.05 g)
+  2. For samples in braking:
        eff = |lon_g| / (brake / 100)
-       (denominador clippeado a EFFICIENCY_FLOOR = 0.01 para evitar ÷0)
-  3. Para muestras fuera de braking: eff = NaN
+       (denominator clipped to EFFICIENCY_FLOOR = 0.01 to avoid ÷0)
+  3. For samples outside braking: eff = NaN
 
-Salida: pd.Series de eficiencia, NaN fuera de zonas de frenado
+Output: pd.Series of efficiency, NaN outside braking zones
 ```
 
 ---
@@ -117,39 +119,39 @@ Salida: pd.Series de eficiencia, NaN fuera de zonas de frenado
 ### 3.2 `_fade_zones`
 
 ```
-Entradas:
-  distance — eje de distancia (m)
-  eff      — eficiencia por muestra (NaN fuera de zonas de frenado)
-  baseline — eficiencia de referencia (primer tercio del lap)
+Inputs:
+  distance — distance axis (m)
+  eff      — efficiency per sample (NaN outside braking zones)
+  baseline — reference efficiency (first third of lap)
 
-Proceso:
-  threshold = baseline * (1 - 0.15)   # caída >15%
-  1. Recorrer series punto a punto
-  2. Si eff < threshold → marcar inicio de zona fade (si no estaba ya en una)
-  3. Al salir de zona → registrar {start, end, severity}
-     severity = 1 - (eff_mínima_en_zona / baseline)
+Process:
+  threshold = baseline * (1 - 0.15)   # >15% drop
+  1. Iterate over series point by point
+  2. If eff < threshold → mark fade zone start (if not already in one)
+  3. On zone exit → record {start, end, severity}
+     severity = 1 - (min_eff_in_zone / baseline)
 
-Salida: lista de dicts [{start, end, severity}, ...]
+Output: list of dicts [{start, end, severity}, ...]
 ```
 
 ---
 
-### 3.3 `analizar_eficiencia_frenado`
+### 3.3 `analyse_braking_efficiency`
 
 ```
-Entradas:
-  df — DataFrame alineado con Brake_Fast, LongitudinalG_Fast, Brake_Slow, LongitudinalG_Slow
+Inputs:
+  df — aligned DataFrame with Brake_Fast, LongitudinalG_Fast, Brake_Slow, LongitudinalG_Slow
 
-Para cada vuelta (A = _Fast, B = _Slow):
-  1. Calcular eff = _efficiency_series(brake, lon_g)
-  2. baseline = mean(eff en el primer tercio, dropna)
-  3. score    = mean(eff completa, dropna)
+For each lap (A = _Fast, B = _Slow):
+  1. Calculate eff = _efficiency_series(brake, lon_g)
+  2. baseline = mean(eff in first third, dropna)
+  3. score    = mean(eff overall, dropna)
   4. fade_zones = _fade_zones(distance, eff, baseline)
 
-Salida por distancia (downsampled × 5):
+Per-distance output (downsampled × 5):
   distance, efficiency_a, efficiency_b
 
-Retorna dict con:
+Returns dict with:
   available, available_a, available_b,
   score_a, score_b, baseline_a, baseline_b,
   fade_zones_a, fade_zones_b,
@@ -158,93 +160,97 @@ Retorna dict con:
 
 ---
 
-## Parámetros Clave
+## Key Parameters
 
-| Parámetro | Valor por defecto | Descripción |
+| Parameter | Default value | Description |
 |---|---|---|
-| `BRAKE_THRESHOLD` | 15% | Presión mínima del pedal para declarar zona de frenado |
-| `DECEL_THRESHOLD` | 0.05 g | Desaceleración mínima para confirmar frenada activa |
-| `EFFICIENCY_FLOOR` | 0.01 | Clamping mínimo del denominador (evita ÷0) |
-| `FADE_DROP` | 0.15 (15%) | Caída relativa del baseline que define fade activo |
-| `DOWNSAMPLE` | 5 | Factor de reducción para la serie por distancia |
+| `BRAKE_THRESHOLD` | 15% | Minimum pedal pressure to declare a braking zone |
+| `DECEL_THRESHOLD` | 0.05 g | Minimum deceleration to confirm active braking |
+| `EFFICIENCY_FLOOR` | 0.01 | Minimum denominator clamp (avoids ÷0) |
+| `FADE_DROP` | 0.15 (15%) | Relative baseline drop that defines active fade |
+| `DOWNSAMPLE` | 5 | Reduction factor for the per-distance series |
 
 ---
 
-## Interpretación de Resultados
+## Result Interpretation
 
-### Score global de eficiencia
+### Global efficiency score
 
-El `score` es la media de $\eta_{freno}$ en todas las zonas de frenado de la vuelta. Un score mayor indica frenos más eficientes para la presión aplicada. La diferencia entre el score de la vuelta A y B, combinada con el análisis de zonas, permite distinguir:
+The `score` is the mean of $\eta_{brake}$ across all braking zones in the lap. A higher score indicates more efficient brakes for the pressure applied. The difference between Lap A and Lap B scores, combined with zone analysis, allows distinction between:
 
-- **Score similar, sin zonas de fade:** ambas vueltas tienen frenos en buen estado — la diferencia de tiempo de vuelta no viene del sistema de frenado.
-- **Score degradado en B + zonas de fade al final de la vuelta:** fade progresivo; los frenos del stint B llegaron a temperatura operativa límite.
-- **Score degradado en A desde la primera frenada:** posible error de baseline (neumáticos o frenos fríos), problema mecánico, o frenos sobredimensionados para la pista.
+- **Similar scores, no fade zones:** both laps have brakes in good condition — the lap time difference does not come from the braking system.
+- **Degraded score in B + fade zones at end of lap:** progressive fade; Lap B stint brakes reached their thermal operating limit.
+- **Degraded score in A from the first braking point:** possible baseline error (cold tyres or brakes), mechanical issue, or brakes oversized for the circuit.
 
-### Severidad de las zonas de fade
+### Fade zone severity
 
-| Severidad | Rango | Acción recomendada |
+| Severity | Range | Recommended action |
 |---|---|---|
-| < 0.15 | Leve degradación | Monitorear en siguiente sesión |
-| 0.15–0.30 | Fade moderado | Revisar temperatura de discos; ajustar cooling |
-| > 0.30 | Fade severo | Cambio de compuesto o ductos de refrigeración |
+| < 0.15 | Mild degradation | Monitor in next session |
+| 0.15–0.30 | Moderate fade | Check disc temperature; adjust cooling |
+| > 0.30 | Severe fade | Compound change or cooling duct modifications |
 
-### Patrones espaciales
+### Spatial patterns
 
-- **Fade concentrado en la primera frenada fuerte** (típicamente la más larga de la pista): los frenos no han disipado suficiente calor entre la última vuelta y la actual. Cooling insuficiente en la vuelta de enfriamiento.
-- **Fade progresivo a lo largo del stint** (zonas aparecen cada vez más tarde en la vuelta): degradación térmica acumulativa. Los discos no vuelven a temperatura base entre vueltas.
-- **Fade puntual en una sola frenada**: posible punto caliente en el disco o pastilla asimétrica. Revisar desgaste diferencial entre los frenos del mismo eje.
-
----
-
-## Recomendaciones para el Piloto
-
-**Fade leve al final del stint:**
-Reducir la presión máxima del pedal un 5% en las dos últimas frenadas fuertes. El coche tardará ligeramente más en frenar pero los frenos llegarán a la siguiente vuelta en mejor estado térmico.
-
-**Fade severo desde la mitad del stint:**
-El compuesto de pastilla está fuera de su rango operativo. Solicitar al ingeniero revisar la temperatura de disco (pyrometer en pit). Considerar aumentar el ducto de refrigeración de frenos o cambiar a un compuesto de mayor temperatura de operación.
-
-**Hundimiento de pedal (fade de fluido):**
-Señal de que el líquido de frenos está hirviendo. Acción inmediata: entrar a pits para bleeding o verificar pérdidas. Asegurarse de que el brake bias no está demasiado adelantado (el freno trasero calienta menos pero el delantero puede superar 900°C en circuitos de alta carga).
+- **Fade concentrated at the first heavy braking point** (typically the longest on the circuit): brakes have not dissipated enough heat between the previous lap and the current one. Insufficient cooling during the cool-down lap.
+- **Progressive fade throughout the stint** (zones appearing later and later in the lap): cumulative thermal degradation. Discs are not returning to base temperature between laps.
+- **Fade at a single braking point only**: possible hot spot on the disc or asymmetric pad. Check for differential wear between brakes on the same axle.
 
 ---
 
-## Visualizaciones
+## Pilot Recommendations
 
-Generadas por `scripts/docs/gen_brake_fade.py` con datos sintéticos.
+**Mild fade at end of stint:**
+Reduce maximum pedal pressure by 5% at the two final heavy braking points. The car will take slightly longer to stop but brakes will arrive at the next lap in better thermal condition.
+
+**Severe fade from mid-stint:**
+The pad compound is outside its operating range. Request the engineer to check disc temperature (pyrometer in pit). Consider increasing the brake cooling duct or switching to a higher-operating-temperature compound.
+
+**Pedal sinking (fluid fade):**
+Sign that brake fluid is boiling. Immediate action: pit stop for bleeding or check for leaks. Ensure brake bias is not too far forward (rear brakes run cooler but front brakes can exceed 900°C on high-load circuits).
 
 ---
 
-### Figura 1 — Eficiencia de Frenado a lo largo de la Vuelta
+## Visualizations
+
+Generated by `scripts/docs/gen_brake_fade.py` with synthetic data.
+
+---
+
+### Figure 1 — Braking Efficiency Over the Lap
 
 ![Efficiency Over Lap](./images/brake_fade/efficiency_lap.png)
 
-Serie temporal de la eficiencia $\eta_{freno}$ para dos vueltas (vuelta A en cian, vuelta B en rojo). Los puntos solo aparecen en las zonas de frenado activo. La línea discontinua horizontal marca el baseline de eficiencia de la vuelta A. Las zonas sombreadas en rojo indican donde la eficiencia cae más de un 15% respecto al baseline, clasificadas como fade activo.
+Time series of $\eta_{brake}$ for two laps (Lap A in cyan, Lap B in red). Points only appear in active braking zones. The horizontal dashed line marks the Lap A efficiency baseline. Red-shaded zones indicate where efficiency drops more than 15% below baseline, classified as active fade.
 
 ---
 
-### Figura 2 — Degradación del Baseline a lo Largo del Stint
+### Figure 2 — Baseline Degradation Over the Stint
 
 ![Baseline Degradation](./images/brake_fade/baseline_degradation.png)
 
-Evolución del baseline de eficiencia a lo largo de múltiples vueltas simuladas de un stint. La línea sólida verde muestra el baseline inicial; la curva cian el baseline medido vuelta a vuelta. La pendiente negativa cuantifica la tasa de degradación térmica acumulativa. La banda sombreada naranja indica el umbral crítico (85% del baseline inicial).
+Evolution of the efficiency baseline across multiple simulated stint laps. The solid green line shows the initial baseline; the cyan curve shows the measured baseline lap by lap. The negative slope quantifies the cumulative thermal degradation rate. The amber shaded band indicates the critical threshold (85% of the initial baseline).
 
 ---
 
-### Figura 3 — Mapa de Zonas de Fade en la Pista
+### Figure 3 — Fade Zone Map on Track
 
 ![Fade Zone Map](./images/brake_fade/fade_zone_map.png)
 
-Mapa lineal de la distancia de la vuelta (eje X) con marcadores de las zonas de fade detectadas. El grosor y color de cada marcador codifica la severidad (verde leve → rojo severo). Las frenadas principales de la pista se identifican con anotaciones de la distancia de inicio. Este mapa permite al ingeniero identificar qué frenadas específicas presentan fade y planificar el ducto de refrigeración en consecuencia.
+Linear map of lap distance (X axis) with markers for detected fade zones. The thickness and colour of each marker encode severity (green mild → red severe). The main circuit braking points are identified with distance annotations. This map allows the engineer to identify which specific braking points show fade and plan cooling duct placement accordingly.
 
 ---
 
-## Referencias
+## References
 
-1. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Capítulo sobre análisis de frenado: presión de pedal vs. desaceleración; detección de fade desde telemetría.
+1. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Chapter on braking analysis: pedal pressure vs. deceleration; fade detection from telemetry.
 
-2. Milliken, W. F., & Milliken, D. L. (1995). *Race Car Vehicle Dynamics*. SAE International. — Modelos de transferencia de carga en frenada; análisis del bias de frenado delantero/trasero.
+2. Milliken, W. F., & Milliken, D. L. (1995). *Race Car Vehicle Dynamics*. SAE International. — Load transfer models under braking; front/rear brake bias analysis.
 
-3. Limpert, R. (2011). *Brake Design and Safety* (3rd ed.). SAE International. — Física del fade de compuesto: volatilización de resinas aglomerantes; curvas μ–T de pastillas de competición.
+3. Limpert, R. (2011). *Brake Design and Safety* (3rd ed.). SAE International. — Physics of compound fade: binder resin vaporisation; μ–T curves of competition pads.
 
-4. Day, A. (2014). *Braking of Road Vehicles*. Elsevier. — Modelo térmico de disco de freno; temperatura de equilibrio en función de velocidad y presión; fade de fluido hidráulico.
+4. Day, A. (2014). *Braking of Road Vehicles*. Elsevier. — Brake disc thermal model; equilibrium temperature as a function of speed and pressure; hydraulic fluid fade.
+
+---
+
+*Also available in [Español 🇪🇸](./10_brake_fade.es.md)*
