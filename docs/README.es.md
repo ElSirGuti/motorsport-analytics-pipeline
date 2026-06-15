@@ -6,7 +6,7 @@
 
 | Documento | Para quién |
 |-----------|-----------|
-| [Guía de Usuario](./GUIA_USUARIO.md) | Pilotos, ingenieros y cualquier persona que use la app. Explica cómo interpretar cada sección en lenguaje simple. |
+| [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app. Explica cómo interpretar cada sección en lenguaje simple. |
 | [Referencia Rápida](./REFERENCIA_RAPIDA.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes y flujo de análisis. |
 
 ---
