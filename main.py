@@ -339,7 +339,6 @@ async def compare_session_laps_endpoint(
         # Basic alignment + comparison
         df_a_aligned, df_b_aligned = align_pair(df_a, df_b, distance_step=1.0)
         result = compare_laps(df_a_aligned, df_b_aligned)
-        result["text_report"] = export_report_text(result)
 
         # Track map from lap A (auto-select horizontal-plane axes)
         coord_ranges = {}
@@ -472,6 +471,7 @@ async def compare_session_laps_endpoint(
             "aligned_samples": len(df_a_aligned),
         }
 
+        result["text_report"] = export_report_text(result)
         logger.info("✓ Comparación de vueltas de sesión completada")
         return JSONResponse(content=_sanitize(result))
 
