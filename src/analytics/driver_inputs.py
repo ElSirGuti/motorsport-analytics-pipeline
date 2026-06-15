@@ -48,7 +48,7 @@ def _fft_bands(steer: pd.Series, sample_rate_hz: float = 10.0) -> dict:
     if len(steer) < 64:
         return {"low": 0.0, "mid": 0.0, "high": 0.0}
     try:
-        s = steer.fillna(method="ffill").fillna(0).values
+        s = steer.ffill().fillna(0).values
         freqs, psd = welch(s, fs=sample_rate_hz, nperseg=min(256, len(s) // 2))
         total = float(np.trapz(psd, freqs)) or 1.0
         low  = float(np.trapz(psd[freqs < 0.5],  freqs[freqs < 0.5]))  / total

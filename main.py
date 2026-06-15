@@ -14,14 +14,16 @@ import tempfile
 import logging
 from pathlib import Path
 
+import pandas as pd
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from typing import List
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 # ── Configuración desde entorno ──────────────────────────────────────────────
 CORS_ORIGINS = [o.strip() for o in os.getenv(
@@ -49,6 +51,7 @@ logger = logging.getLogger("motorsport-api")
 # ── Módulos del pipeline ──────────────────────────────────────────────────────
 from src.io.loaders import load_telemetry_data, read_motec_metadata, DataLoaderException
 from src.io.exporters import export_report_text
+from src.io.pdf_exporter import export_report_pdf
 from src.processing.alignment import align_pair
 from src.processing.filters import apply_standard_filters
 from src.telemetry.lap_comparator import compare_laps
@@ -121,7 +124,145 @@ def _sanitize(obj):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok", "service": "motorsport-analytics-api", "version": "1.1.0"}
+    return {"status": "ok", "service": "motorsport-analytics-api", "version": "1.2.0"}
+
+
+@app.post("/api/report/pdf-from-json")
+async def generate_pdf_from_json(result: dict = Body(...)):
+    """
+    Genera un PDF a partir de un resultado de comparación ya calculado (JSON).
+    Acepta el objeto compareResult del frontend y devuelve el PDF directamente.
+    Funciona tanto para el flujo de dos archivos como para el flujo de sesión.
+    """
+    try:
+        pdf_bytes = export_report_pdf(result)
+        meta      = result.get("metadata", {})
+        label_a   = meta.get("label_a", "A")
+        label_b   = meta.get("label_b", "B")
+        filename  = f"report_{label_a}_vs_{label_b}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        logger.error("Error generando PDF desde JSON: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)}")
+
+
+@app.post("/api/report/pdf")
+async def generate_pdf_report(
+    session_file: UploadFile = File(..., description="CSV con la sesión completa"),
+    lap_a: int = Form(0, description="Vuelta A (1-based). 0 = auto-selecciona la más rápida"),
+    lap_b: int = Form(0, description="Vuelta B (1-based). 0 = auto-selecciona la más lenta"),
+):
+    """
+    Genera un informe PDF completo comparando dos vueltas de la sesión.
+    Incluye todos los módulos avanzados disponibles (neumáticos, frenos, inputs, suspensión, sideslip).
+    Devuelve el PDF como application/pdf para descarga directa.
+    """
+    import pandas as pd
+
+    logger.info("Solicitud PDF: %s  lap_a=%d  lap_b=%d", session_file.filename, lap_a, lap_b)
+    tmp_dir = None
+    try:
+        content = await _read_upload(session_file)
+        tmp_dir = tempfile.mkdtemp(prefix="motorsport_pdf_")
+        path = os.path.join(tmp_dir, "session.csv")
+        Path(path).write_bytes(content)
+
+        df = load_telemetry_data(path)
+        df = apply_standard_filters(df)
+        laps = segmentar_vueltas_desde_csv(df)
+        n = len(laps)
+
+        if lap_a == 0 or lap_b == 0:
+            lap_times = [_lap_time_seconds(lap) for lap in laps]
+            valid_idxs = [i for i, t in enumerate(lap_times) if t < float("inf") and t > 10]
+            if len(valid_idxs) < 2:
+                raise HTTPException(422, "No hay suficientes vueltas con tiempo medible")
+            best_idx  = min(valid_idxs, key=lambda i: lap_times[i])
+            worst_idx = max(valid_idxs, key=lambda i: lap_times[i])
+            if lap_a == 0:
+                lap_a = best_idx + 1
+            if lap_b == 0:
+                lap_b = worst_idx + 1
+
+        if lap_a < 1 or lap_a > n:
+            raise HTTPException(422, f"Vuelta {lap_a} fuera de rango (1–{n})")
+        if lap_b < 1 or lap_b > n:
+            raise HTTPException(422, f"Vuelta {lap_b} fuera de rango (1–{n})")
+        if lap_a == lap_b:
+            raise HTTPException(422, "Las dos vueltas deben ser diferentes")
+
+        df_a = laps[lap_a - 1]
+        df_b = laps[lap_b - 1]
+        df_a_aligned, df_b_aligned = align_pair(df_a, df_b, distance_step=1.0)
+        result = compare_laps(df_a_aligned, df_b_aligned)
+
+        # Run full advanced pipeline (mirrors compare-session-laps)
+        apexes = None
+        try:
+            df_geo = procesar_geometria_pista_perfecta(df_a)
+            apexes = detectar_apexes_perfectos(df_geo)
+            canales_extra = [
+                "LateralG", "LongitudinalG", "SteerAngle", "Brake", "Throttle",
+                "TyreTempInnerFL", "TyreTempMiddleFL", "TyreTempOuterFL", "TyreTempCoreFL",
+                "TyreTempInnerFR", "TyreTempMiddleFR", "TyreTempOuterFR", "TyreTempCoreFR",
+                "TyreTempInnerRL", "TyreTempMiddleRL", "TyreTempOuterRL", "TyreTempCoreRL",
+                "TyreTempInnerRR", "TyreTempMiddleRR", "TyreTempOuterRR", "TyreTempCoreRR",
+                "SuspTravelFL", "SuspTravelFR", "SuspTravelRL", "SuspTravelRR",
+                "BrakeTempFL", "BrakeTempFR", "BrakeTempRL", "BrakeTempRR", "YawRate",
+            ]
+            df_adv = alinear_vueltas_y_calcular_delta(df_a, df_b, paso_metros=1.0, canales_extra=canales_extra)
+            df_adv, _ = calcular_limites_dinamicos(df_adv)
+            df_sectores    = resumir_delta_por_sector(df_adv, apexes)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes)
+
+            result["corners"]        = insights_curvas
+            result["sectores"]       = df_sectores.to_dict(orient="records") if not df_sectores.empty else []
+            result["tyre_analysis"]  = analizar_neumaticos_comparativo(df_adv)
+            result["brake_analysis"] = analizar_eficiencia_frenado(df_adv)
+            result["driver_inputs"]  = analizar_inputs_piloto(df_adv)
+            result["suspension"]     = analizar_suspension(df_adv)
+            result["slip_angle"]     = analizar_slip_angle(df_adv)
+        except Exception as exc:
+            logger.warning("Pipeline avanzado parcial en PDF: %s", exc, exc_info=False)
+
+        result["metadata"] = {
+            "driver_a":          f"Vuelta {lap_a}",
+            "vehicle_a":         session_file.filename,
+            "driver_b":          f"Vuelta {lap_b}",
+            "vehicle_b":         session_file.filename,
+            "label_a":           f"V{lap_a}",
+            "label_b":           f"V{lap_b}",
+            "same_driver":       True,
+            "same_vehicle":      True,
+            "session_file":      session_file.filename,
+            "delta_total_s":     result["summary"]["total_time_delta"],
+            "apexes_detected":   len(apexes) if apexes is not None else 0,
+            "distance_synthetic": df.attrs.get("distance_synthetic", False),
+        }
+
+        pdf_bytes = export_report_pdf(result)
+        filename  = f"report_V{lap_a}_vs_V{lap_b}.pdf"
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    except HTTPException:
+        raise
+    except DataLoaderException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Error generando PDF: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+    finally:
+        if tmp_dir and os.path.exists(tmp_dir):
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 @app.post("/api/compare-laps")
@@ -169,7 +310,104 @@ async def compare_laps_endpoint(
 
         logger.info("Paso 4/4: Comparando vueltas...")
         result = compare_laps(df_a_aligned, df_b_aligned)
-        result["text_report"] = export_report_text(result)
+
+        # Track map (máximo 500 puntos para optimizar transferencia JSON) — moved here
+        # so it's available before advanced pipeline runs
+        coord_x_col = "CarCoordX" if "CarCoordX" in df_a_aligned.columns else None
+        coord_y_col = (
+            "CarCoordY" if "CarCoordY" in df_a_aligned.columns
+            else "CarCoordZ" if "CarCoordZ" in df_a_aligned.columns
+            else None
+        )
+        if coord_x_col and coord_y_col:
+            step = max(1, len(df_a_aligned) // 500)
+            x_coords  = df_a_aligned[coord_x_col].iloc[::step].fillna(0).tolist()
+            y_coords  = df_a_aligned[coord_y_col].iloc[::step].fillna(0).tolist()
+            distances = df_a_aligned["Distance"].iloc[::step].fillna(0).tolist()
+            result["track_map"] = [
+                {"x": x, "y": y, "distance": d}
+                for x, y, d in zip(x_coords, y_coords, distances)
+            ]
+
+        # Full advanced pipeline — same as compare-session-laps
+        apexes = None
+        basic_corners = result.get("corners", [])
+        try:
+            logger.info("Avanzado 1/5: Geometría y Apexes...")
+            df_geo = procesar_geometria_pista_perfecta(df_a)
+            apexes = detectar_apexes_perfectos(df_geo)
+
+            logger.info("Avanzado 2/5: Alineación avanzada con Delta_Time...")
+            canales_extra = [
+                "LateralG", "LongitudinalG", "SteerAngle", "Brake", "Throttle",
+                "TyreTempInnerFL", "TyreTempMiddleFL", "TyreTempOuterFL", "TyreTempCoreFL",
+                "TyreTempInnerFR", "TyreTempMiddleFR", "TyreTempOuterFR", "TyreTempCoreFR",
+                "TyreTempInnerRL", "TyreTempMiddleRL", "TyreTempOuterRL", "TyreTempCoreRL",
+                "TyreTempInnerRR", "TyreTempMiddleRR", "TyreTempOuterRR", "TyreTempCoreRR",
+                "SuspTravelFL", "SuspTravelFR", "SuspTravelRL", "SuspTravelRR",
+                "BrakeTempFL", "BrakeTempFR", "BrakeTempRL", "BrakeTempRR",
+                "YawRate",
+            ]
+            df_adv = alinear_vueltas_y_calcular_delta(
+                df_a, df_b, paso_metros=1.0, canales_extra=canales_extra
+            )
+
+            logger.info("Avanzado 3/5: GG + Dinámicas...")
+            df_adv, g_limit = calcular_limites_dinamicos(df_adv)
+            gg_points = _build_gg_points(df_adv)
+            eventos = detectar_subviraje_sobreviraje(df_adv, apexes)
+
+            logger.info("Avanzado 4/5: Sectores + Insights por curva...")
+            df_sectores    = resumir_delta_por_sector(df_adv, apexes)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes)
+
+            logger.info("Avanzado 5/5: Compresión + Anomalías + Módulos avanzados...")
+            df_compressed = comprimir_telemetria(df_adv, asegurar_apexes=apexes)
+            anomaly_data  = detectar_anomalias(df_adv)
+
+            tyre_data   = analizar_neumaticos_comparativo(df_adv)
+            brake_data  = analizar_eficiencia_frenado(df_adv)
+            inputs_data = analizar_inputs_piloto(df_adv)
+            susp_data   = analizar_suspension(df_adv)
+            slip_data   = analizar_slip_angle(df_adv)
+
+            step_c = 1
+            df_curv = df_geo.iloc[::step_c].copy()
+            result["curvatura"]      = df_curv[["Distance", "Curvature"]].where(
+                df_curv[["Distance", "Curvature"]].notna(), None
+            ).to_dict(orient="records")
+            result["apexes"]         = apexes.where(apexes.notna(), None).to_dict(orient="records")
+            result["sectores"]       = df_sectores.to_dict(orient="records") if not df_sectores.empty else []
+            result["corners"]        = insights_curvas
+            result["gg_diagram"]     = gg_points
+            result["g_limit"]        = round(float(g_limit), 3)
+            result["dynamic_events"] = eventos
+            result["anomaly"]        = anomaly_data
+            result["telemetria"]     = df_compressed.to_dict(orient="records")
+            result["tyre_analysis"]  = tyre_data
+            result["brake_analysis"] = brake_data
+            result["driver_inputs"]  = inputs_data
+            result["suspension"]     = susp_data
+            result["slip_angle"]     = slip_data
+            logger.info("✓ Pipeline avanzado completado en compare-laps")
+
+        except Exception as exc:
+            logger.warning("Pipeline avanzado parcialmente disponible: %s", exc, exc_info=False)
+            if basic_corners and "LateralG" in df_a_aligned.columns and "SteerAngle" in df_a_aligned.columns:
+                _apx = pd.DataFrame([
+                    {"Distance": c["ref_apex_distance"], "Speed": c["ref_apex_speed"]}
+                    for c in basic_corners
+                    if "ref_apex_distance" in c
+                ])
+                _df = df_a_aligned.copy()
+                _df["LateralG_Fast"] = df_a_aligned["LateralG"]
+                _df["SteerAngle_Fast"] = df_a_aligned["SteerAngle"]
+                try:
+                    result["dynamic_events"] = detectar_subviraje_sobreviraje(_df, _apx)
+                except Exception:
+                    result["dynamic_events"] = []
+            else:
+                result["dynamic_events"] = []
 
         # Metadata
         meta_a = read_motec_metadata(path_a)
@@ -215,24 +453,12 @@ async def compare_laps_endpoint(
             result["metadata"]["air_temp"] = float(df_a["AirTemp"].dropna().iloc[0])
         if "RoadTemp" in df_a.columns and not df_a["RoadTemp"].isna().all():
             result["metadata"]["road_temp"] = float(df_a["RoadTemp"].dropna().iloc[0])
-
-        # Track map (máximo 500 puntos para optimizar transferencia JSON)
-        coord_x_col = "CarCoordX" if "CarCoordX" in df_a_aligned.columns else None
-        coord_y_col = (
-            "CarCoordY" if "CarCoordY" in df_a_aligned.columns
-            else "CarCoordZ" if "CarCoordZ" in df_a_aligned.columns
-            else None
+        result["metadata"]["distance_synthetic"] = (
+            df_a.attrs.get("distance_synthetic", False) or
+            df_b.attrs.get("distance_synthetic", False)
         )
-        if coord_x_col and coord_y_col:
-            step = max(1, len(df_a_aligned) // 500)
-            x_coords = df_a_aligned[coord_x_col].iloc[::step].fillna(0).tolist()
-            y_coords = df_a_aligned[coord_y_col].iloc[::step].fillna(0).tolist()
-            distances = df_a_aligned["Distance"].iloc[::step].fillna(0).tolist()
-            result["track_map"] = [
-                {"x": x, "y": y, "distance": d}
-                for x, y, d in zip(x_coords, y_coords, distances)
-            ]
 
+        result["text_report"] = export_report_text(result)
         logger.info("✓ Comparación completada exitosamente")
         return JSONResponse(content=_sanitize(result))
 
@@ -289,15 +515,37 @@ async def analyze_session_endpoint(
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def _lap_time_seconds(lap_df: pd.DataFrame) -> float:
+    """Estimate lap duration in seconds from a single-lap DataFrame."""
+    for col in ("LapTime", "Lap Time", "lap_time"):
+        if col in lap_df.columns:
+            val = pd.to_numeric(lap_df[col], errors="coerce").dropna()
+            if len(val):
+                return float(val.max())
+    for col in ("LR Sample Clock", "HR Sample Clock", "MR Sample Clock", "Time"):
+        if col in lap_df.columns:
+            t = pd.to_numeric(lap_df[col], errors="coerce").dropna()
+            if len(t) >= 2:
+                return float(t.iloc[-1] - t.iloc[0])
+    # Fallback: estimate from Distance / mean Speed
+    if "Distance" in lap_df.columns and "Speed" in lap_df.columns:
+        dist = pd.to_numeric(lap_df["Distance"], errors="coerce").dropna()
+        spd  = pd.to_numeric(lap_df["Speed"],    errors="coerce").dropna()
+        if len(dist) and spd.mean() > 1:
+            return float((dist.max() - dist.min()) / (spd.mean() / 3.6))
+    return float("inf")
+
+
 @app.post("/api/compare-session-laps")
 async def compare_session_laps_endpoint(
     session_file: UploadFile = File(..., description="CSV con la sesión completa"),
-    lap_a: int = Form(..., description="Número de vuelta A (1-based)"),
-    lap_b: int = Form(..., description="Número de vuelta B (1-based)"),
+    lap_a: int = Form(0, description="Vuelta A (1-based). 0 = auto-selecciona la más rápida"),
+    lap_b: int = Form(0, description="Vuelta B (1-based). 0 = auto-selecciona la más lenta"),
 ):
     """
     Extrae dos vueltas de un CSV de sesión y las compara con el pipeline estándar.
     Permite comparar cualquier par de vueltas segmentadas automáticamente.
+    Si lap_a=0 o lap_b=0, se auto-seleccionan la vuelta más rápida y la más lenta.
     """
     logger.info("=" * 60)
     logger.info(f"Solicitud: comparar vueltas {lap_a} vs {lap_b} de '{session_file.filename}'")
@@ -319,6 +567,21 @@ async def compare_session_laps_endpoint(
         logger.info("Paso 2/3: Segmentando vueltas...")
         laps = segmentar_vueltas_desde_csv(df)
         n = len(laps)
+
+        # Auto-select best (fastest) and worst (slowest) lap when 0 is passed
+        if lap_a == 0 or lap_b == 0:
+            lap_times = [_lap_time_seconds(lap) for lap in laps]
+            valid_idxs = [i for i, t in enumerate(lap_times) if t < float("inf") and t > 10]
+            if len(valid_idxs) < 2:
+                raise HTTPException(422, "No hay suficientes vueltas con tiempo medible para auto-seleccionar")
+            best_idx  = min(valid_idxs, key=lambda i: lap_times[i])
+            worst_idx = max(valid_idxs, key=lambda i: lap_times[i])
+            if lap_a == 0:
+                lap_a = best_idx + 1
+            if lap_b == 0:
+                lap_b = worst_idx + 1
+            logger.info("Auto-selección: vuelta más rápida=V%d (%.3fs), más lenta=V%d (%.3fs)",
+                        lap_a, lap_times[best_idx], lap_b, lap_times[worst_idx])
 
         if lap_a < 1 or lap_a > n:
             raise HTTPException(422, f"Vuelta {lap_a} fuera de rango (1–{n})")
@@ -468,7 +731,8 @@ async def compare_session_laps_endpoint(
             "apexes_detected": len(apexes) if apexes is not None else 0,
             "lap_a_samples":  len(df_a),
             "lap_b_samples":  len(df_b),
-            "aligned_samples": len(df_a_aligned),
+            "aligned_samples":       len(df_a_aligned),
+            "distance_synthetic":    df.attrs.get("distance_synthetic", False),
         }
 
         result["text_report"] = export_report_text(result)

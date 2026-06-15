@@ -44,11 +44,11 @@ def detectar_anomalias(
     distances = df_aligned["Distance"].values
 
     # ── Matrices de features ──────────────────────────────────────────────────
-    X_fast = df_aligned[fast_cols].fillna(method="ffill").fillna(0).values
+    X_fast = df_aligned[fast_cols].ffill().fillna(0).values
 
     shared_features = [f for f in ML_FEATURES if f"{f}_Fast" in df_aligned.columns and f"{f}_Slow" in df_aligned.columns]
     slow_cols_ordered = [f"{f}_Slow" for f in shared_features]
-    X_slow = df_aligned[slow_cols_ordered].fillna(method="ffill").fillna(0).values if slow_cols_ordered else X_fast
+    X_slow = df_aligned[slow_cols_ordered].ffill().fillna(0).values if slow_cols_ordered else X_fast
 
     # ── Escalado ──────────────────────────────────────────────────────────────
     scaler = StandardScaler()

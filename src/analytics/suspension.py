@@ -15,9 +15,10 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-DOWNSAMPLE      = 5      # puntos cada N metros en la serie de salida
-BOTTOM_FRACTION = 0.90   # fracción del rango observado → bottoming threshold
-MIN_DURATION_M  = 3.0    # mínima duración (metros) de un evento de fondo
+DOWNSAMPLE        = 5      # puntos cada N metros en la serie de salida
+BOTTOM_FRACTION   = 0.90   # fracción del rango observado → bottoming threshold
+MIN_DURATION_M    = 5.0    # mínima duración (metros) de un evento de fondo
+SMOOTH_WINDOW_M   = 9      # ventana de suavizado median (metros) para filtrar ruido eléctrico
 
 
 def _roll(fl: pd.Series, fr: pd.Series) -> pd.Series:
@@ -34,13 +35,16 @@ def _bottoming_events(distance: pd.Series, travel: pd.Series,
                       corner_label: str) -> list[dict]:
     """
     Detect contiguous zones where travel >= BOTTOM_FRACTION of observed max.
+    Applies median smoothing before thresholding to reject electrical noise spikes.
     Returns list of {corner, start_m, end_m, max_travel, severity}.
     """
-    max_t = float(travel.max())
+    # Smooth before thresholding: median filter removes single-sample noise spikes
+    travel_smooth = travel.rolling(window=SMOOTH_WINDOW_M, center=True, min_periods=1).median()
+    max_t = float(travel_smooth.max())
     if max_t < 1.0:
         return []
     threshold = max_t * BOTTOM_FRACTION
-    bottoming = travel >= threshold
+    bottoming = travel_smooth >= threshold
     events, in_ev, start_idx = [], False, 0
 
     for i in range(len(bottoming)):
@@ -51,7 +55,7 @@ def _bottoming_events(distance: pd.Series, travel: pd.Series,
             start_m = float(distance.iloc[start_idx])
             end_m   = float(distance.iloc[i - 1])
             if end_m - start_m >= MIN_DURATION_M:
-                seg_max = float(travel.iloc[start_idx:i].max())
+                seg_max = float(travel_smooth.iloc[start_idx:i].max())
                 events.append({
                     "corner":     corner_label,
                     "start_m":    round(start_m, 0),
@@ -63,7 +67,7 @@ def _bottoming_events(distance: pd.Series, travel: pd.Series,
         start_m = float(distance.iloc[start_idx])
         end_m   = float(distance.iloc[-1])
         if end_m - start_m >= MIN_DURATION_M:
-            seg_max = float(travel.iloc[start_idx:].max())
+            seg_max = float(travel_smooth.iloc[start_idx:].max())
             events.append({
                 "corner":     corner_label,
                 "start_m":    round(start_m, 0),
