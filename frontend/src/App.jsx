@@ -17,7 +17,7 @@ import BrakeFadeChart from './components/BrakeFadeChart';
 import DriverInputsChart from './components/DriverInputsChart';
 import SuspensionChart from './components/SuspensionChart';
 import SlipAngleChart from './components/SlipAngleChart';
-import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps } from './api/telemetry';
+import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps, downloadPdfReport } from './api/telemetry';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
@@ -210,7 +210,7 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
   );
 }
 
-function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport }) {
+function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading }) {
   const meta = result?.metadata;
   const title = comparingLaps
     ? `Vuelta ${comparingLaps[0]} vs Vuelta ${comparingLaps[1]}`
@@ -242,6 +242,24 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
           <div style={{ color: 'var(--text-3)', fontSize: '0.8rem', marginTop: 4 }}>{meta.venue}</div>
         )}
       </div>
+
+      {meta?.distance_synthetic && (
+        <div style={{
+          background: 'rgba(255,120,0,0.10)',
+          border: '1px solid rgba(255,140,0,0.5)',
+          borderRadius: 8,
+          padding: '10px 16px',
+          marginBottom: 'var(--s3)',
+          fontSize: '0.8rem',
+          color: '#FF9040',
+          lineHeight: 1.5,
+        }}>
+          <strong>⚠ Advertencia de precisión:</strong> El canal <code>Distance</code> no estaba
+          en el CSV original y fue sintetizado desde velocidad.
+          Los deltas de punto de frenada pueden tener ±5–15 m de error.
+          El módulo de ángulo de deslizamiento (β) no está disponible.
+        </div>
+      )}
 
       <SummaryCard summary={result.summary} metadata={result.metadata} />
 
@@ -398,13 +416,24 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
               <span>▤</span>
               Reporte Técnico — Formato Ingeniero
             </div>
-            <button
-              className={`copy-btn ${copied ? 'copy-btn--copied' : ''}`}
-              onClick={onCopyReport}
-              aria-label="Copiar reporte al portapapeles"
-            >
-              {copied ? '✓ Copiado' : '⎘ Copiar'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className={`copy-btn ${copied ? 'copy-btn--copied' : ''}`}
+                onClick={onCopyReport}
+                aria-label="Copiar reporte al portapapeles"
+              >
+                {copied ? '✓ Copiado' : '⎘ Copiar'}
+              </button>
+              <button
+                className="copy-btn"
+                onClick={onPdfDownload}
+                disabled={pdfLoading}
+                aria-label="Descargar reporte en PDF"
+                style={{ opacity: pdfLoading ? 0.6 : 1 }}
+              >
+                {pdfLoading ? '⏳' : '⬇ PDF'}
+              </button>
+            </div>
           </div>
           <pre className="text-report">{result.text_report}</pre>
         </div>
@@ -435,6 +464,7 @@ export default function App() {
   const [activeCorner, setActiveCorner] = useState(null);
   const [fixedDistance, setFixedDistance] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const isSessionMode = files.length === 1;
 
@@ -574,6 +604,50 @@ export default function App() {
       () => { setCopied(true); setTimeout(() => setCopied(false), 2000); },
       () => {}
     );
+  };
+
+  const handlePdfDownload = async () => {
+    if (!compareResult || pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      const blob = await downloadPdfReport(compareResult);
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      const meta = compareResult.metadata || {};
+      a.href     = url;
+      a.download = `report_${meta.label_a || 'A'}_vs_${meta.label_b || 'B'}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error descargando PDF:', err);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleCompareBestWorst = async () => {
+    if (!files[0] || compareLoading) return;
+    setCompareLoading(true);
+    setCompareError(null);
+    setCompareResult(null);
+    setComparingLaps(null);
+    setZoomDomain(null);
+    setActiveCorner(null);
+    setFixedDistance(null);
+    try {
+      const data = await compareSessionLaps(files[0], 0, 0);
+      const meta = data?.metadata || {};
+      const lapA = parseInt(meta.label_a?.replace('V', '') || '0');
+      const lapB = parseInt(meta.label_b?.replace('V', '') || '0');
+      setComparingLaps([lapA, lapB]);
+      setCompareResult(data);
+    } catch (err) {
+      setCompareError(err.message || 'Error al comparar las vueltas.');
+    } finally {
+      setCompareLoading(false);
+    }
   };
 
   return (
@@ -718,6 +792,16 @@ export default function App() {
               compareLoading={compareLoading}
               compareError={compareError}
             />
+            <div style={{ marginTop: 'var(--s3)', display: 'flex', gap: 'var(--s2)' }}>
+              <button
+                className="btn-analyze"
+                onClick={handleCompareBestWorst}
+                disabled={compareLoading}
+                style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '0.8rem', padding: '6px 14px' }}
+              >
+                {compareLoading ? '⏳ Comparando…' : '🏆 Comparar Mejor vs Peor'}
+              </button>
+            </div>
           </div>
 
           {stintResult && (
@@ -752,6 +836,8 @@ export default function App() {
             onResetZoom={resetZoom}
             copied={copied}
             onCopyReport={handleCopyReport}
+            onPdfDownload={handlePdfDownload}
+            pdfLoading={pdfLoading}
           />
         </div>
       )}

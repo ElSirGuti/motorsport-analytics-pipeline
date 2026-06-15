@@ -99,6 +99,15 @@ export const compareSessionLaps = async (sessionFile, lapA, lapB) => {
   }
 };
 
+export const downloadPdfReport = async (compareResult) => {
+  const response = await apiClient.post('/report/pdf-from-json', compareResult, {
+    responseType: 'blob',
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 60000,
+  });
+  return response.data;
+};
+
 export const analyzeStint = async (lapFiles) => {
   const formData = new FormData();
   lapFiles.forEach(f => formData.append('laps', f));

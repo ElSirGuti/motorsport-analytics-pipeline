@@ -175,6 +175,7 @@ def _synthesize_distance(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     df["Distance"] = (speed_ms * dt).cumsum()
+    df.attrs["distance_synthetic"] = True
     return df
 
 
@@ -274,12 +275,12 @@ def load_telemetry_data(filepath: str,
     sep_to_use = separator if separator is not None else detected_sep
     
     try:
-        read_kwargs = {"sep": sep_to_use}
+        read_kwargs = {"sep": sep_to_use, "low_memory": False}
         if skip_rows is not None:
             read_kwargs["skiprows"] = skip_rows
         elif header_idx > 0:
             read_kwargs["skiprows"] = header_idx
-            
+
         df = pd.read_csv(filepath, **read_kwargs)
         
         # Si se detectó una fila de unidades, la eliminamos (es el primer registro tras saltar la cabecera)

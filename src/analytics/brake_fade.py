@@ -97,7 +97,7 @@ def analizar_eficiencia_frenado(df: pd.DataFrame) -> dict:
 
         result[f"score_{label}"]    = round(mean_eff, 4)
         result[f"baseline_{label}"] = round(baseline, 4)
-        result[f"fade_zones_{label}"] = _fade_zones(dist, eff.fillna(method="ffill").fillna(0), baseline)
+        result[f"fade_zones_{label}"] = _fade_zones(dist, eff.ffill().fillna(0), baseline)
 
         per_dist[f"efficiency_{label}"] = [
             round(float(eff.iloc[i]), 4) if not pd.isna(eff.iloc[i]) else None

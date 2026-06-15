@@ -65,6 +65,16 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
             lines.append("  ℹ️  INFO: Comparando pilotos en el mismo vehículo.")
         lines.append("")
 
+    # ── Advertencia de distancia sintética ───────────────────────────────────
+    if metadata.get("distance_synthetic"):
+        lines.append("⚠️  ADVERTENCIA DE PRECISIÓN ──────────────────────────────────────────")
+        lines.append("  El canal Distance no estaba presente en el CSV original.")
+        lines.append("  La distancia fue sintetizada integrando Velocidad × Tiempo.")
+        lines.append("  Los deltas de punto de frenada pueden tener un error de ±5–15 m.")
+        lines.append("  Los resultados de ángulo de deslizamiento (β) no están disponibles.")
+        lines.append("─" * 70)
+        lines.append("")
+
     # ── Resumen general ───────────────────────────────────────────────────────
     delta = summary["total_time_delta"]
     lines.append("─── RESUMEN GENERAL ───")
