@@ -1,148 +1,150 @@
-# Detección de Anomalías — Isolation Forest
+# Anomaly Detection — Isolation Forest
 
-> **Módulo:** `src/analytics/ml_anomaly.py`
-> **Algoritmo principal:** Isolation Forest (Liu et al., 2008)
-> **Vector de features:** Speed · Brake · Throttle · SteerAngle · LateralG · LongitudinalG
+🌐 [Ver en Español](./05_anomaly_detection.es.md)
 
----
-
-## Tabla de Contenidos
-
-1. [Descripción General](#descripción-general)
-2. [Fundamentos Científicos](#fundamentos-científicos)
-3. [Algoritmo e Implementación](#algoritmo-e-implementación)
-4. [Parámetros Clave](#parámetros-clave)
-5. [Interpretación de Resultados](#interpretación-de-resultados)
-6. [Recomendaciones para el Piloto](#recomendaciones-para-el-piloto)
-7. [Visualizaciones](#visualizaciones)
-8. [Referencias](#referencias)
+> **Module:** `src/analytics/ml_anomaly.py`
+> **Core algorithm:** Isolation Forest (Liu et al., 2008)
+> **Feature vector:** Speed · Brake · Throttle · SteerAngle · LateralG · LongitudinalG
 
 ---
 
-## Descripción General
+## Table of Contents
 
-El módulo de detección de anomalías identifica, metro a metro, los instantes en que el comportamiento del piloto en la vuelta lenta se desvía significativamente del patrón de la vuelta rápida de referencia. A diferencia de los enfoques univariados (p.ej., detectar solo velocidad fuera de rango), este módulo analiza simultáneamente seis canales de telemetría como un **vector de estado**. Una combinación inusual de valores — aunque cada canal individualmente parezca plausible — se detecta como anomalía.
-
-La vuelta rápida actúa como la *distribución de referencia*: define lo que es "conducción óptima" para esa pista y condición específica. El modelo Isolation Forest se entrena exclusivamente sobre esa referencia y se evalúa sobre la vuelta lenta. Las regiones donde el score supera el umbral `ANOMALY_THRESHOLD = 0.60` se agrupan en **zonas de anomalía** con duración mínima de 15 metros, que se clasifican por severidad y se presentan al ingeniero con una descripción accionable.
+1. [Overview](#overview)
+2. [Scientific Background](#scientific-background)
+3. [Algorithm and Implementation](#algorithm-and-implementation)
+4. [Key Parameters](#key-parameters)
+5. [Interpreting Results](#interpreting-results)
+6. [Driver Recommendations](#driver-recommendations)
+7. [Visualizations](#visualizations)
+8. [References](#references)
 
 ---
 
-## Fundamentos Científicos
+## Overview
 
-### 2.1 Intuición del Isolation Forest
+The anomaly detection module identifies, meter by meter, the moments in which the driver's behaviour during the slow lap deviates significantly from the pattern of the fast reference lap. Unlike univariate approaches (e.g., detecting only out-of-range speed), this module simultaneously analyses six telemetry channels as a **state vector**. An unusual combination of values — even if each individual channel appears plausible — is detected as an anomaly.
 
-El Isolation Forest (Liu, Ting & Zhou, 2008) explota el principio de que los puntos anómalos son **escasos y distintos**: se pueden aislar con muy pocas particiones aleatorias del espacio de features, mientras que los puntos normales — inmersos en una región densa — requieren muchas más.
+The fast lap acts as the *reference distribution*: it defines what "optimal driving" looks like for that specific track and condition. The Isolation Forest model is trained exclusively on that reference and evaluated on the slow lap. Regions where the score exceeds the threshold `ANOMALY_THRESHOLD = 0.60` are grouped into **anomaly zones** with a minimum length of 15 metres, classified by severity, and presented to the engineer with an actionable description.
 
-Dado un árbol de aislamiento construido con particiones aleatorias, se define la longitud de camino $h(x)$ como el número de aristas recorridas desde la raíz hasta el nodo terminal que contiene a $x$. Un punto anómalo tiene $h(x)$ pequeño; un punto normal tiene $h(x)$ grande.
+---
 
-### 2.2 Función de Score
+## Scientific Background
 
-Con un bosque de $T$ árboles y $n$ muestras de entrenamiento, el score de anomalía para una observación $x$ es:
+### 2.1 Isolation Forest Intuition
+
+The Isolation Forest (Liu, Ting & Zhou, 2008) exploits the principle that anomalous points are **rare and distinct**: they can be isolated with very few random partitions of the feature space, whereas normal points — embedded in a dense region — require many more.
+
+Given an isolation tree built with random partitions, the path length $h(x)$ is defined as the number of edges traversed from the root to the terminal node containing $x$. An anomalous point has small $h(x)$; a normal point has large $h(x)$.
+
+### 2.2 Score Function
+
+For a forest of $T$ trees and $n$ training samples, the anomaly score for an observation $x$ is:
 
 $$
 s(x,\,n) \;=\; 2^{-\,\dfrac{E[h(x)]}{c(n)}}
 $$
 
-donde:
+where:
 
-- $E[h(x)]$ es la longitud de camino promedio sobre todos los árboles del bosque.
-- $c(n)$ es el factor de normalización equivalente a la longitud de camino esperada en un **árbol de búsqueda binaria** de $n$ nodos:
+- $E[h(x)]$ is the average path length across all trees in the forest.
+- $c(n)$ is the normalisation factor equivalent to the expected path length in a **binary search tree** of $n$ nodes:
 
 $$
 c(n) \;=\; 2\,H(n-1) \;-\; \frac{2(n-1)}{n}
 $$
 
-con $H(k) = \ln(k) + \gamma_E$ (número harmónico, $\gamma_E \approx 0.5772$ constante de Euler-Mascheroni).
+with $H(k) = \ln(k) + \gamma_E$ (harmonic number, $\gamma_E \approx 0.5772$ Euler-Mascheroni constant).
 
-**Interpretación del score:**
+**Score interpretation:**
 
-| Valor de $s(x,n)$ | Interpretación |
+| Value of $s(x,n)$ | Interpretation |
 |---|---|
-| $s \to 1$ | Muy anómalo: $E[h(x)] \ll c(n)$ |
-| $s \approx 0.5$ | Indistinguible de la norma |
-| $s \to 0$ | Muy normal: $E[h(x)] \gg c(n)$ |
+| $s \to 1$ | Highly anomalous: $E[h(x)] \ll c(n)$ |
+| $s \approx 0.5$ | Indistinguishable from the norm |
+| $s \to 0$ | Highly normal: $E[h(x)] \gg c(n)$ |
 
-### 2.3 Normalización de Score a [0, 1]
+### 2.3 Score Normalisation to [0, 1]
 
-La función interna del scikit-learn `decision_function` devuelve valores donde **alto = normal**. Para convertirlo a una escala donde **1 = más anómalo**, se aplica:
+The scikit-learn internal function `decision_function` returns values where **high = normal**. To convert to a scale where **1 = most anomalous**, the following is applied:
 
 $$
 \hat{s}_i \;=\; \text{clip}\!\left(\frac{s_{\max} - s_i}{s_{\max} - s_{\min} + \varepsilon},\; 0,\; 1\right), \quad \varepsilon = 10^{-9}
 $$
 
-Esta normalización es relativa a la distribución de la vuelta evaluada, garantizando que el rango completo $[0, 1]$ esté siempre representado.
+This normalisation is relative to the distribution of the evaluated lap, guaranteeing that the full range $[0, 1]$ is always represented.
 
-### 2.4 Espacio Multivariado de 6 Canales
+### 2.4 Multivariate Space of 6 Channels
 
-El vector de estado $\mathbf{x}_t \in \mathbb{R}^6$ en el instante $t$ es:
+The state vector $\mathbf{x}_t \in \mathbb{R}^6$ at instant $t$ is:
 
 $$
 \mathbf{x}_t = \bigl[\,\text{Speed},\;\text{Brake},\;\text{Throttle},\;\text{SteerAngle},\;\text{LateralG},\;\text{LongitudinalG}\,\bigr]_t
 $$
 
-La motivación para el análisis **multivariado sobre univariado** es fundamental: una frenada a 150 km/h puede ser normal; un ángulo de volante de 8° puede ser normal; pero la combinación simultánea de ambos con throttle parcialmente abierto es altamente anómala y solo detectable en el espacio conjunto.
+The motivation for **multivariate over univariate** analysis is fundamental: braking at 150 km/h may be normal; a steering angle of 8° may be normal; but the simultaneous combination of both with the throttle partially open is highly anomalous and detectable only in the joint space.
 
-### 2.5 Estandarización (StandardScaler)
+### 2.5 Standardisation (StandardScaler)
 
-Antes del entrenamiento, cada canal se centra y escala usando los estadísticos de la **vuelta rápida**:
+Before training, each channel is centred and scaled using the statistics from the **fast lap**:
 
 $$
 z_{i,j} \;=\; \frac{x_{i,j} - \mu_j^{\text{fast}}}{\sigma_j^{\text{fast}}}
 $$
 
-donde $j$ índica el canal (feature) e $i$ el instante de tiempo. La vuelta lenta se transforma con los **mismos** $\mu_j^{\text{fast}}$ y $\sigma_j^{\text{fast}}$, sin re-calcular. Esto es esencial: desviaciones de la vuelta lenta respecto a la escala de la rápida son precisamente la señal que se quiere detectar.
+where $j$ denotes the channel (feature) and $i$ the time instant. The slow lap is transformed using the **same** $\mu_j^{\text{fast}}$ and $\sigma_j^{\text{fast}}$, without recomputing. This is essential: deviations of the slow lap relative to the fast lap's scale are precisely the signal to be detected.
 
-### 2.6 Suavizado y Detección de Zonas
+### 2.6 Smoothing and Zone Detection
 
-El score punto a punto presenta ruido de alta frecuencia. Se aplica una media móvil centrada de ventana 5:
+The point-by-point score exhibits high-frequency noise. A centred moving average with window 5 is applied:
 
 $$
 \tilde{s}_i \;=\; \frac{1}{5} \sum_{k=i-2}^{i+2} \hat{s}_k
 $$
 
-Las zonas de anomalía continuas se extraen con un algoritmo de umbralización secuencial: se acumula una zona mientras $\tilde{s}_i > \theta = 0.60$, y la zona se reporta solo si su longitud supera $\Delta_{\min} = 15\,\text{m}$. La severidad se clasifica por el score promedio de la zona:
+Continuous anomaly zones are extracted with a sequential thresholding algorithm: a zone accumulates while $\tilde{s}_i > \theta = 0.60$, and the zone is reported only if its length exceeds $\Delta_{\min} = 15\,\text{m}$. Severity is classified by the zone's average score:
 
 $$
-\text{Severidad}(\bar{s}) = \begin{cases}
-\text{leve}    & 0.60 < \bar{s} \leq 0.68 \\
-\text{media}   & 0.68 < \bar{s} \leq 0.82 \\
-\text{crítico} & \bar{s} > 0.82
+\text{Severity}(\bar{s}) = \begin{cases}
+\text{minor}    & 0.60 < \bar{s} \leq 0.68 \\
+\text{moderate} & 0.68 < \bar{s} \leq 0.82 \\
+\text{critical} & \bar{s} > 0.82
 \end{cases}
 $$
 
 ---
 
-## Algoritmo e Implementación
+## Algorithm and Implementation
 
-### 3.1 Flujo de Ejecución
+### 3.1 Execution Flow
 
 ```
-detectar_anomalias(df_aligned, contamination=0.10)
+detect_anomalies(df_aligned, contamination=0.10)
   │
-  ├── 1. Selección de columnas *_Fast y *_Slow de ML_FEATURES
-  ├── 2. fillna(ffill) → sin NaN propagados
-  ├── 3. StandardScaler.fit_transform(X_fast)  ← fit SOLO en fast
+  ├── 1. Select *_Fast and *_Slow columns from ML_FEATURES
+  ├── 2. fillna(ffill) → no propagated NaNs
+  ├── 3. StandardScaler.fit_transform(X_fast)  ← fit ONLY on fast
   │        StandardScaler.transform(X_slow)    ← apply same scaler
   ├── 4. IsolationForest(n_estimators=120, contamination=0.10).fit(X_fast_sc)
   ├── 5. decision_function(X_fast_sc) → raw_fast
   │        decision_function(X_slow_sc) → raw_slow
   ├── 6. _normalize(raw_fast) → score_fast  [0,1]
   │        _normalize(raw_slow) → score_slow [0,1]
-  ├── 7. rolling(5).mean() sobre ambos scores
-  ├── 8. _extraer_zonas(distances, score_slow)
-  └── 9. Downsample a MAX_SCORE_POINTS=500 para frontend
+  ├── 7. rolling(5).mean() on both scores
+  ├── 8. _extract_zones(distances, score_slow)
+  └── 9. Downsample to MAX_SCORE_POINTS=500 for frontend
 ```
 
-### 3.2 Construcción de la Matriz de Features
+### 3.2 Building the Feature Matrix
 
 ```python
 fast_cols = [f"{f}_Fast" for f in ML_FEATURES if f"{f}_Fast" in df_aligned.columns]
 X_fast = df_aligned[fast_cols].fillna(method="ffill").fillna(0).values
 ```
 
-Solo se usan los canales que existan en el DataFrame alineado. La lógica de `shared_features` garantiza que la vuelta lenta solo incluya los mismos canales disponibles en la vuelta rápida, manteniendo el espacio dimensional idéntico para el modelo.
+Only channels that exist in the aligned DataFrame are used. The `shared_features` logic ensures that the slow lap includes only the same channels available in the fast lap, keeping the dimensional space identical for the model.
 
-### 3.3 Entrenamiento del Modelo
+### 3.3 Model Training
 
 ```python
 model = IsolationForest(
@@ -154,143 +156,147 @@ model = IsolationForest(
 model.fit(X_fast_sc)
 ```
 
-El parámetro `contamination=0.10` indica al modelo que aproximadamente el 10% de los puntos de entrenamiento (frenadas al límite, curvas rápidas) son intrínsecamente atípicos incluso dentro de la vuelta rápida. Esto ajusta el umbral interno de decisión.
+The `contamination=0.10` parameter tells the model that approximately 10% of the training points (limit braking events, fast corners) are intrinsically atypical even within the fast lap. This adjusts the internal decision threshold.
 
-### 3.4 Extracción de Zonas (`_extraer_zonas`)
+### 3.4 Zone Extraction (`_extract_zones`)
 
-El algoritmo itera sobre los pares `(distancia, score)` de la vuelta lenta. Al superar el umbral inicia una zona (`in_zone = True`) y acumula los scores. Al caer por debajo del umbral, evalúa si la zona supera los `MIN_ZONE_METERS = 15.0 m`; si es así, invoca `_build_zone`.
+The algorithm iterates over the `(distance, score)` pairs of the slow lap. When the threshold is exceeded, a zone begins (`in_zone = True`) and scores are accumulated. When the score falls below the threshold, the algorithm checks whether the zone exceeds `MIN_ZONE_METERS = 15.0 m`; if so, it calls `_build_zone`.
 
-### 3.5 Clasificación de Severidad (`_build_zone`)
+### 3.5 Severity Classification (`_build_zone`)
 
 ```python
-if avg > 0.82:   sev = "critico"
-elif avg > 0.68: sev = "media"
-else:            sev = "leve"
+if avg > 0.82:   sev = "critical"
+elif avg > 0.68: sev = "moderate"
+else:            sev = "minor"
 ```
 
-Cada zona incluye: `start_m`, `end_m`, `length_m`, `avg_score`, `peak_score`, `severity`, `descripcion` textual para el piloto.
+Each zone includes: `start_m`, `end_m`, `length_m`, `avg_score`, `peak_score`, `severity`, and a textual `description` for the driver.
 
 ---
 
-## Parámetros Clave
+## Key Parameters
 
-| Parámetro | Valor | Ubicación | Descripción | Efecto al modificar |
+| Parameter | Value | Location | Description | Effect when modified |
 |---|---|---|---|---|
-| `ML_FEATURES` | `[Speed, Brake, Throttle, SteerAngle, LateralG, LongitudinalG]` | Constante global | Canales del vector de estado | Añadir/quitar features cambia el espacio de detección |
-| `n_estimators` | `120` | `IsolationForest` | Número de árboles en el bosque | Más árboles = mayor estabilidad, mayor costo computacional |
-| `contamination` | `0.10` | `detectar_anomalias()` | Fracción esperada de anomalías en entrenamiento | Aumentar → umbral interno más permisivo, más zonas reportadas |
-| `random_state` | `42` | `IsolationForest` | Semilla de aleatoriedad | Fija para reproducibilidad; cambiar altera resultados levemente |
-| `n_jobs` | `-1` | `IsolationForest` | Paralelismo (todos los cores) | Reduce tiempo de entrenamiento en datasets grandes |
-| `MAX_SCORE_POINTS` | `500` | Constante global | Muestras máximas enviadas al frontend | Reducir mejora rendimiento de red; aumentar mejora resolución visual |
-| `ANOMALY_THRESHOLD` | `0.60` | Constante global | Umbral de score para iniciar zona | Reducir → más zonas (más sensible); aumentar → solo anomalías severas |
-| `MIN_ZONE_METERS` | `15.0` | Constante global | Longitud mínima de zona reportable | Reducir → detecta errores puntuales breves; aumentar → solo errores sostenidos |
-| `rolling(5)` | ventana=5 | `_normalize` + post-process | Suavizado de score | Aumentar → score más suave, zonas menos fragmentadas |
-| `ε` | `1e-9` | `_normalize` | Protección contra división por cero | Técnico; no requiere ajuste |
+| `ML_FEATURES` | `[Speed, Brake, Throttle, SteerAngle, LateralG, LongitudinalG]` | Global constant | State vector channels | Adding/removing features changes the detection space |
+| `n_estimators` | `120` | `IsolationForest` | Number of trees in the forest | More trees = greater stability, higher computational cost |
+| `contamination` | `0.10` | `detect_anomalies()` | Expected fraction of anomalies in training | Increase → more permissive internal threshold, more zones reported |
+| `random_state` | `42` | `IsolationForest` | Randomness seed | Fixed for reproducibility; changing it slightly alters results |
+| `n_jobs` | `-1` | `IsolationForest` | Parallelism (all cores) | Reduces training time on large datasets |
+| `MAX_SCORE_POINTS` | `500` | Global constant | Maximum samples sent to frontend | Reducing improves network performance; increasing improves visual resolution |
+| `ANOMALY_THRESHOLD` | `0.60` | Global constant | Score threshold to start a zone | Decrease → more zones (more sensitive); increase → only severe anomalies |
+| `MIN_ZONE_METERS` | `15.0` | Global constant | Minimum length of a reportable zone | Decrease → detects brief point errors; increase → only sustained errors |
+| `rolling(5)` | window=5 | `_normalize` + post-process | Score smoothing | Increasing → smoother score, less fragmented zones |
+| `ε` | `1e-9` | `_normalize` | Protection against division by zero | Technical; no adjustment needed |
 
 ---
 
-## Interpretación de Resultados
+## Interpreting Results
 
-### 5.1 Gráfico de Score por Distancia (Fig. 2)
+### 5.1 Score-by-Distance Chart (Fig. 2)
 
-- El **área cyan** (vuelta rápida) debe permanecer mayormente baja (< 0.40). Picos al 0.55–0.58 son normales en frenadas al límite y son absorbidos por `contamination=0.10`.
-- El **área roja** (vuelta lenta) revela la magnitud relativa de cada error respecto a la referencia. Picos > 0.60 activan zonas.
-- La **línea ámbar** en θ = 0.60 es la frontera de decisión. Todo lo que la supere y mantenga por ≥ 15 m se reporta como zona.
-- Las **bandas verticales** indican las zonas activas. Su amplitud horizontal representa la duración del error en metros.
+- The **cyan area** (fast lap) should remain mostly low (< 0.40). Peaks at 0.55–0.58 are normal during limit braking events and are absorbed by `contamination=0.10`.
+- The **red area** (slow lap) reveals the relative magnitude of each error compared to the reference. Peaks > 0.60 activate zones.
+- The **amber line** at θ = 0.60 is the decision boundary. Everything that exceeds it and holds for ≥ 15 m is reported as a zone.
+- The **vertical bands** indicate active zones. Their horizontal width represents the duration of the error in metres.
 
-### 5.2 Espacio de Features (Fig. 3)
+### 5.2 Feature Space (Fig. 3)
 
-- Los puntos **cyan** (score bajo) conforman la distribución normal de la vuelta rápida.
-- Los puntos **ámbar → rojo** (score alto) son estados del carro que el modelo nunca vio durante el entrenamiento, o que vio con baja frecuencia.
-- Un cluster anómalo en baja velocidad / alta G lateral indica una curva tomada con trayectoria incorrecta (subviraje o sobreviraje marcado).
-- Un cluster anómalo en alta velocidad / baja G lateral indica posible pérdida de adherencia, flat spot o línea demasiado recta donde la referencia carga el neumático.
+- **Cyan points** (low score) form the normal distribution of the fast lap.
+- **Amber → red points** (high score) are car states the model never saw during training, or saw with low frequency.
+- An anomalous cluster at low speed / high lateral G indicates a corner taken with an incorrect trajectory (pronounced understeer or oversteer).
+- An anomalous cluster at high speed / low lateral G indicates possible loss of grip, a flat spot, or a line that is too straight where the reference loads the tyre.
 
-### 5.3 Barras de Severidad por Zona (Fig. 4)
+### 5.3 Severity Bars by Zone (Fig. 4)
 
-| Score promedio | Severidad | Interpretación operativa |
+| Average score | Severity | Operational interpretation |
 |---|---|---|
-| 0.60 – 0.68 | **Leve** | Desviación marginal; el piloto está cerca del límite pero ejecuta incorrectamente en detalle |
-| 0.68 – 0.82 | **Media** | Múltiples canales divergen simultáneamente; error de línea o pedales combinado |
-| > 0.82 | **Crítico** | El modelo nunca observó esta combinación en la vuelta rápida; revisar trazada completa de la zona |
+| 0.60 – 0.68 | **Minor** | Marginal deviation; the driver is near the limit but executing incorrectly in detail |
+| 0.68 – 0.82 | **Moderate** | Multiple channels diverge simultaneously; combined line or pedal error |
+| > 0.82 | **Critical** | The model never observed this combination in the fast reference lap; review the complete trace through the zone |
 
-### 5.4 Banderas Rojas
+### 5.4 Red Flags
 
-- **Score pico > 0.95** en una zona crítica: posible error de setup (sobreviraje crónico, flat spot de freno).
-- **Múltiples zonas críticas en la misma curva en vueltas sucesivas**: problema sistemático de trazada, no ruido.
-- **Score de vuelta rápida elevado (> 0.50 promedio)**: la vuelta de referencia no es representativa; el modelo puede estar mal calibrado. Elegir una vuelta rápida más consistente.
-- **Zones < 15 m muy frecuentes (filtradas)**: indica ruido de señal o sensor con drift; revisar calidad de datos de entrada.
-
----
-
-## Recomendaciones para el Piloto
-
-### Zonas Leves (0.60–0.68)
-
-- Revisar el punto de referencia visual en la frenada. Pequeñas variaciones en el punto de entrada se propagan al score de múltiples canales.
-- El error suele ser en un solo canal (p.ej., ligero throttle prematuro). Comparar canal por canal con la vuelta rápida en esa zona.
-
-### Zonas Medias (0.68–0.82)
-
-- La combinación de pedales y ángulo de volante diverge significativamente. Indicativo de subviraje correctivo (throttle on + volante agregado) o sobreviraje de entrada (frenada tardía con transferencia lateral).
-- Verificar el canal `SteerAngle` en la zona: si es sustancialmente mayor que la referencia, la entrada de curva es tardía o la velocidad de entrada excede el grip disponible.
-- Revisar `LateralG` vs `Speed` en el scatter plot (Fig. 3): si el piloto está en la región de baja G / alta velocidad, está sacrificando carga lateral — línea muy amplia.
-
-### Zonas Críticas (> 0.82)
-
-- El piloto está ejecutando una combinación de inputs que no tiene precedente en la vuelta rápida de referencia. Esto puede ser:
-  - **Error de límite de adherencia**: exceder el círculo de tracción en al menos dos canales simultáneos.
-  - **Reacción correctiva tardía**: el volante y los pedales reaccionan fuera de fase con la dinámica del carro.
-  - **Problema mecánico**: si la zona crítica es persistente y el piloto reporta comportamiento anómalo, considerar inspección de subchasis, amortiguadores o presión de neumáticos.
-- Protocolo recomendado: comparar telemetría canal por canal en la zona crítica usando el panel de comparación avanzado. Priorizar alineación de punto de frenada antes de trabajar en la salida de curva.
-
-### Regla General de Prioritización
-
-Trabajar zonas críticas primero, luego medias, ignorar leves en sesiones de clasificación. En sesiones largas, las zonas leves acumuladas pueden representar 0.2–0.4 s/vuelta en conjunto.
+- **Peak score > 0.95** in a critical zone: possible setup error (chronic oversteer, brake flat spot).
+- **Multiple critical zones at the same corner on successive laps**: systematic line problem, not noise.
+- **High fast-lap score (> 0.50 average)**: the reference lap is not representative; the model may be poorly calibrated. Choose a more consistent fast lap.
+- **Very frequent zones < 15 m (filtered out)**: indicates signal noise or a sensor with drift; review input data quality.
 
 ---
 
-## Visualizaciones
+## Driver Recommendations
 
-### Fig. 1 — Intuición del Isolation Forest: Path Length
+### Minor Zones (0.60–0.68)
+
+- Review the visual reference point during braking. Small variations in the entry point propagate to the score across multiple channels.
+- The error is usually in a single channel (e.g., slightly premature throttle application). Compare channel by channel against the fast lap in that zone.
+
+### Moderate Zones (0.68–0.82)
+
+- The combination of pedal inputs and steering angle diverges significantly. Indicative of corrective understeer (throttle on + extra steering lock added) or entry oversteer (late braking with lateral weight transfer).
+- Check the `SteerAngle` channel in the zone: if it is substantially larger than the reference, the corner entry is late or the entry speed exceeds available grip.
+- Review `LateralG` vs `Speed` in the scatter plot (Fig. 3): if the driver is in the low-G / high-speed region, they are sacrificing lateral load — too wide a line.
+
+### Critical Zones (> 0.82)
+
+- The driver is executing a combination of inputs that has no precedent in the fast reference lap. This may be:
+  - **Grip limit error**: exceeding the traction circle on at least two simultaneous channels.
+  - **Late corrective reaction**: the steering and pedals react out of phase with the car's dynamics.
+  - **Mechanical issue**: if the critical zone is persistent and the driver reports anomalous behaviour, consider inspecting the subframe, dampers, or tyre pressures.
+- Recommended protocol: compare telemetry channel by channel in the critical zone using the advanced comparison panel. Prioritise aligning the braking point before working on the corner exit.
+
+### General Prioritisation Rule
+
+Address critical zones first, then moderate zones, and ignore minor zones during qualifying sessions. In longer sessions, accumulated minor zones can collectively represent 0.2–0.4 s/lap.
+
+---
+
+## Visualizations
+
+### Fig. 1 — Isolation Forest Intuition: Path Length
 
 ![Isolation Tree Schematic](./images/anomaly/isolation_tree.png)
 
-Diagrama esquemático que contrasta la profundidad de aislamiento entre un punto normal y un punto anómalo en un árbol de aislamiento. El punto normal (cyan, izquierda) requiere múltiples particiones recursivas antes de quedar aislado — su $E[h(x)]$ es alto, resultando en $s \to 0$. El punto anómalo (rojo, derecha) queda aislado con solo 3 particiones — su $E[h(x)]$ es bajo, resultando en $s \to 1$. Las cajas anidadas representan las celdas del espacio de features en cada nivel de la recursión. La ecuación del score se muestra en el pie del gráfico.
+Schematic diagram contrasting the isolation depth between a normal point and an anomalous point in an isolation tree. The normal point (cyan, left) requires multiple recursive partitions before being isolated — its $E[h(x)]$ is high, resulting in $s \to 0$. The anomalous point (red, right) is isolated with only 3 partitions — its $E[h(x)]$ is low, resulting in $s \to 1$. The nested boxes represent the feature space cells at each level of the recursion. The score equation is shown in the chart caption.
 
 ---
 
-### Fig. 2 — Score de Anomalía por Distancia
+### Fig. 2 — Anomaly Score by Distance
 
 ![Score Comparison](./images/anomaly/score_comparison.png)
 
-Gráfico de área que superpone el perfil de anomaly score de la vuelta rápida (cyan) y la vuelta lenta (rojo) a lo largo de la distancia de vuelta en metros. La línea ámbar horizontal en θ = 0.60 indica el umbral de activación. Las bandas verticales coloreadas resaltan las dos zonas de anomalía detectadas. En una vuelta de referencia bien ejecutada, el área cyan debe permanecer compacta y baja. Picos aislados en la vuelta rápida corresponden a los instantes de máxima explotación del neumático (corner entry, trail braking) y son esperados con `contamination=0.10`.
+Area chart overlaying the anomaly score profile of the fast lap (cyan) and the slow lap (red) along the lap distance in metres. The horizontal amber line at θ = 0.60 indicates the activation threshold. The coloured vertical bands highlight the two detected anomaly zones. In a well-executed reference lap, the cyan area should remain compact and low. Isolated peaks in the fast lap correspond to moments of maximum tyre exploitation (corner entry, trail braking) and are expected with `contamination=0.10`.
 
 ---
 
-### Fig. 3 — Espacio de Features: Speed vs LateralG
+### Fig. 3 — Feature Space: Speed vs LateralG
 
 ![Feature Space](./images/anomaly/feature_space.png)
 
-Scatter plot del espacio bidimensional Speed–LateralG (proyección del espacio de 6 dimensiones) con cada punto coloreado por su anomaly score normalizado (cyan bajo → ámbar medio → rojo alto). El cluster principal de puntos cyan-bajos representa la distribución de conducción óptima aprendida por el modelo. Los clusters rojos en la periferia (baja velocidad / alta G lateral, y alta velocidad / baja G lateral) corresponden a las zonas detectadas como anómalas: errores de frenada y líneas de sobrevelocidad respectivamente. Esta visualización confirma que los errores son combinaciones de features, no outliers univariados.
+Scatter plot of the two-dimensional Speed–LateralG space (projection of the 6-dimensional space) with each point coloured by its normalised anomaly score (cyan low → amber medium → red high). The main cluster of low-cyan points represents the optimal driving distribution learned by the model. The red clusters at the periphery (low speed / high lateral G, and high speed / low lateral G) correspond to the zones detected as anomalous: braking errors and overspeed lines respectively. This visualisation confirms that the errors are combinations of features, not univariate outliers.
 
 ---
 
-### Fig. 4 — Severidad por Zona de Anomalía
+### Fig. 4 — Severity by Anomaly Zone
 
 ![Zone Severity](./images/anomaly/zone_severity.png)
 
-Gráfico de barras con cada zona detectada en el eje horizontal y el score promedio en el eje vertical. Las barras se colorean según la clasificación de severidad: verde (leve: 0.60–0.68), ámbar (media: 0.68–0.82) y rojo (crítico: > 0.82). Las líneas horizontales punteadas marcan los umbrales de clasificación. Esta vista permite al ingeniero de pista priorizar rápidamente las zonas que más impacto tienen sobre el tiempo de vuelta y orientar el debriefing con el piloto.
+Bar chart with each detected zone on the horizontal axis and the average score on the vertical axis. Bars are coloured according to the severity classification: green (minor: 0.60–0.68), amber (moderate: 0.68–0.82), and red (critical: > 0.82). Horizontal dashed lines mark the classification thresholds. This view allows the track engineer to quickly prioritise the zones with the greatest impact on lap time and guide the debrief with the driver.
 
 ---
 
-## Referencias
+## References
 
-1. **Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2008).** *Isolation Forest.* In *Proceedings of the 2008 Eighth IEEE International Conference on Data Mining* (ICDM), pp. 413–422. IEEE. — Artículo fundacional del algoritmo Isolation Forest; describe la derivación de $c(n)$ y la función de score $s(x,n)$.
+1. **Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2008).** *Isolation Forest.* In *Proceedings of the 2008 Eighth IEEE International Conference on Data Mining* (ICDM), pp. 413–422. IEEE. — Foundational paper for the Isolation Forest algorithm; describes the derivation of $c(n)$ and the score function $s(x,n)$.
 
-2. **Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2012).** *Isolation-Based Anomaly Detection.* *ACM Transactions on Knowledge Discovery from Data (TKDD)*, 6(1), 1–39. — Extensión del paper original con análisis de complejidad computacional $O(n \log n)$ y comparación con LOF y One-Class SVM en datasets industriales.
+2. **Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2012).** *Isolation-Based Anomaly Detection.* *ACM Transactions on Knowledge Discovery from Data (TKDD)*, 6(1), 1–39. — Extension of the original paper with computational complexity analysis $O(n \log n)$ and comparison with LOF and One-Class SVM on industrial datasets.
 
-3. **Pedregosa, F. et al. (2011).** *Scikit-learn: Machine Learning in Python.* *Journal of Machine Learning Research*, 12, 2825–2830. — Documentación de referencia para la implementación de `IsolationForest`, `StandardScaler` y el parámetro `contamination` utilizados en este módulo.
+3. **Pedregosa, F. et al. (2011).** *Scikit-learn: Machine Learning in Python.* *Journal of Machine Learning Research*, 12, 2825–2830. — Reference documentation for the implementation of `IsolationForest`, `StandardScaler`, and the `contamination` parameter used in this module.
 
-4. **Segers, A. J. C. (2020).** *Data-driven methods for motorsport performance analysis: from telemetry to actionable feedback.* Master's thesis, Delft University of Technology. — Revisión de métodos de ML aplicados a telemetría de automovilismo; incluye análisis de sensibilidad para la selección de features en espacios multivariados de baja dimensión (4–8 canales).
+4. **Segers, A. J. C. (2020).** *Data-driven methods for motorsport performance analysis: from telemetry to actionable feedback.* Master's thesis, Delft University of Technology. — Review of ML methods applied to motorsport telemetry; includes sensitivity analysis for feature selection in low-dimensional multivariate spaces (4–8 channels).
 
-5. **Breunig, M. M., Kriegel, H.-P., Ng, R. T., & Sander, J. (2000).** *LOF: Identifying Density-Based Local Outliers.* In *Proceedings of ACM SIGMOD*, pp. 93–104. — Referencia comparativa para detección de anomalías basada en densidad local; Isolation Forest supera a LOF en datasets de alta dimensión y grandes volúmenes de datos en tiempo real, justificando su elección para telemetría continua.
+5. **Breunig, M. M., Kriegel, H.-P., Ng, R. T., & Sander, J. (2000).** *LOF: Identifying Density-Based Local Outliers.* In *Proceedings of ACM SIGMOD*, pp. 93–104. — Comparative reference for density-based local outlier detection; Isolation Forest outperforms LOF on high-dimensional datasets and large volumes of real-time data, justifying its selection for continuous telemetry.
+
+---
+
+> **Language note:** This document is the English translation of [`05_anomaly_detection.es.md`](./05_anomaly_detection.es.md). Both files are maintained in parallel. If you find a discrepancy, the Spanish source takes precedence.

@@ -1,286 +1,288 @@
-# Análisis de Stint — Degradación, Combustible y Monte Carlo
+# Stint Analysis — Degradation, Fuel Strategy & Monte Carlo
 
-> Módulo: `src/analytics/stint.py`  
-> Versión documentada: pipeline principal — branch `main`  
-> Fecha: 2026-06-11
+🌐 [Ver en Español](./08_stint_analysis.es.md)
 
----
-
-## Tabla de Contenidos
-
-1. [Descripción General](#1-descripción-general)
-2. [Fundamentos Científicos](#2-fundamentos-científicos)
-   - 2.1 [Modelo de Degradación de Neumáticos](#21-modelo-de-degradación-de-neumáticos)
-   - 2.2 [Degradación por G-Sum](#22-degradación-por-g-sum)
-   - 2.3 [Estrategia de Combustible](#23-estrategia-de-combustible)
-   - 2.4 [Proyección Monte Carlo](#24-proyección-monte-carlo)
-3. [Algoritmo e Implementación](#3-algoritmo-e-implementación)
-   - 3.1 [Extracción de métricas por vuelta](#31-extracción-de-métricas-por-vuelta)
-   - 3.2 [Análisis de degradación](#32-análisis-de-degradación)
-   - 3.3 [Estrategia de combustible](#33-estrategia-de-combustible)
-   - 3.4 [Simulación Monte Carlo](#34-simulación-monte-carlo)
-4. [Parámetros Clave](#4-parámetros-clave)
-5. [Interpretación de Resultados](#5-interpretación-de-resultados)
-6. [Recomendaciones para el Piloto](#6-recomendaciones-para-el-piloto)
-7. [Visualizaciones](#7-visualizaciones)
-8. [Referencias](#8-referencias)
+> Module: `src/analytics/stint.py`  
+> Documented version: main pipeline — branch `main`  
+> Date: 2026-06-11
 
 ---
 
-## 1. Descripción General
+## Table of Contents
 
-El módulo de análisis de stint integra cuatro algoritmos complementarios que transforman la telemetría bruta por vuelta en decisiones operativas de carrera: cuantificación de la degradación de neumáticos, detección de pérdida de grip por carga lateral/longitudinal acumulada, cálculo conservador del pit window por combustible, y proyección estocástica de tiempos de vuelta mediante simulación Monte Carlo.
-
-El diseño sigue el principio de separación de responsabilidades: `extraer_metricas_por_vuelta` normaliza la señal bruta en un DataFrame de KPIs homogéneo; las tres funciones analíticas posteriores consumen ese DataFrame de forma independiente, permitiendo ejecutar cualquier subconjunto del análisis sin necesidad de disponer de todos los canales de telemetría. Todos los resultados son serializables a JSON puro para su consumo por el frontend React.
+1. [Overview](#1-overview)
+2. [Scientific Background](#2-scientific-background)
+   - 2.1 [Tyre Degradation Model](#21-tyre-degradation-model)
+   - 2.2 [G-Sum Degradation](#22-g-sum-degradation)
+   - 2.3 [Fuel Strategy](#23-fuel-strategy)
+   - 2.4 [Monte Carlo Projection](#24-monte-carlo-projection)
+3. [Algorithm & Implementation](#3-algorithm--implementation)
+   - 3.1 [Per-lap metric extraction](#31-per-lap-metric-extraction)
+   - 3.2 [Degradation analysis](#32-degradation-analysis)
+   - 3.3 [Fuel strategy](#33-fuel-strategy)
+   - 3.4 [Monte Carlo simulation](#34-monte-carlo-simulation)
+4. [Key Parameters](#4-key-parameters)
+5. [Result Interpretation](#5-result-interpretation)
+6. [Pilot Recommendations](#6-pilot-recommendations)
+7. [Visualizations](#7-visualizations)
+8. [References](#8-references)
 
 ---
 
-## 2. Fundamentos Científicos
+## 1. Overview
 
-### 2.1 Modelo de Degradación de Neumáticos
+The stint analysis module integrates four complementary algorithms that transform raw per-lap telemetry into operational race decisions: tyre degradation quantification, grip loss detection via accumulated lateral/longitudinal load, conservative pit window calculation by fuel, and stochastic lap-time projection via Monte Carlo simulation.
 
-La evolución del tiempo de vuelta durante un stint se modela con una regresión lineal ordinaria (OLS) sobre el número de vuelta:
+The design follows the separation-of-concerns principle: `extract_metrics_per_lap` normalises the raw signal into a homogeneous KPI DataFrame; the three subsequent analytical functions consume that DataFrame independently, allowing any subset of the analysis to run without requiring all telemetry channels to be present. All results are serialisable to pure JSON for consumption by the React frontend.
+
+---
+
+## 2. Scientific Background
+
+### 2.1 Tyre Degradation Model
+
+Lap-time evolution during a stint is modelled with an ordinary least-squares (OLS) linear regression over lap number:
 
 $$
 t_{\text{lap}}(n) = \beta_0 + \beta_1 \cdot n + \varepsilon_n
 $$
 
-donde:
+where:
 
-- $t_{\text{lap}}(n)$ — tiempo de vuelta en la vuelta $n$ [segundos]
-- $\beta_0$ — intercepto: tiempo estimado en la vuelta 0 (extrapolación) [s]
-- $\beta_1$ — **tasa de degradación**: incremento de tiempo por vuelta [s/lap]
-- $\varepsilon_n \sim \mathcal{N}(0,\,\sigma^2)$ — residuo (varianza del piloto + ruido de medición)
+- $t_{\text{lap}}(n)$ — lap time at lap $n$ [seconds]
+- $\beta_0$ — intercept: estimated lap time at lap 0 (extrapolation) [s]
+- $\beta_1$ — **degradation rate**: time increase per lap [s/lap]
+- $\varepsilon_n \sim \mathcal{N}(0,\,\sigma^2)$ — residual (driver variance + measurement noise)
 
-Los estimadores OLS son:
+OLS estimators:
 
 $$
 \hat{\beta}_1 = \frac{\sum_{i=1}^{N}(n_i - \bar{n})(t_i - \bar{t})}{\sum_{i=1}^{N}(n_i - \bar{n})^2}, \qquad
 \hat{\beta}_0 = \bar{t} - \hat{\beta}_1\,\bar{n}
 $$
 
-La bondad del ajuste se evalúa con el coeficiente de determinación:
+Goodness of fit is evaluated with the coefficient of determination:
 
 $$
 R^2 = 1 - \frac{SS_{\text{res}}}{SS_{\text{tot}}} = 1 - \frac{\sum_i (t_i - \hat{t}_i)^2}{\sum_i (t_i - \bar{t})^2}
 $$
 
-**Rango de interpretación para GT3:** $\beta_1 \in [0.05,\,0.15]$ s/lap indica degradación suave a moderada. Valores superiores a $0.20$ s/lap señalan sobreuso térmico o presiones incorrectas. La aproximación lineal es válida para stints de hasta 30 vueltas; para distancias de carrera completa se recomiendan modelos polinomiales o exponenciales que capturen la aceleración de degradación en la segunda mitad del compuesto.
+**GT3 interpretation range:** $\beta_1 \in [0.05,\,0.15]$ s/lap indicates mild to moderate degradation. Values above $0.20$ s/lap signal thermal overuse or incorrect pressures. The linear approximation is valid for stints up to 30 laps; for full race distances polynomial or exponential models are recommended to capture degradation acceleration in the second half of the compound's life.
 
-### 2.2 Degradación por G-Sum
+### 2.2 G-Sum Degradation
 
-La carga mecánica acumulada sobre el compuesto se cuantifica mediante el G-sum vectorial por vuelta:
+The mechanical load accumulated on the compound is quantified through the vectorial G-sum per lap:
 
 $$
 G_{\text{sum}}(t) = \sqrt{G_{\text{lat}}(t)^2 + G_{\text{lon}}(t)^2}
 $$
 
-Su evolución durante el stint se modela análogamente:
+Its evolution during the stint is modelled analogously:
 
 $$
 G_{\text{limit}}(n) = \alpha_0 + \alpha_1 \cdot n
 $$
 
-Un coeficiente $\alpha_1 < 0$ es el indicador físico de pérdida de grip: el mismo nivel de exigencia en el volante produce menos aceleración lateral con el paso de las vueltas, lo que fuerza al piloto a entrar más despacio a las curvas o a sufrir sobreviraje en la salida.
+A coefficient $\alpha_1 < 0$ is the physical indicator of grip loss: the same steering input produces less lateral acceleration as laps progress, forcing the driver to enter corners more slowly or suffer oversteer on exit.
 
-### 2.3 Estrategia de Combustible
+### 2.3 Fuel Strategy
 
-El consumo por vuelta se obtiene directamente de la diferencia de nivel de combustible registrado al inicio y al final de cada vuelta:
+Per-lap consumption is obtained directly from the difference in fuel level recorded at the start and end of each lap:
 
 $$
 f_i = \text{Fuel}_{\text{start},i} - \text{Fuel}_{\text{end},i}
 $$
 
-La estimación de la media muestral y su desviación estándar:
+Sample mean and standard deviation estimation:
 
 $$
 \mu_f = \frac{1}{N}\sum_{i=1}^{N} f_i, \qquad \sigma_f = \sqrt{\frac{1}{N-1}\sum_{i=1}^{N}(f_i - \mu_f)^2}
 $$
 
-Para la planificación de estrategia se emplea el **percentil 95** como estimación conservadora del consumo:
+For strategy planning the **95th percentile** is used as a conservative consumption estimate:
 
 $$
 f_{\text{safe}} = \mu_f + 1.65\,\sigma_f
 $$
 
-Este factor cubre el 95 % de la distribución normal unilateral, absorbiendo los escenarios de mayor consumo: tráfico intenso, cambios de mapa de motor, vuelta de seguridad lenta seguida de relanzamiento agresivo, y variaciones de temperatura ambiental. El consumo optimista se define como:
+This factor covers 95% of the one-sided normal distribution, absorbing high-consumption scenarios: heavy traffic, engine map changes, a slow safety-car lap followed by an aggressive restart, and ambient temperature variations. The optimistic consumption is defined as:
 
 $$
 f_{\text{opt}} = \max\!\left(0.01,\; \mu_f - 0.5\,\sigma_f\right)
 $$
 
-Las vueltas restantes (conservadoras y optimistas) se calculan mediante división entera:
+Remaining laps (conservative and optimistic) are calculated via integer division:
 
 $$
 n_{\text{safe}} = \left\lfloor \frac{F_{\text{current}}}{f_{\text{safe}}} \right\rfloor, \qquad
 n_{\text{max}}  = \left\lfloor \frac{F_{\text{current}}}{f_{\text{opt}}}  \right\rfloor
 $$
 
-El pit window queda definido como el intervalo discreto de vueltas en que la parada es técnicamente viable sin riesgo de quedar sin combustible:
+The pit window is defined as the discrete lap interval in which a stop is technically viable without risk of running out of fuel:
 
 $$
 \text{PitWindow} = \bigl[\,n_{\text{current}} + n_{\text{safe}} - 1,\;\; n_{\text{current}} + n_{\text{max}}\,\bigr]
 $$
 
-La estimación conservadora aplica únicamente cuando la muestra supera cuatro vueltas (`len(valid) > 3`), garantizando que $\sigma_f$ sea estadísticamente representativa antes de inflar el consumo esperado.
+The conservative estimate only applies when the sample exceeds four laps (`len(valid) > 3`), ensuring $\sigma_f$ is statistically representative before inflating the expected consumption.
 
-### 2.4 Proyección Monte Carlo
+### 2.4 Monte Carlo Projection
 
-La proyección estocástica modela el tiempo de vuelta futuro como un proceso de Markov de primer orden con tendencia determinista y ruido estacionario:
+The stochastic projection models the future lap time as a first-order Markov process with deterministic trend and stationary noise:
 
 $$
 T(n + k) = T(n) + k\,\beta_1 + \sum_{j=1}^{k} \varepsilon_j, \quad \varepsilon_j \sim \mathcal{N}(0,\,\sigma_{\text{real}}^2)
 $$
 
-donde $\sigma_{\text{real}}$ es la desviación estándar observada de los tiempos de vuelta durante el stint:
+where $\sigma_{\text{real}}$ is the observed standard deviation of lap times during the stint:
 
 $$
 \sigma_{\text{real}} = \text{std}\bigl(t_1, t_2, \ldots, t_N\bigr)
 $$
 
-A diferencia de una varianza teórica, $\sigma_{\text{real}}$ incorpora toda la variabilidad real del piloto: baulizaciones, cambios de línea, desgaste local de neumáticos y ruido de sensor. Para capturar la asimetría empírica de los tiempos de vuelta — las mejoras sorpresivas son más raras que los errores — el ruido se trunca inferiormente:
+Unlike a theoretical variance, $\sigma_{\text{real}}$ incorporates all real driver variability: traffic, line changes, local tyre wear, and sensor noise. To capture the empirical asymmetry of lap times — surprise improvements are rarer than mistakes — the noise is truncated from below:
 
 $$
 \varepsilon_j \leftarrow \max\!\bigl(\varepsilon_j,\;-0.5\,\sigma_{\text{real}}\bigr)
 $$
 
-Esta condición impide que una sola simulación genere una vuelta dramáticamente rápida, lo que produciría bandas de confianza irrealmente optimistas.
+This condition prevents a single simulation from generating a dramatically fast lap, which would produce unrealistically optimistic confidence bands.
 
-Se ejecutan **N = 500 simulaciones** con semilla fija `seed=42` para garantizar reproducibilidad entre sesiones de análisis. Los cuantiles de salida son: P10, P25, P50, P75, P90.
+**N = 500 simulations** are run with a fixed seed `seed=42` to guarantee reproducibility across analysis sessions. Output quantiles: P10, P25, P50, P75, P90.
 
 ---
 
-## 3. Algoritmo e Implementación
+## 3. Algorithm & Implementation
 
-### 3.1 Extracción de métricas por vuelta
+### 3.1 Per-lap metric extraction
 
-**Función:** `extraer_metricas_por_vuelta(dfs)`
+**Function:** `extract_metrics_per_lap(dfs)`
 
-Recibe una lista de DataFrames, uno por vuelta, normalizados por el cargador de telemetría. Para cada vuelta calcula:
+Receives a list of DataFrames, one per lap, normalised by the telemetry loader. For each lap it calculates:
 
-| Campo | Cálculo |
+| Field | Calculation |
 |---|---|
 | `lap_time_s` | `Time.iloc[-1] − Time.iloc[0]` |
-| `mean_speed_kmh` / `max_speed_kmh` | media y máximo del canal de velocidad |
-| `max_g_sum` / `mean_g_sum` | $\sqrt{G_\text{lat}^2 + G_\text{lon}^2}$, máximo y media |
-| `fuel_start` / `fuel_end` / `fuel_burned` | valores inicial y final del canal de combustible; diferencia |
-| `tyre_temp_avg` | media de las cuatro temperaturas de neumático disponibles |
+| `mean_speed_kmh` / `max_speed_kmh` | mean and max of the speed channel |
+| `max_g_sum` / `mean_g_sum` | $\sqrt{G_\text{lat}^2 + G_\text{lon}^2}$, max and mean |
+| `fuel_start` / `fuel_end` / `fuel_burned` | initial and final fuel channel values; difference |
+| `tyre_temp_avg` | mean of the four available tyre temperatures |
 
-La resolución de nombres de canal se realiza mediante `_find_channel`, que itera una lista de sinónimos por canal (`FUEL_CHANNELS`, `TYRE_CHANNELS`) para garantizar compatibilidad con distintos formatos de logger (MoTeC, AiM, CSV genérico).
+Channel name resolution is performed via `_find_channel`, which iterates a list of synonyms per channel (`FUEL_CHANNELS`, `TYRE_CHANNELS`) to ensure compatibility with different logger formats (MoTeC, AiM, generic CSV).
 
-### 3.2 Análisis de degradación
+### 3.2 Degradation analysis
 
-**Función:** `analizar_degradacion_stint(df_laps)`
+**Function:** `analyse_stint_degradation(df_laps)`
 
-1. Filtra vueltas con `lap_time_s` nulo (`dropna`). Requiere mínimo 3 vueltas válidas.
-2. Ajusta `LinearRegression` de scikit-learn sobre `lap_number` → `lap_time_s`.
-3. Calcula $\hat{\beta}_1$ (`model.coef_[0]`), predice tiempos sobre el stint actual.
-4. Calcula $R^2$ directamente desde `SS_res` y `SS_tot`.
-5. Proyecta `N_FUTURE_LAPS = 12` vueltas adicionales usando `model.predict`.
-6. Si `max_g_sum` tiene al menos 3 vueltas válidas, repite el ajuste lineal para la degradación de grip ($\alpha_0$, $\alpha_1$).
+1. Filters laps with null `lap_time_s` (`dropna`). Requires a minimum of 3 valid laps.
+2. Fits `LinearRegression` from scikit-learn on `lap_number` → `lap_time_s`.
+3. Calculates $\hat{\beta}_1$ (`model.coef_[0]`), predicts times over the current stint.
+4. Calculates $R^2$ directly from `SS_res` and `SS_tot`.
+5. Projects `N_FUTURE_LAPS = 12` additional laps using `model.predict`.
+6. If `max_g_sum` has at least 3 valid laps, repeats the linear fit for grip degradation ($\alpha_0$, $\alpha_1$).
 
-El resultado es un diccionario JSON-serializable con las series temporales de tendencia y proyección.
+The result is a JSON-serialisable dictionary with the trend and projection time series.
 
-### 3.3 Estrategia de combustible
+### 3.3 Fuel strategy
 
-**Función:** `calcular_estrategia_combustible(df_laps)`
+**Function:** `calculate_fuel_strategy(df_laps)`
 
-1. Filtra vueltas con `fuel_burned` no nulo y suma absoluta > 0.01 L (descarta sesiones sin datos de combustible).
-2. Calcula $\mu_f$ y $\sigma_f$ muestrales.
-3. Aplica el factor 1.65σ solo si `len(valid) > 3`.
-4. Lee el nivel de combustible actual de la última muestra disponible en `fuel_end`.
-5. Calcula `vueltas_min` y `vueltas_max` por división entera.
-6. Devuelve `pit_window` como lista `[apertura, cierre]`, más el registro detallado `fuel_per_lap`.
+1. Filters laps with non-null `fuel_burned` and absolute sum > 0.01 L (discards sessions without fuel data).
+2. Calculates $\mu_f$ and $\sigma_f$ as sample statistics.
+3. Applies the 1.65σ factor only if `len(valid) > 3`.
+4. Reads the current fuel level from the last available `fuel_end` sample.
+5. Calculates `min_laps` and `max_laps` via integer division.
+6. Returns `pit_window` as a list `[open, close]`, plus the detailed `fuel_per_lap` record.
 
-La constante `FUEL_SIGMA_SCALE = 1.65` está definida a nivel de módulo para facilitar su ajuste sin modificar la lógica.
+The constant `FUEL_SIGMA_SCALE = 1.65` is defined at module level for easy adjustment without modifying the logic.
 
-### 3.4 Simulación Monte Carlo
+### 3.4 Monte Carlo simulation
 
-**Función:** `simular_tiempos_stint(df_laps, degradacion, seed=42)`
+**Function:** `simulate_stint_times(df_laps, degradation, seed=42)`
 
-1. Requiere mínimo 3 vueltas válidas y que `degradacion["available"]` sea `True`.
-2. Crea un generador `np.random.default_rng(seed)` — API moderna de NumPy, thread-safe.
-3. Para cada una de las 500 simulaciones, itera `N_FUTURE_LAPS = 12` pasos:
-   - Añade `tasa` (degradación determinista).
-   - Muestrea ruido gaussiano $\varepsilon \sim \mathcal{N}(0, \sigma_{\text{real}})$.
-   - Aplica truncado inferior: `noise = max(noise, −sigma_real × 0.5)`.
-4. Almacena todas las trayectorias en `sims` (array `500 × 12`).
-5. Calcula percentiles con `np.percentile(..., axis=0)` sobre el eje de simulaciones.
+1. Requires a minimum of 3 valid laps and `degradation["available"]` to be `True`.
+2. Creates a `np.random.default_rng(seed)` generator — modern NumPy API, thread-safe.
+3. For each of 500 simulations, iterates `N_FUTURE_LAPS = 12` steps:
+   - Adds `rate` (deterministic degradation).
+   - Samples Gaussian noise $\varepsilon \sim \mathcal{N}(0, \sigma_{\text{real}})$.
+   - Applies lower truncation: `noise = max(noise, −sigma_real × 0.5)`.
+4. Stores all trajectories in `sims` (array `500 × 12`).
+5. Calculates percentiles with `np.percentile(..., axis=0)` over the simulation axis.
 
 ---
 
-## 4. Parámetros Clave
+## 4. Key Parameters
 
-| Parámetro | Valor | Unidad | Descripción | Efecto si se aumenta |
+| Parameter | Value | Unit | Description | Effect if increased |
 |---|---|---|---|---|
-| `N_SIMULATIONS` | 500 | — | Número de trayectorias Monte Carlo | Mayor resolución de bandas de percentil; +CPU |
-| `N_FUTURE_LAPS` | 12 | vueltas | Horizonte de proyección | Proyección más larga; mayor incertidumbre |
-| `FUEL_SIGMA_SCALE` | 1.65 | σ | Factor de seguridad de combustible (percentil 95) | Pit window más conservador (abre antes) |
-| `seed` (MC) | 42 | — | Semilla para reproducibilidad | Cambiar invalida comparación entre sesiones |
-| `noise_floor` | −0.5 σ_real | s | Truncado inferior del ruido MC | Reduce el optimismo de las simulaciones |
-| Mínimo de vueltas para regresión | 3 | vueltas | Guarda de calidad estadística | — |
-| Mínimo de vueltas para σ_f aplicada | >3 | vueltas | Activa el factor 1.65σ | — |
+| `N_SIMULATIONS` | 500 | — | Number of Monte Carlo trajectories | Higher percentile band resolution; +CPU |
+| `N_FUTURE_LAPS` | 12 | laps | Projection horizon | Longer projection; higher uncertainty |
+| `FUEL_SIGMA_SCALE` | 1.65 | σ | Fuel safety factor (95th percentile) | More conservative pit window (opens earlier) |
+| `seed` (MC) | 42 | — | Seed for reproducibility | Changing it invalidates comparison across sessions |
+| `noise_floor` | −0.5 σ_real | s | MC noise lower truncation | Reduces simulation optimism |
+| Min laps for regression | 3 | laps | Statistical quality guard | — |
+| Min laps for applied σ_f | >3 | laps | Activates the 1.65σ factor | — |
 
 ---
 
-## 5. Interpretación de Resultados
+## 5. Result Interpretation
 
-### Degradación (`analizar_degradacion_stint`)
+### Degradation (`analyse_stint_degradation`)
 
-- **`tasa_s_per_lap` (β₁):** El indicador primario de salud del compuesto.
-  - `0.00 – 0.05` s/lap: Degradación despreciable. Compuesto sobredimensionado o stint corto.
-  - `0.05 – 0.15` s/lap: Rango típico GT3. Estrategia estándar.
-  - `0.15 – 0.25` s/lap: Degradación elevada. Revisar presiones, temperatura de entrada.
-  - `> 0.25` s/lap: Alerta roja. Riesgo de fallo de compuesto. Considerar pit inmediato.
-- **`r_squared` (R²):** Fiabilidad del modelo.
-  - `R² < 0.3`: Degradación no lineal o datos contaminados por Safety Car. No confiar en la proyección.
-  - `R² ≥ 0.6`: El modelo lineal captura bien la tendencia.
-- **`grip_tasa_per_lap` (α₁):** Negativo e igual en magnitud a β₁ confirma que la pérdida de tiempo se debe a desgaste físico del compuesto, no a decisiones tácticas del piloto.
+- **`rate_s_per_lap` (β₁):** The primary compound health indicator.
+  - `0.00 – 0.05` s/lap: Negligible degradation. Oversized compound or short stint.
+  - `0.05 – 0.15` s/lap: Typical GT3 range. Standard strategy.
+  - `0.15 – 0.25` s/lap: High degradation. Check pressures, entry temperature.
+  - `> 0.25` s/lap: Red alert. Compound failure risk. Consider immediate pit stop.
+- **`r_squared` (R²):** Model reliability.
+  - `R² < 0.3`: Non-linear degradation or data contaminated by Safety Car. Do not trust the projection.
+  - `R² ≥ 0.6`: The linear model captures the trend well.
+- **`grip_rate_per_lap` (α₁):** Negative and equal in magnitude to β₁ confirms that the time loss is due to physical compound wear, not driver tactical decisions.
 
-### Combustible (`calcular_estrategia_combustible`)
+### Fuel (`calculate_fuel_strategy`)
 
-- **`consumo_medio_l`:** Referencia de eficiencia. Comparar entre pilotos del mismo equipo.
-- **`consumo_std_l`:** Una desviación superior al 8 % de la media indica conducción inconsistente o tráfico intenso.
-- **`pit_window`:** El índice 0 es la vuelta más temprana a la que puede entrar sin quedarse sin combustible. El índice 1 es el límite máximo absoluto. Operar más allá del índice 1 implica riesgo de avería por falta de combustible.
+- **`mean_consumption_l`:** Efficiency reference. Compare between team-mates.
+- **`std_consumption_l`:** A deviation above 8% of the mean indicates inconsistent driving or heavy traffic.
+- **`pit_window`:** Index 0 is the earliest lap at which a stop can be made without running out of fuel. Index 1 is the absolute maximum. Operating beyond index 1 implies risk of fuel-related failure.
 
-### Monte Carlo (`simular_tiempos_stint`)
+### Monte Carlo (`simulate_stint_times`)
 
-- **Banda P25–P75:** Rango de tiempos esperable para el 50 % central de los escenarios. Es la referencia operativa.
-- **Banda P10–P90:** Envolvente de prácticamente todos los escenarios realistas. Solo el 20 % de las simulaciones cae fuera.
-- **Divergencia creciente entre P10 y P90:** Indica alta incertidumbre (σ_real grande). Escenarios tardíos tienen baja confiabilidad.
-- **P50 sobre el tiempo objetivo de carrera:** La mediana proyectada supera el tiempo necesario para mantener la posición — es el criterio cuantitativo para adelantar el pit stop.
-
----
-
-## 6. Recomendaciones para el Piloto
-
-### Gestión de neumáticos
-
-1. **Si β₁ > 0.15 s/lap en la vuelta 8 o antes:** Reducir carga en las curvas de alta velocidad (Sector 2 habitualmente). La degradación acumulada en el resto del stint comprometería el tiempo de vuelta más que una conducción levemente más conservadora ahora.
-
-2. **Si R² < 0.4 con β₁ aparentemente bajo:** El modelo no es fiable. Verificar si existe una vuelta outlier por Safety Car o entrada al box falsa. Excluir manualmente y recalcular.
-
-3. **Si α₁ es más negativo que −0.02 g/lap:** El compuesto está perdiendo grip más rápido de lo normal. La ventana efectiva del stint se reduce — comunicar al muro para anticipar el pit por entre 2 y 4 vueltas.
-
-### Estrategia de combustible
-
-4. **Siempre pilotar respecto a `pit_window[0]`** (apertura conservadora), no respecto a `pit_window[1]`. El margen entre ambos es el buffer táctico para reacción del equipo, no del piloto.
-
-5. **Si `consumo_std_l` > 0.15 L/lap** durante el stint: El factor 1.65σ está produciendo una estimación conservadora significativamente mayor que la media. Evaluar si el consumo alto se debe a vueltas detrás del safety car (excluibles) o a hábitos de conducción corregibles.
-
-6. **Modo combustible preventivo:** Si la proyección MC P90 del tiempo de vuelta supera el objetivo de vuelta de carrera más de 1.0 s/lap durante más de 4 vueltas consecutivas, la ganancia neta de extender el stint no compensa. Entrar en pit window temprano y salir con neumático frío más productivo.
-
-### Uso de las bandas Monte Carlo
-
-7. **P50 es la referencia de planificación**, no el tiempo actual. Al comunicar al piloto el "objetivo de salida del pit", usar el P50 proyectado a 3 vueltas vista para que ajuste el ritmo de calentamiento de neumático.
-
-8. **Ante divergencia P10–P90 superior a 1.5 s** en el horizonte de 8 vueltas: el stint está en zona de alta incertidumbre. No comprometerse con splits de tiempo de estrategia — mantener flexibilidad táctica.
+- **P25–P75 band:** Expected lap time range for the central 50% of scenarios. This is the operational reference.
+- **P10–P90 band:** Envelope of practically all realistic scenarios. Only 20% of simulations fall outside.
+- **Growing divergence between P10 and P90:** Indicates high uncertainty (large σ_real). Late-stint scenarios have low reliability.
+- **P50 above the target race lap time:** The projected median exceeds the time needed to hold position — this is the quantitative criterion for advancing the pit stop.
 
 ---
 
-## 7. Visualizaciones
+## 6. Pilot Recommendations
 
-Para generar las imágenes ejecutar:
+### Tyre management
+
+1. **If β₁ > 0.15 s/lap by lap 8 or earlier:** Reduce load in high-speed corners (usually Sector 2). The accumulated degradation for the rest of the stint would compromise lap time more than slightly more conservative driving now.
+
+2. **If R² < 0.4 with an apparently low β₁:** The model is unreliable. Check whether there is an outlier lap due to a Safety Car or a false pit entry. Exclude manually and recalculate.
+
+3. **If α₁ is more negative than −0.02 g/lap:** The compound is losing grip faster than normal. The effective stint window shrinks — communicate to the pit wall to advance the pit stop by 2–4 laps.
+
+### Fuel strategy
+
+4. **Always drive relative to `pit_window[0]`** (conservative opening), not relative to `pit_window[1]`. The gap between the two is the tactical buffer for team reaction, not for the driver.
+
+5. **If `std_consumption_l` > 0.15 L/lap** during the stint: The 1.65σ factor is producing a conservative estimate significantly above the mean. Assess whether the high consumption is due to safety-car laps (excludable) or correctable driving habits.
+
+6. **Preventive fuel mode:** If the MC P90 projected lap time exceeds the target race lap time by more than 1.0 s/lap for more than 4 consecutive laps, the net gain from extending the stint does not compensate. Enter the pit window early and exit on a fresh, more productive tyre.
+
+### Using the Monte Carlo bands
+
+7. **P50 is the planning reference**, not the current lap time. When communicating the "pit exit target" to the driver, use the P50 projected 3 laps ahead so they can adjust their tyre warm-up pace.
+
+8. **When P10–P90 divergence exceeds 1.5 s** over the 8-lap horizon: the stint is in a high-uncertainty zone. Do not commit to strategy lap-time splits — maintain tactical flexibility.
+
+---
+
+## 7. Visualizations
+
+To generate the images run:
 
 ```bash
 python scripts/docs/gen_stint.py
@@ -288,41 +290,41 @@ python scripts/docs/gen_stint.py
 
 ---
 
-### Fig. 1 — Regresión de Degradación y G-Sum
+### Fig. 1 — Degradation Regression & G-Sum
 
 ![Degradation regression](./images/stint/degradation_regression.png)
 
-**Subgráfica superior:** Diagrama de dispersión de tiempos de vuelta observados (puntos cyan) sobre el número de vuelta, con la recta de regresión lineal (línea blanca discontinua) y la banda de confianza al 95 % (relleno cyan tenue). Las anotaciones muestran el coeficiente de degradación $\beta_1$ y el $R^2$ del ajuste. Una recta con pendiente positiva pronunciada es el marcador visual inmediato de degradación activa.
+**Upper sub-chart:** Scatter plot of observed lap times (cyan points) over lap number, with the linear regression line (white dashed) and 95% confidence band (faint cyan fill). Annotations show the degradation coefficient $\beta_1$ and fit $R^2$. A steeply positive slope is the immediate visual marker of active degradation.
 
-**Subgráfica inferior:** Evolución del G-sum máximo por vuelta (puntos rojos) con su tendencia lineal (línea amber). Una pendiente negativa confirma la pérdida de grip física del compuesto, distinguiéndola de la pérdida de tiempo debida a decisiones tácticas.
+**Lower sub-chart:** Evolution of the maximum G-sum per lap (red points) with its linear trend (amber line). A negative slope confirms physical compound grip loss, distinguishing it from time loss due to tactical decisions.
 
 ---
 
-### Fig. 2 — Proyección Monte Carlo
+### Fig. 2 — Monte Carlo Projection
 
 ![Monte Carlo projection](./images/stint/montecarlo_projection.png)
 
-El panel muestra la historia de tiempos observados (línea y puntos cyan sólidos) y las bandas de proyección estocástica a la derecha del separador vertical. La línea amber discontinua es la mediana P50; el relleno amber intenso corresponde a la banda intercuartílica P25–P75 (50 % de los escenarios); el relleno tenue es P10–P90 (80 % de los escenarios). La etiqueta $\sigma_\text{real}$ cuantifica la variabilidad histórica del piloto empleada como entrada del modelo.
+The panel shows observed lap-time history (solid cyan line and points) and the stochastic projection bands to the right of a vertical separator. The amber dashed line is the P50 median; the intense amber fill is the interquartile P25–P75 band (50% of scenarios); the faint fill is P10–P90 (80% of scenarios). The $\sigma_\text{real}$ label quantifies the historical driver variability used as model input.
 
 ---
 
-### Fig. 3 — Consumo de Combustible por Vuelta
+### Fig. 3 — Per-lap Fuel Consumption
 
 ![Fuel consumption](./images/stint/fuel_consumption.png)
 
-Diagrama de barras con el consumo de combustible en cada vuelta. Las barras verdes indican vueltas de consumo inferior a la media; las rojas, superior. La línea cyan horizontal marca la media $\mu_f$; la línea amber discontinua marca $f_\text{safe}$ (percentil 95 conservador). La anotación con flecha indica la vuelta proyectada de apertura del pit window. El piloto debe interpretar un patrón de barras rojas consecutivas como incremento de riesgo de quedar sin combustible.
+Bar chart with fuel consumption per lap. Green bars indicate laps below average consumption; red bars, above. The horizontal cyan line marks the mean $\mu_f$; the amber dashed line marks $f_\text{safe}$ (conservative 95th percentile). An arrow annotation indicates the projected pit window opening lap. The driver should interpret a run of consecutive red bars as increasing risk of running out of fuel.
 
 ---
 
-### Fig. 4 — Diagrama de Pit Window
+### Fig. 4 — Pit Window Diagram
 
 ![Pit window diagram](./images/stint/pit_window_diagram.png)
 
-Diagrama de línea temporal horizontal que resume visualmente toda la estrategia de combustible: la zona verde representa el margen seguro de conducción; la zona amber es el pit window operativo (intervalo recomendado de parada); la zona roja es la región crítica donde el riesgo de quedarse sin combustible es real. La línea cyan vertical indica la vuelta actual del stint. Los límites numéricos del pit window y el nivel actual de combustible aparecen en la leyenda inferior derecha.
+Horizontal timeline diagram that visually summarises the entire fuel strategy: the green zone is the safe driving margin; the amber zone is the operational pit window (recommended stop interval); the red zone is the critical region where the risk of running out of fuel is real. The vertical cyan line indicates the current stint lap. The numerical pit window limits and current fuel level appear in the lower-right legend.
 
 ---
 
-## 8. Referencias
+## 8. References
 
 1. Völker, A. & Marko, H. (2014). *Tyre degradation modelling in Formula motorsport: a linear regression approach for race strategy optimization.* Vehicle System Dynamics, 52(4), 512–530. https://doi.org/10.1080/00423114.2014.883460
 
@@ -333,3 +335,7 @@ Diagrama de línea temporal horizontal que resume visualmente toda la estrategia
 4. Corno, M., Tanelli, M., Savaresi, S. M., & Fabbri, L. (2008). Design and validation of a lean-angle controller for racing motorcycles. *IEEE Transactions on Control Systems Technology*, 17(6), 1320–1329. [G-sum as tyre load proxy.]
 
 5. Montgomery, D. C. & Runger, G. C. (2018). *Applied Statistics and Probability for Engineers* (7th ed.). Wiley. [Normal percentile estimation, FUEL_SIGMA_SCALE derivation: §4.6 Normal distribution quantiles.]
+
+---
+
+*Also available in [Español 🇪🇸](./08_stint_analysis.es.md)*

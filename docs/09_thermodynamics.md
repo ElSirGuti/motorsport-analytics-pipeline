@@ -1,218 +1,224 @@
-# Temperatura de Neumáticos — Análisis Térmico
+# Tyre Temperature — Thermal Analysis
 
-**Módulo:** `src/analytics/thermodynamics.py`  
-**Fecha de revisión:** 2026-06-12
+🌐 [Ver en Español](./09_thermodynamics.es.md)
 
----
-
-## Tabla de Contenidos
-
-1. [Descripción General](#descripción-general)
-2. [Fundamentos Científicos](#fundamentos-científicos)
-   - 2.1 [Física del Neumático en la Ventana Térmica](#21-física-del-neumático-en-la-ventana-térmica)
-   - 2.2 [Gradiente Superficial–Núcleo (ΔT)](#22-gradiente-superficialnúcleo-δt)
-   - 2.3 [Estrés Térmico](#23-estrés-térmico)
-3. [Algoritmo e Implementación](#algoritmo-e-implementación)
-   - 3.1 [Estructura de Canales MoTeC](#31-estructura-de-canales-motec)
-   - 3.2 [`analizar_neumaticos`](#32-analizar_neumaticos)
-   - 3.3 [`analizar_neumaticos_comparativo`](#33-analizar_neumaticos_comparativo)
-4. [Parámetros Clave](#parámetros-clave)
-5. [Interpretación de Resultados](#interpretación-de-resultados)
-6. [Recomendaciones para el Piloto](#recomendaciones-para-el-piloto)
-7. [Visualizaciones](#visualizaciones)
-8. [Referencias](#referencias)
+**Module:** `src/analytics/thermodynamics.py`  
+**Review date:** 2026-06-12
 
 ---
 
-## Descripción General
+## Table of Contents
 
-El módulo de termodinámica de neumáticos analiza los 16 canales de temperatura de los 4 neumáticos (Inner, Middle, Outer y Core por rueda) para determinar si el compuesto está operando dentro de su ventana de temperatura óptima, cuantificar el gradiente interno del neumático y detectar zonas de estrés térmico que predicen desgaste acelerado o pérdida de grip. Para comparativas de dos vueltas, el módulo ejecuta el análisis de forma independiente sobre cada lap usando los canales alineados con sufijo `_Fast` y `_Slow`.
+1. [Overview](#overview)
+2. [Scientific Background](#scientific-background)
+   - 2.1 [Tyre Physics Within the Thermal Window](#21-tyre-physics-within-the-thermal-window)
+   - 2.2 [Surface-to-Core Gradient (ΔT)](#22-surface-to-core-gradient-δt)
+   - 2.3 [Thermal Stress](#23-thermal-stress)
+3. [Algorithm & Implementation](#algorithm--implementation)
+   - 3.1 [MoTeC Channel Structure](#31-motec-channel-structure)
+   - 3.2 [`analyse_tyres`](#32-analyse_tyres)
+   - 3.3 [`analyse_tyres_comparative`](#33-analyse_tyres_comparative)
+4. [Key Parameters](#key-parameters)
+5. [Result Interpretation](#result-interpretation)
+6. [Pilot Recommendations](#pilot-recommendations)
+7. [Visualizations](#visualizations)
+8. [References](#references)
 
 ---
 
-## Fundamentos Científicos
+## Overview
 
-### 2.1 Física del Neumático en la Ventana Térmica
+The tyre thermodynamics module analyses the 16 temperature channels from the 4 tyres (Inner, Middle, Outer and Core per wheel) to determine whether the compound is operating within its optimal temperature window, quantify the tyre's internal gradient, and detect thermal stress zones that predict accelerated wear or grip loss. For two-lap comparisons, the module runs the analysis independently on each lap using the aligned channels with `_Fast` and `_Slow` suffixes.
 
-Los compuestos de goma de un neumático de competición tienen una curva de coeficiente de fricción μ que forma una cúpula con un pico bien definido. Por debajo del rango óptimo, los polímeros no alcanzan la plasticidad suficiente para maximizar el área de contacto molecular (grip); por encima, la degradación química acelera el desgaste y puede producir graining o blistering.
+---
+
+## Scientific Background
+
+### 2.1 Tyre Physics Within the Thermal Window
+
+The rubber compounds in a racing tyre have a friction coefficient μ curve that forms a dome with a well-defined peak. Below the optimal range, the polymers do not reach sufficient plasticity to maximise molecular contact area (grip); above it, chemical degradation accelerates wear and can produce graining or blistering.
 
 $$
 \mu(T) \approx \mu_{max} \cdot \exp\!\left(-\frac{(T - T_{opt})^2}{2\sigma_T^2}\right)
 $$
 
-donde $T_{opt}$ es el centro de la ventana óptima y $\sigma_T$ controla la anchura del pico. En la práctica, el rango óptimo se expresa como $[T_{min},\, T_{max}]$; el módulo usa por defecto **80–100°C** para compuestos GT de calle de alto rendimiento (configurable).
+where $T_{opt}$ is the centre of the optimal window and $\sigma_T$ controls the peak width. In practice, the optimal range is expressed as $[T_{min},\, T_{max}]$; the module defaults to **80–100°C** for high-performance GT road compounds (configurable).
 
-El sistema clasifica el estado de cada neumático en cinco niveles:
+The system classifies each tyre's state into five levels:
 
-| Estado | Condición | Implicación |
+| State | Condition | Implication |
 |---|---|---|
-| `fria` | $T < T_{min} - 15°C$ | Sin grip disponible; vuelta de calentamiento necesaria |
-| `suboptima` | $T_{min} - 15°C \le T < T_{min}$ | Grip parcial; neumático aún ganando temperatura |
-| `optima` | $T_{min} \le T \le T_{max}$ | Máximo grip; condición objetivo |
-| `caliente` | $T_{max} < T \le T_{max} + 15°C$ | Degradación acelerada; monitorear de cerca |
-| `sobrecalentada` | $T > T_{max} + 15°C$ | Blistering potencial; reducir ritmo o entrar a pits |
+| `cold` | $T < T_{min} - 15°C$ | No grip available; warm-up lap required |
+| `sub-optimal` | $T_{min} - 15°C \le T < T_{min}$ | Partial grip; tyre still gaining temperature |
+| `optimal` | $T_{min} \le T \le T_{max}$ | Maximum grip; target condition |
+| `hot` | $T_{max} < T \le T_{max} + 15°C$ | Accelerated degradation; monitor closely |
+| `overheated` | $T > T_{max} + 15°C$ | Potential blistering; reduce pace or pit |
 
 ---
 
-### 2.2 Gradiente Superficial–Núcleo (ΔT)
+### 2.2 Surface-to-Core Gradient (ΔT)
 
-La diferencia entre la temperatura superficial media y la temperatura del núcleo es un indicador de la tasa de generación de calor en el compound:
+The difference between the mean surface temperature and the core temperature is an indicator of the heat generation rate in the compound:
 
 $$
 \Delta T = \bar{T}_{surface} - T_{core}
 $$
 
-donde $\bar{T}_{surface} = \frac{T_{Inner} + T_{Middle} + T_{Outer}}{3}$.
+where $\bar{T}_{surface} = \frac{T_{Inner} + T_{Middle} + T_{Outer}}{3}$.
 
-Un ΔT **positivo y elevado** (> 20°C) indica que la superficie del neumático genera calor más rápido de lo que el núcleo puede disipar, situación que aumenta el riesgo de graining en el primer stint y blistering en condiciones de alta carga. En el extremo opuesto, un ΔT negativo o cercano a cero en un neumático "caliente" puede indicar que el núcleo supera la temperatura de la banda de rodadura, situación característica del blistering avanzado.
+A **positive and high ΔT** (> 20°C) indicates that the tyre surface is generating heat faster than the core can dissipate, increasing the risk of graining in the first stint and blistering under high-load conditions. At the opposite extreme, a negative or near-zero ΔT in a "hot" tyre may indicate that the core is exceeding the tread temperature, characteristic of advanced blistering.
 
 ---
 
-### 2.3 Estrés Térmico
+### 2.3 Thermal Stress
 
-El módulo calcula el porcentaje de muestras donde ΔT supera el umbral de estrés de **20°C**:
+The module calculates the percentage of samples where ΔT exceeds the stress threshold of **20°C**:
 
 $$
 \text{high\_stress\_pct} = \frac{|\{i : \Delta T_i > 20°C\}|}{N} \times 100\%
 $$
 
-Este valor, junto con `window_status`, forma la base del diagnóstico rápido: un neumático con estado `caliente` y `high_stress_pct > 30%` requiere atención inmediata de setup o estrategia.
+This value, combined with `window_status`, forms the basis for rapid diagnosis: a tyre with state `hot` and `high_stress_pct > 30%` requires immediate setup or strategy attention.
 
 ---
 
-## Algoritmo e Implementación
+## Algorithm & Implementation
 
-### 3.1 Estructura de Canales MoTeC
+### 3.1 MoTeC Channel Structure
 
-El cargador (`loaders.py`) normaliza los nombres de columna del CSV al esquema canónico:
+The loader (`loaders.py`) normalises CSV column names to the canonical scheme:
 
-| Canal canónico | Variantes MoTeC aceptadas |
+| Canonical channel | Accepted MoTeC variants |
 |---|---|
 | `TyreTempInnerFL` | `Tire Temp Inner FL`, `Tyre Temp (I) FL`, `Tyre Temp I FL` |
 | `TyreTempMiddleFL` | `Tire Temp Middle FL`, `Tyre Temp (M) FL`, `Tyre Temp M FL` |
 | `TyreTempOuterFL` | `Tire Temp Outer FL`, `Tyre Temp (O) FL`, `Tyre Temp O FL` |
 | `TyreTempCoreFL` | `Tire Temp Core FL`, `Tyre Core Temp FL`, `Tyre Temp Core FL` |
 
-El mismo patrón se aplica a FR, RL y RR. En el DataFrame alineado, los canales se identifican con sufijo `_Fast` o `_Slow`.
+The same pattern applies to FR, RL, and RR. In the aligned DataFrame, channels are identified with the `_Fast` or `_Slow` suffix.
 
 ---
 
-### 3.2 `analizar_neumaticos`
+### 3.2 `analyse_tyres`
 
 ```
-Entradas:
-  df       — DataFrame de telemetría (raw o alineado)
-  suffix   — "" para df raw, "_Fast" o "_Slow" para df alineado
-  t_min    — temperatura mínima de la ventana óptima (°C)
-  t_max    — temperatura máxima de la ventana óptima (°C)
+Inputs:
+  df       — telemetry DataFrame (raw or aligned)
+  suffix   — "" for raw df, "_Fast" or "_Slow" for aligned df
+  t_min    — minimum temperature of the optimal window (°C)
+  t_max    — maximum temperature of the optimal window (°C)
 
-Para cada rueda [FL, FR, RL, RR]:
+For each wheel [FL, FR, RL, RR]:
   1. surface_mean = mean(TyreTempInner, TyreTempMiddle, TyreTempOuter)
   2. core_mean    = mean(TyreTempCore)
   3. delta_t      = surface_mean - core_mean
   4. high_stress_pct = mean(delta_t > 20°C) * 100
-  5. ref_temp     = surface_mean si disponible, sino core_mean
-  6. window_status   = clasificar ref_temp en {fria, suboptima, optima, caliente, sobrecalentada}
-  7. window_deviation = desviación respecto al límite más cercano de la ventana
+  5. ref_temp     = surface_mean if available, else core_mean
+  6. window_status   = classify ref_temp into {cold, sub-optimal, optimal, hot, overheated}
+  7. window_deviation = deviation from the nearest window boundary
 
-Salida por distancia (downsampled × 10):
-  distance, {corner}_surface, {corner}_core, {corner}_delta  para cada corner
+Per-distance output (downsampled × 10):
+  distance, {corner}_surface, {corner}_core, {corner}_delta  for each corner
 
-Retorna dict con available, t_min, t_max, corners[], per_distance{}
+Returns dict with available, t_min, t_max, corners[], per_distance{}
 ```
 
 ---
 
-### 3.3 `analizar_neumaticos_comparativo`
+### 3.3 `analyse_tyres_comparative`
 
-Wrapper que llama a `analizar_neumaticos` con `suffix="_Fast"` y `suffix="_Slow"` sobre el DataFrame alineado. Retorna `{available, t_min, t_max, lap_a: {...}, lap_b: {...}}`. Si ninguna vuelta tiene canales de temperatura, retorna `{available: False}`.
+Wrapper that calls `analyse_tyres` with `suffix="_Fast"` and `suffix="_Slow"` on the aligned DataFrame. Returns `{available, t_min, t_max, lap_a: {...}, lap_b: {...}}`. If neither lap has temperature channels, returns `{available: False}`.
 
 ---
 
-## Parámetros Clave
+## Key Parameters
 
-| Parámetro | Valor por defecto | Descripción |
+| Parameter | Default value | Description |
 |---|---|---|
-| `t_min` | 80°C | Límite inferior de la ventana de temperatura óptima |
-| `t_max` | 100°C | Límite superior de la ventana de temperatura óptima |
-| `DOWNSAMPLE` | 10 | Factor de reducción para la serie por distancia |
-| `stress_threshold` | 20°C | ΔT mínimo para declarar estrés térmico |
-| Margen `fria` | 15°C | Diferencia con `t_min` que define estado "fría" |
-| Margen `caliente` | 15°C | Diferencia con `t_max` que define estado "caliente" |
+| `t_min` | 80°C | Lower limit of the optimal temperature window |
+| `t_max` | 100°C | Upper limit of the optimal temperature window |
+| `DOWNSAMPLE` | 10 | Reduction factor for the per-distance series |
+| `stress_threshold` | 20°C | Minimum ΔT to declare thermal stress |
+| `cold` margin | 15°C | Difference from `t_min` that defines the "cold" state |
+| `hot` margin | 15°C | Difference from `t_max` that defines the "hot" state |
 
 ---
 
-## Interpretación de Resultados
+## Result Interpretation
 
-### Estado de la ventana
+### Window state
 
-- **`optima`**: El neumático trabaja en su zona de máximo coeficiente de fricción. No requiere acción salvo verificar que se mantenga estable.
-- **`suboptima`**: Vuelta de calentamiento insuficiente o neumáticos fríos tras salida de la caja de cambios (tras SC o bandera roja). El piloto debería aumentar la carga sobre ese eje.
-- **`caliente` / `sobrecalentada`**: Sobrecarga mecánica, presión de neumático incorrecta, o setup demasiado rígido que genera deslizamiento. Prioridad alta.
-- **`fria`**: Posible error de sensor, vuelta lenta, o neumático completamente nuevo sin temperatura.
+- **`optimal`**: The tyre is working in its maximum friction coefficient zone. No action required except to verify it remains stable.
+- **`sub-optimal`**: Insufficient warm-up lap or cold tyres after a pit stop (following SC or red flag). The driver should increase load on that axle.
+- **`hot` / `overheated`**: Mechanical overload, incorrect tyre pressure, or too-stiff a setup generating slip. High priority.
+- **`cold`**: Possible sensor error, slow lap, or brand-new tyre with no temperature built up.
 
-### Gradiente ΔT por zona (Inner/Middle/Outer)
+### ΔT gradient by zone (Inner/Middle/Outer)
 
-Un neumático bien configurado con presión y alineación correctas debería mostrar una temperatura uniforme en las tres zonas. Las desviaciones indican:
+A well-set-up tyre with correct pressure and alignment should show uniform temperature across all three zones. Deviations indicate:
 
-| Patrón | Diagnóstico probable |
+| Pattern | Probable diagnosis |
 |---|---|
-| Inner >> Outer | Presión excesiva (área central de contacto, bordes levantados) |
-| Outer >> Inner | Presión insuficiente o exceso de camber negativo |
-| Middle >> Inner + Outer | Camber muy positivo o neumático de alta presión y rigidez |
-| Uniforme | Presión y geometría correctas |
+| Inner >> Outer | Excessive pressure (central contact patch, raised edges) |
+| Outer >> Inner | Insufficient pressure or excessive negative camber |
+| Middle >> Inner + Outer | Very positive camber or high-pressure/stiff tyre |
+| Uniform | Correct pressure and geometry |
 
 ---
 
-## Recomendaciones para el Piloto
+## Pilot Recommendations
 
-**Neumático frío en curvas rápidas:**
-Realizar vueltas de calentamiento con zigzag moderado en las rectas para generar fricción en las bandas sin comprometer la trazada. Verificar presión en frío: una presión muy alta reduce la generación de calor por deformación.
+**Cold tyre in fast corners:**
+Perform warm-up laps with moderate weaving on straights to generate friction across the tread without compromising the racing line. Check cold pressure: very high pressure reduces heat generation from deformation.
 
-**Neumático sobrecalentado en eje trasero:**
-Reducir el diferencial en fase de aceleración. Verificar que el balance de frenado no está demasiado adelantado (el freno trasero excesivo genera calor por deslizamiento). Considerar reducir el ángulo de camber trasero si el Inner está significativamente más caliente.
+**Overheated tyre on the rear axle:**
+Reduce the differential on acceleration. Verify that the brake bias is not too far forward (excessive rear braking generates heat through slip). Consider reducing rear camber angle if the Inner is significantly hotter.
 
-**ΔT superficie-núcleo > 30°C persistente:**
-El núcleo no disipa el calor a la velocidad que la superficie lo genera. Si el compuesto es "duro", considerar cambiar a un compuesto más blando para el circuito. Si el compuesto es "blando", probablemente hay blistering incipiente.
-
----
-
-## Visualizaciones
-
-Generadas por `scripts/docs/gen_thermodynamics.py` con datos sintéticos.
+**Surface-to-core ΔT > 30°C persistently:**
+The core is not dissipating heat at the rate the surface is generating it. If the compound is "hard", consider switching to a softer compound for the circuit. If the compound is "soft", there is likely incipient blistering.
 
 ---
 
-### Figura 1 — Ventana Térmica y Estados
+## Visualizations
+
+Generated by `scripts/docs/gen_thermodynamics.py` with synthetic data.
+
+---
+
+### Figure 1 — Thermal Window & States
 
 ![Thermal Window](./images/thermodynamics/thermal_window.png)
 
-Diagrama de barras de la temperatura media superficial de los 4 neumáticos superpuesto con la banda de temperatura óptima (zona verde, 80–100°C). Cada barra tiene un código de color según el estado (`fria` = azul, `suboptima` = celeste, `optima` = verde, `caliente` = naranja, `sobrecalentada` = rojo). Las barras de error representan ±1σ de la distribución temporal.
+Bar chart of the mean surface temperature of all 4 tyres overlaid with the optimal temperature band (green zone, 80–100°C). Each bar is colour-coded by state (`cold` = blue, `sub-optimal` = light blue, `optimal` = green, `hot` = orange, `overheated` = red). Error bars represent ±1σ of the time distribution.
 
 ---
 
-### Figura 2 — Gradiente ΔT a lo largo de la Vuelta
+### Figure 2 — ΔT Gradient Over the Lap
 
 ![Delta T Over Lap](./images/thermodynamics/delta_t_lap.png)
 
-Serie temporal del gradiente ΔT (superficie − núcleo) para los 4 neumáticos a lo largo de la distancia de la vuelta. La banda sombreada roja indica la zona de estrés térmico (ΔT > 20°C). Las diferencias entre ejes (delantero vs trasero) revelan el balance de carga dinámica.
+Time series of the ΔT gradient (surface − core) for all 4 tyres over lap distance. The red shaded band indicates the thermal stress zone (ΔT > 20°C). Differences between axles (front vs rear) reveal the dynamic load balance.
 
 ---
 
-### Figura 3 — Mapa de Calor de Temperatura por Zona
+### Figure 3 — Temperature Zone Heat Map
 
 ![Zone Heatmap](./images/thermodynamics/zone_heatmap.png)
 
-Mapa de calor (4 neumáticos × 4 zonas: Inner, Middle, Outer, Core) con temperatura media de la vuelta. La paleta va de azul frío a rojo caliente. Un gradiente vertical uniforme en cada columna indica buena distribución de temperatura; asimetría horizontal señala problemas de presión o geometría.
+Heat map (4 tyres × 4 zones: Inner, Middle, Outer, Core) with mean lap temperature. The palette ranges from cold blue to hot red. A vertically uniform gradient in each column indicates good temperature distribution; horizontal asymmetry signals pressure or geometry problems.
 
 ---
 
-## Referencias
+## References
 
-1. Milliken, W. F., & Milliken, D. L. (1995). *Race Car Vehicle Dynamics*. SAE International. — Capítulo 2: Tire Behavior; análisis de ventanas de temperatura de compuesto de goma.
+1. Milliken, W. F., & Milliken, D. L. (1995). *Race Car Vehicle Dynamics*. SAE International. — Chapter 2: Tire Behavior; rubber compound temperature window analysis.
 
-2. Dixon, J. C. (1996). *Tires, Suspension and Handling* (2nd ed.). SAE International. — Modelo de coeficiente de fricción en función de temperatura; gradiente superficial-núcleo.
+2. Dixon, J. C. (1996). *Tires, Suspension and Handling* (2nd ed.). SAE International. — Friction coefficient model as a function of temperature; surface-to-core gradient.
 
-3. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Interpretación de canales de temperatura de neumáticos en telemetría MoTeC; diagnóstico de presión desde distribución por zona.
+3. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Interpretation of tyre temperature channels in MoTeC telemetry; pressure diagnosis from zone distribution.
 
-4. Pacejka, H. B. (2012). *Tire and Vehicle Dynamics* (3rd ed.). Butterworth-Heinemann. — Modelo térmico simplificado del neumático; efecto de temperatura sobre el coeficiente de rigidez de la banda de rodadura.
+4. Pacejka, H. B. (2012). *Tire and Vehicle Dynamics* (3rd ed.). Butterworth-Heinemann. — Simplified tyre thermal model; effect of temperature on tread stiffness coefficient.
+
+---
+
+*Also available in [Español 🇪🇸](./09_thermodynamics.es.md)*

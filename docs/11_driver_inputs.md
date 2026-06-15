@@ -1,87 +1,89 @@
-# Inputs del Piloto — FFT y Nerviosismo de Volante
+# Driver Inputs — FFT & Steering Jitter
 
-**Módulo:** `src/analytics/driver_inputs.py`  
-**Fecha de revisión:** 2026-06-12
+🌐 [Ver en Español](./11_driver_inputs.es.md)
+
+**Module:** `src/analytics/driver_inputs.py`  
+**Review date:** 2026-06-12
 
 ---
 
-## Tabla de Contenidos
+## Table of Contents
 
-1. [Descripción General](#descripción-general)
-2. [Fundamentos Científicos](#fundamentos-científicos)
-   - 2.1 [Frecuencia de las Correcciones de Volante](#21-frecuencia-de-las-correcciones-de-volante)
-   - 2.2 [Estimación de Densidad Espectral de Potencia (PSD)](#22-estimación-de-densidad-espectral-de-potencia-psd)
-   - 2.3 [Índice de Nerviosismo Normalizado](#23-índice-de-nerviosismo-normalizado)
-   - 2.4 [Solapamiento Freno-Gas](#24-solapamiento-freno-gas)
-3. [Algoritmo e Implementación](#algoritmo-e-implementación)
+1. [Overview](#overview)
+2. [Scientific Background](#scientific-background)
+   - 2.1 [Frequency of Steering Corrections](#21-frequency-of-steering-corrections)
+   - 2.2 [Power Spectral Density (PSD) Estimation](#22-power-spectral-density-psd-estimation)
+   - 2.3 [Normalised Nervousness Index](#23-normalised-nervousness-index)
+   - 2.4 [Brake-Throttle Overlap](#24-brake-throttle-overlap)
+3. [Algorithm & Implementation](#algorithm--implementation)
    - 3.1 [`_nervousness_series`](#31-_nervousness_series)
    - 3.2 [`_fft_bands`](#32-_fft_bands)
-   - 3.3 [`analizar_inputs_piloto`](#33-analizar_inputs_piloto)
-4. [Parámetros Clave](#parámetros-clave)
-5. [Interpretación de Resultados](#interpretación-de-resultados)
-6. [Recomendaciones para el Piloto](#recomendaciones-para-el-piloto)
-7. [Visualizaciones](#visualizaciones)
-8. [Referencias](#referencias)
+   - 3.3 [`analyse_driver_inputs`](#33-analyse_driver_inputs)
+4. [Key Parameters](#key-parameters)
+5. [Result Interpretation](#result-interpretation)
+6. [Pilot Recommendations](#pilot-recommendations)
+7. [Visualizations](#visualizations)
+8. [References](#references)
 
 ---
 
-## Descripción General
+## Overview
 
-El módulo de análisis de inputs del piloto cuantifica la calidad de las correcciones aplicadas al volante usando dos técnicas complementarias: un **índice de nerviosismo** basado en la media móvil de la tasa de variación del ángulo, y un análisis **espectral (Welch PSD)** que descompone la señal de volante en bandas de frecuencia. La banda de alta frecuencia (> 2 Hz) es el principal indicador de micro-correcciones involuntarias asociadas a falta de confianza en el grip o fatiga del piloto. Adicionalmente, el módulo calcula el porcentaje de tiempo con solapamiento simultáneo de freno y gas, un indicador del estilo de conducción en las transiciones de frenado a aceleración.
+The driver inputs analysis module quantifies the quality of steering corrections using two complementary techniques: a **nervousness index** based on the rolling mean of the angle rate of change, and a **spectral analysis (Welch PSD)** that decomposes the steering signal into frequency bands. The high-frequency band (> 2 Hz) is the primary indicator of involuntary micro-corrections associated with lack of grip confidence or driver fatigue. Additionally, the module calculates the percentage of time with simultaneous brake-throttle overlap, an indicator of driving style in the braking-to-acceleration transition.
 
 ---
 
-## Fundamentos Científicos
+## Scientific Background
 
-### 2.1 Frecuencia de las Correcciones de Volante
+### 2.1 Frequency of Steering Corrections
 
-Las entradas de volante de un piloto experto se pueden clasificar por frecuencia:
+An expert driver's steering inputs can be classified by frequency:
 
-| Rango | Tipo de movimiento | Causa |
+| Range | Movement type | Cause |
 |---|---|---|
-| < 0.5 Hz | Variaciones de trazada y curvas largas | Intencional — cambio de línea o trazo de curva |
-| 0.5–2 Hz | Correcciones de balance | Respuesta a cambios de transferencia de carga |
-| > 2 Hz | Micro-correcciones | Neumáticos en límite de adherencia, superficie irregular, o nerviosismo |
+| < 0.5 Hz | Line variations and long corners | Intentional — line change or corner trace |
+| 0.5–2 Hz | Balance corrections | Response to load transfer changes |
+| > 2 Hz | Micro-corrections | Tyres at traction limit, rough surface, or nervousness |
 
-Un piloto en confianza y con buen ritmo aplica las entradas de volante principalmente en la banda baja (< 0.5 Hz), con transiciones suaves hacia la banda media. Un piloto fatigado, con falta de confianza o con un coche de setup problemático genera significativamente más potencia en la banda alta (> 2 Hz).
+A confident driver with good rhythm applies steering inputs primarily in the low band (< 0.5 Hz), with smooth transitions into the mid band. A fatigued driver, one lacking confidence, or one with a problematic setup generates significantly more power in the high band (> 2 Hz).
 
 ---
 
-### 2.2 Estimación de Densidad Espectral de Potencia (PSD)
+### 2.2 Power Spectral Density (PSD) Estimation
 
-El módulo usa el método de **Welch** para estimar la PSD, que divide la señal en ventanas solapadas con función de Hann, calcula el periodograma de cada ventana y promedia:
+The module uses the **Welch** method to estimate the PSD, which divides the signal into overlapping windows with a Hann function, computes the periodogram for each window, and averages:
 
 $$
 S_{xx}(f) = \frac{1}{K} \sum_{k=0}^{K-1} \left| \sum_{n=0}^{N-1} x_k[n] \cdot w[n] \cdot e^{-j2\pi fn/N} \right|^2
 $$
 
-donde $K$ es el número de ventanas, $N$ el tamaño de cada ventana (`nperseg = min(256, len/2)`) y $w[n]$ es la ventana de Hann.
+where $K$ is the number of windows, $N$ the size of each window (`nperseg = min(256, len/2)`) and $w[n]$ is the Hann window.
 
-La potencia en cada banda se calcula como la integral de la PSD en el rango correspondiente mediante la regla trapezoidal:
-
-$$
-P_{banda} = \int_{f_1}^{f_2} S_{xx}(f)\, df \approx \sum_{f \in [f_1, f_2]} S_{xx}(f) \cdot \Delta f
-$$
-
-La potencia relativa de cada banda se normaliza por la potencia total:
+Band power is calculated as the integral of the PSD over the corresponding range using the trapezoidal rule:
 
 $$
-P_{banda,\%} = \frac{P_{banda}}{P_{total}} \times 100\%
+P_{band} = \int_{f_1}^{f_2} S_{xx}(f)\, df \approx \sum_{f \in [f_1, f_2]} S_{xx}(f) \cdot \Delta f
 $$
 
-**Frecuencia de muestreo efectiva:** El DataFrame alineado tiene pasos de 1 m. A una velocidad media de $\bar{v}$ km/h, la frecuencia de muestreo efectiva es:
+Relative power for each band is normalised by total power:
+
+$$
+P_{band,\%} = \frac{P_{band}}{P_{total}} \times 100\%
+$$
+
+**Effective sampling frequency:** The aligned DataFrame has 1 m steps. At an average speed of $\bar{v}$ km/h, the effective sampling frequency is:
 
 $$
 f_s \approx \frac{\bar{v}}{3.6} \;\text{Hz}
 $$
 
-A 50 km/h, $f_s \approx 14$ Hz; a 100 km/h, $f_s \approx 28$ Hz. Esta estimación asegura que el eje de frecuencias del PSD sea físicamente correcto.
+At 50 km/h, $f_s \approx 14$ Hz; at 100 km/h, $f_s \approx 28$ Hz. This estimate ensures the PSD frequency axis is physically correct.
 
 ---
 
-### 2.3 Índice de Nerviosismo Normalizado
+### 2.3 Normalised Nervousness Index
 
-El índice de nerviosismo es una alternativa al FFT que funciona muestra a muestra y permite generar una curva sobre la distancia de la vuelta:
+The nervousness index is a sample-by-sample alternative to FFT that allows generating a curve over lap distance:
 
 $$
 r[i] = |\delta[i] - \delta[i-1]|
@@ -92,12 +94,12 @@ $$
 $$
 
 $$
-\text{nerv\_norm}[i] = \frac{\text{nerv}[i]}{\text{percentil}_{99}(\text{nerv})}
+\text{nerv\_norm}[i] = \frac{\text{nerv}[i]}{\text{percentile}_{99}(\text{nerv})}
 $$
 
-donde $W = 80$ muestras (≈ 80 m de ventana centrada). La normalización por el percentil 99 (en lugar del máximo absoluto) elimina el efecto de picos espúreos aislados y hace comparable el índice entre vueltas de diferente duración o velocidad media.
+where $W = 80$ samples (≈ 80 m centred window). Normalisation by the 99th percentile (instead of the absolute maximum) eliminates the effect of isolated spurious spikes and makes the index comparable across laps of different duration or average speed.
 
-El índice global de nerviosismo es la media del índice normalizado sobre toda la vuelta:
+The global nervousness index is the mean of the normalised index over the entire lap:
 
 $$
 \text{NI} = \langle \text{nerv\_norm} \rangle \in [0, 1]
@@ -105,32 +107,32 @@ $$
 
 ---
 
-### 2.4 Solapamiento Freno-Gas
+### 2.4 Brake-Throttle Overlap
 
-El porcentaje de tiempo con freno y gas simultáneos es un indicador del estilo de conducción:
+The percentage of time with simultaneous braking and throttle is an indicator of driving style:
 
 $$
 \text{overlap\_pct} = \frac{|\{i : \text{Brake}_i > 5\% \;\wedge\; \text{Throttle}_i > 5\%\}|}{N} \times 100\%
 $$
 
-Un solapamiento moderado (2–8%) es técnicamente correcto en la fase de trail-braking (el piloto va liberando el freno mientras abre el gas lentamente al salir del apex). Un solapamiento muy alto (> 15%) puede indicar pánico en la frenada o mal uso de los controles.
+A moderate overlap (2–8%) is technically correct in the trail-braking phase (the driver progressively releases the brake while gently opening the throttle past the apex). A very high overlap (> 15%) may indicate panic braking or poor pedal usage.
 
 ---
 
-## Algoritmo e Implementación
+## Algorithm & Implementation
 
 ### 3.1 `_nervousness_series`
 
 ```
-Entradas: steer (pd.Series, grados)
+Input: steer (pd.Series, degrees)
 
-1. rate = |diff(steer)|          # tasa de cambio absoluta por muestra
+1. rate = |diff(steer)|          # absolute rate of change per sample
 2. smoothed = rolling_mean(rate, window=80, center=True, min_periods=1)
 3. p99 = quantile(smoothed, 0.99)
-4. Si p99 < 1e-6 → retornar serie de ceros (señal plana)
+4. If p99 < 1e-6 → return zero series (flat signal)
 5. normed = clip(smoothed / p99, 0, 1)
 
-Salida: pd.Series en [0, 1] con la misma longitud que steer
+Output: pd.Series in [0, 1] with same length as steer
 ```
 
 ---
@@ -138,150 +140,154 @@ Salida: pd.Series en [0, 1] con la misma longitud que steer
 ### 3.2 `_fft_bands`
 
 ```
-Entradas: steer (pd.Series), sample_rate_hz (float)
+Inputs: steer (pd.Series), sample_rate_hz (float)
 
-1. Si len(steer) < 64 → retornar {low:0, mid:0, high:0}
+1. If len(steer) < 64 → return {low:0, mid:0, high:0}
 2. s = ffill(steer).fillna(0).values
 3. freqs, psd = welch(s, fs=sample_rate_hz, nperseg=min(256, len/2))
-4. total = trapz(psd, freqs);  si total < 1e-12 → usar 1.0
+4. total = trapz(psd, freqs);  if total < 1e-12 → use 1.0
 
-Para cada banda:
+For each band:
   low  = trapz(psd[freqs <  0.5],  freqs[freqs <  0.5])  / total
   mid  = trapz(psd[0.5 ≤ f < 2.0], freqs[0.5 ≤ f < 2.0]) / total
   high = trapz(psd[freqs >= 2.0],  freqs[freqs >= 2.0])  / total
 
-Salida: {low, mid, high} suma ≈ 1.0 (puede diferir por NaN en bordes)
+Output: {low, mid, high} sum ≈ 1.0 (may differ at NaN edges)
 ```
 
 ---
 
-### 3.3 `analizar_inputs_piloto`
+### 3.3 `analyse_driver_inputs`
 
 ```
-Entradas: df (DataFrame alineado con SteerAngle_Fast/Slow, Brake_Fast/Slow, Throttle_Fast/Slow)
+Inputs: df (aligned DataFrame with SteerAngle_Fast/Slow, Brake_Fast/Slow, Throttle_Fast/Slow)
 
-Para cada vuelta (A = _Fast, B = _Slow):
+For each lap (A = _Fast, B = _Slow):
   1. nerv_series = _nervousness_series(SteerAngle)
-  2. bands       = _fft_bands(SteerAngle, sample_rate_hz estimada desde Speed)
+  2. bands       = _fft_bands(SteerAngle, sample_rate_hz estimated from Speed)
   3. overall     = mean(nerv_series)
   4. label       = _nervousness_label(overall, bands.high)
   5. overlap_pct = _overlap_pct(Brake, Throttle)
 
-Salida por distancia (downsampled × 5):
+Per-distance output (downsampled × 5):
   distance, nervousness_a, nervousness_b
 
-Retorna dict con:
+Returns dict with:
   available, available_a, available_b,
   nervousness_score_a/b, fft_bands_a/b,
   nervousness_label_a/b, overlap_pct_a/b,
   per_distance{}
 ```
 
-La etiqueta de nerviosismo se asigna según una tabla cruzada (NI × banda alta):
+The nervousness label is assigned according to a cross-table (NI × high band):
 
-| NI | P(high) | Etiqueta |
+| NI | P(high) | Label |
 |---|---|---|
-| < 0.15 | < 0.15 | Muy suave |
-| < 0.30 | < 0.25 | Suave |
+| < 0.15 | < 0.15 | Very smooth |
+| < 0.30 | < 0.25 | Smooth |
 | < 0.50 | < 0.40 | Normal |
-| < 0.70 | < 0.55 | Activo |
-| ≥ 0.70 | ≥ 0.55 | Nervioso |
+| < 0.70 | < 0.55 | Active |
+| ≥ 0.70 | ≥ 0.55 | Nervous |
 
 ---
 
-## Parámetros Clave
+## Key Parameters
 
-| Parámetro | Valor por defecto | Descripción |
+| Parameter | Default value | Description |
 |---|---|---|
-| `ROLLING_WIN` | 80 muestras | Ventana de la media móvil de la tasa de volante |
-| `DOWNSAMPLE` | 5 | Factor de reducción para la serie por distancia |
-| `nperseg` | min(256, n/2) | Tamaño de ventana del Welch PSD |
-| `brake_thr` | 5% | Umbral mínimo de presión de freno para solapamiento |
-| `thr_thr` | 5% | Umbral mínimo de apertura de gas para solapamiento |
-| Banda baja | < 0.5 Hz | Movimientos intencionales de trazada |
-| Banda media | 0.5–2 Hz | Correcciones de balance dinámico |
-| Banda alta | > 2 Hz | Micro-correcciones (indicador de nerviosismo) |
+| `ROLLING_WIN` | 80 samples | Rolling mean window for steering rate |
+| `DOWNSAMPLE` | 5 | Reduction factor for the per-distance series |
+| `nperseg` | min(256, n/2) | Welch PSD window size |
+| `brake_thr` | 5% | Minimum brake pressure for overlap |
+| `thr_thr` | 5% | Minimum throttle opening for overlap |
+| Low band | < 0.5 Hz | Intentional line movements |
+| Mid band | 0.5–2 Hz | Dynamic balance corrections |
+| High band | > 2 Hz | Micro-corrections (nervousness indicator) |
 
 ---
 
-## Interpretación de Resultados
+## Result Interpretation
 
-### Índice de nerviosismo global
+### Global nervousness index
 
-| Rango NI | Diagnóstico |
+| NI range | Diagnosis |
 |---|---|
-| 0–0.15 | Piloto muy fluido; entradas suaves y progresivas |
-| 0.15–0.30 | Conducción suave con correcciones leves en curvas complejas |
-| 0.30–0.50 | Nivel normal para un piloto amateur con buen ritmo |
-| 0.50–0.70 | Piloto activo; posible falta de confianza en neumáticos o setup |
-| > 0.70 | Conducción nerviosa; fatiga, neumáticos fríos, o setup con vibración |
+| 0–0.15 | Very fluid driver; smooth and progressive inputs |
+| 0.15–0.30 | Smooth driving with mild corrections in complex corners |
+| 0.30–0.50 | Normal level for an amateur driver with good rhythm |
+| 0.50–0.70 | Active driver; possible lack of confidence in tyres or setup |
+| > 0.70 | Nervous driving; fatigue, cold tyres, or setup with vibration |
 
-### Bandas FFT
+### FFT bands
 
-- **Banda alta > 40%:** La mitad de la energía de las correcciones está en micro-movimientos > 2 Hz. Señal de alerta: el coche puede tener vibración de frenos, flat-spot, o el piloto está en el límite de su capacidad de control.
-- **Banda baja > 60%:** Excelente. La mayoría de las correcciones son movimientos intencionales de trazada.
-- **Banda media 30–50%:** Normal en curvas técnicas donde la transferencia de carga requiere adaptación continua.
+- **High band > 40%:** Half the correction energy is in micro-movements > 2 Hz. Warning signal: the car may have brake vibration, a flat spot, or the driver is at the edge of their control capacity.
+- **Low band > 60%:** Excellent. Most corrections are intentional line movements.
+- **Mid band 30–50%:** Normal in technical corners where load transfer requires continuous adaptation.
 
-### Solapamiento freno-gas
+### Brake-throttle overlap
 
-| % Solapamiento | Diagnóstico |
+| % Overlap | Diagnosis |
 |---|---|
-| 0–2% | Técnica de trail-braking mínima o nula |
-| 2–8% | Trail-braking óptimo en las curvas apropiadas |
-| 8–15% | Solapamiento elevado; revisar si es intencional o pánico |
-| > 15% | Muy alto; puede saturar los frenos traseros si el balance está adelantado |
+| 0–2% | Minimal or no trail-braking technique |
+| 2–8% | Optimal trail-braking in appropriate corners |
+| 8–15% | High overlap; check if intentional or panic |
+| > 15% | Very high; may saturate rear brakes if bias is forward |
 
 ---
 
-## Recomendaciones para el Piloto
+## Pilot Recommendations
 
-**Nerviosismo alto en curvas rápidas:**
-El piloto está haciendo micro-correcciones involuntarias que sugieren que el coche está al límite o más allá. Reducir la velocidad de entrada en esas curvas y reconstruir la confianza progresivamente. Verificar el setup de suspensión (rebote trasero demasiado rápido puede generar inestabilidad en tracción).
+**High nervousness in fast corners:**
+The driver is making involuntary micro-corrections suggesting the car is at or beyond its limit. Reduce entry speed in those corners and rebuild confidence progressively. Check suspension setup (excessive rear rebound speed can generate instability under traction).
 
-**Nerviosismo alto concentrado en la frenada:**
-Posible flat-spot en los neumáticos o vibración de discos. Comprobar el estado de los neumáticos y el balance de frenado. Un balance demasiado adelantado puede generar bloqueo esporádico del eje delantero, que el piloto percibe como vibración.
+**High nervousness concentrated at braking points:**
+Possible flat spot on tyres or disc vibration. Check tyre condition and brake balance. A balance too far forward can cause intermittent front axle lock-up, which the driver perceives as vibration.
 
-**Banda alta elevada pero NI bajo:**
-El volante tiene mucho "ruido" de alta frecuencia pero con amplitud pequeña. Puede indicar vibración mecánica (no del piloto). Cruzar con datos de aceleración lateral para descartar resonancia de suspensión.
-
----
-
-## Visualizaciones
-
-Generadas por `scripts/docs/gen_driver_inputs.py` con datos sintéticos.
+**High-band elevated but low NI:**
+The steering has a lot of high-frequency "noise" but with small amplitude. May indicate mechanical vibration (not from the driver). Cross-check with lateral acceleration data to rule out suspension resonance.
 
 ---
 
-### Figura 1 — Señal de Volante y Tasa de Cambio
+## Visualizations
+
+Generated by `scripts/docs/gen_driver_inputs.py` with synthetic data.
+
+---
+
+### Figure 1 — Steering Signal & Rate of Change
 
 ![Steer Rate](./images/driver_inputs/steer_rate.png)
 
-Panel superior: ángulo de volante (°) a lo largo de la distancia de la vuelta para dos pilotos (suave vs nervioso). Panel inferior: tasa de cambio absoluta |Δδ| por muestra. La diferencia de amplitud en la banda alta es claramente visible: el piloto nervioso genera picos de mayor amplitud y más frecuentes.
+Upper panel: steering angle (°) over lap distance for two drivers (smooth vs nervous). Lower panel: absolute rate of change |Δδ| per sample. The difference in high-band amplitude is clearly visible: the nervous driver generates higher-amplitude and more frequent peaks.
 
 ---
 
-### Figura 2 — Densidad Espectral de Potencia (PSD) Comparativa
+### Figure 2 — Comparative Power Spectral Density (PSD)
 
 ![FFT PSD](./images/driver_inputs/fft_psd.png)
 
-PSD de Welch para dos pilotos. Las bandas baja, media y alta están sombreadas en verde, naranja y rojo respectivamente. El área relativa de cada banda representa la fracción de potencia. El piloto suave concentra su potencia en la banda baja; el piloto nervioso tiene un pico prominente en la banda alta.
+Welch PSD for two drivers. The low, mid and high bands are shaded in green, amber and red respectively. The relative area of each band represents the power fraction. The smooth driver concentrates power in the low band; the nervous driver has a prominent peak in the high band.
 
 ---
 
-### Figura 3 — Índice de Nerviosismo a lo largo de la Vuelta
+### Figure 3 — Nervousness Index Over the Lap
 
 ![Nervousness Over Lap](./images/driver_inputs/nervousness_lap.png)
 
-Área chart del índice de nerviosismo normalizado (0–100%) en función de la distancia de la vuelta para las dos vueltas comparadas. Las zonas de alta actividad se resaltan con un fondo naranja. La curva permite identificar qué secciones de la pista generan más estrés en los inputs del piloto.
+Area chart of the normalised nervousness index (0–100%) as a function of lap distance for both compared laps. High-activity zones are highlighted with an amber background. The curve allows identification of which track sections generate the most stress in driver inputs.
 
 ---
 
-## Referencias
+## References
 
-1. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Análisis de canales de volante; interpretación de micro-correcciones como indicadores de carga cognitiva.
+1. Segers, J. (2014). *Analysis Techniques for Racecar Data Acquisition* (2nd ed.). SAE International. — Steering channel analysis; interpretation of micro-corrections as cognitive load indicators.
 
 2. Welch, P. D. (1967). The use of fast Fourier transform for the estimation of power spectra: A method based on time averaging over short, modified periodograms. *IEEE Transactions on Audio and Electroacoustics*, 15(2), 70–73.
 
-3. Bärgman, J., et al. (2017). Driving behaviour analysis using naturalistic data. *Transportation Research Part F*, 47, 198–210. — Análisis de frecuencia de inputs de volante como métrica de demanda cognitiva.
+3. Bärgman, J., et al. (2017). Driving behaviour analysis using naturalistic data. *Transportation Research Part F*, 47, 198–210. — Frequency analysis of steering inputs as a cognitive demand metric.
 
-4. Attia, R., et al. (2012). Combined longitudinal and lateral control for automated vehicle guidance. *Vehicle System Dynamics*, 50(9), 1447–1484. — Frecuencias características de control de volante humano vs. automatizado.
+4. Attia, R., et al. (2012). Combined longitudinal and lateral control for automated vehicle guidance. *Vehicle System Dynamics*, 50(9), 1447–1484. — Characteristic frequencies of human vs. automated steering control.
+
+---
+
+*Also available in [Español 🇪🇸](./11_driver_inputs.es.md)*
