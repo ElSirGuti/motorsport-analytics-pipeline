@@ -3,9 +3,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
 const SEV_COLOR = { leve: '#00E676', media: '#FFB300', critico: '#FF3D3D' };
-const SEV_LABEL = { leve: 'LEVE', media: 'MEDIA', critico: 'CRÍTICO' };
 
 const renderTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -27,6 +27,7 @@ const renderTooltip = ({ active, payload }) => {
 };
 
 const AnomalyReport = ({ anomaly }) => {
+  const { t } = useLanguage();
   const { scores_fast = [], scores_slow = [], zones = [] } = anomaly || {};
 
   const chartData = useMemo(() => {
@@ -44,25 +45,30 @@ const AnomalyReport = ({ anomaly }) => {
   const maxDist = chartData.at(-1)?.distance ?? 0;
   const criticalZones = zones.filter((z) => z.severity === 'critico').length;
 
+  const SEV_LABEL = {
+    leve: t.severityLeve,
+    media: t.severityMedia,
+    critico: t.severityCritico,
+  };
+
   return (
     <div className="chart-card">
       <div className="chart-header">
         <div className="chart-title">
-          <span>◈</span> Isolation Forest — Detección de Anomalías
+          <span>◈</span> {t.anomalyTitle}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {criticalZones > 0 && (
             <span className="chart-zoom-badge" style={{ color: 'var(--red)', borderColor: 'var(--red-border)', background: 'var(--red-dim)' }}>
-              {criticalZones} crítico{criticalZones > 1 ? 's' : ''}
+              {t.anomalyCritical(criticalZones)}
             </span>
           )}
-          <span className="chart-zoom-badge">{zones.length} zona{zones.length !== 1 ? 's' : ''}</span>
+          <span className="chart-zoom-badge">{zones.length === 1 ? t.anomalyZone(1) : t.anomalyZones(zones.length)}</span>
         </div>
       </div>
 
       <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
-        Entrenado sobre la vuelta rápida (referencia). Las zonas donde el error de reconstrucción
-        se dispara indican ejecuciones que divergen del patrón óptimo en múltiples canales simultáneos.
+        {t.anomalyDescription}
       </p>
 
       {chartData.length > 0 && (
@@ -93,12 +99,12 @@ const AnomalyReport = ({ anomaly }) => {
               />
             ))}
             <Area
-              type="monotone" dataKey="fast" name="Referencia"
+              type="monotone" dataKey="fast" name={t.anomalyReference}
               stroke="#00D4FF" strokeWidth={1} fill="url(#anomGradFast)"
               isAnimationActive={false} dot={false}
             />
             <Area
-              type="monotone" dataKey="slow" name="Vuelta lenta"
+              type="monotone" dataKey="slow" name={t.anomalySlowLap}
               stroke="#FF3D3D" strokeWidth={1.5} fill="url(#anomGradSlow)"
               isAnimationActive={false} dot={false}
             />
@@ -119,7 +125,7 @@ const AnomalyReport = ({ anomaly }) => {
                 </span>
                 <span className="anomaly-zone__len">{z.length_m.toFixed(0)}m</span>
                 <span className="anomaly-zone__score" style={{ color: SEV_COLOR[z.severity] }}>
-                  {(z.avg_score * 100).toFixed(0)}% error
+                  {(z.avg_score * 100).toFixed(0)}{t.anomalyError}
                 </span>
               </div>
               <div className="anomaly-zone__desc">{z.descripcion}</div>

@@ -46,39 +46,138 @@ Esta herramienta alinea las vueltas por distancia y detecta automáticamente eve
 - `scripts/` - Utilidades adicionales (ej. generador de datos sintéticos)
 - `data/` - Directorio para guardar archivos CSV crudos
 
-## ⚙️ Requisitos
+## ⚙️ Instalación
 
-- Python 3.10+
-- Node.js 18+
+### Requisitos previos
 
-## 🚀 Instalación
+| Herramienta | Versión mínima | Descarga |
+|---|---|---|
+| Python | 3.10 | https://www.python.org/downloads/ |
+| Node.js | 18 LTS | https://nodejs.org/ |
+| Git | cualquiera | https://git-scm.com/ |
 
-1. **Backend (Python)**
+### 1 — Clonar el repositorio
+
 ```bash
+git clone https://github.com/tu-usuario/motorsport-analytics-pipeline.git
+cd motorsport-analytics-pipeline
+```
+
+### 2 — Backend (Python)
+
+```bash
+# Crear y activar entorno virtual (recomendado)
+python -m venv .venv
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+# macOS / Linux
+source .venv/bin/activate
+
+# Instalar dependencias
 pip install -r requirements.txt
 ```
 
-2. **Frontend (React)**
+### 3 — Frontend (Node.js)
+
 ```bash
 cd frontend
 npm install
+cd ..
 ```
 
-## 🏎️ Uso Rápido
+### 4 — Ejecutar la app
 
-1. **Iniciar el Backend (API):**
+Abre **dos terminales** desde la raíz del proyecto:
+
+**Terminal 1 — API Backend:**
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 
-2. **Iniciar el Frontend (en otra terminal):**
+**Terminal 2 — Frontend:**
 ```bash
 cd frontend
 npm run dev
 ```
 
-3. **Probar la app:**
-Abre `http://localhost:5173` en tu navegador, sube tus archivos CSV exportados por ACTI (ej. `vuelta_lenta.csv` y `vuelta_rapida.csv`) y haz clic en "Analizar".
+Abre el navegador en **http://localhost:5173**.
+
+---
+
+## 📡 Guía de Exportación de Telemetría
+
+### Assetto Corsa — Plugin ACTI
+
+[ACTI (AC Telemetry Interface)](https://www.assettocorsa.net/forum/index.php?threads/acti-ac-telemetry-interface.50534/) graba telemetría compatible con MoTeC directamente desde Assetto Corsa.
+
+**Configuración:**
+1. Descarga e instala el plugin ACTI en la carpeta `apps/python/` de Assetto Corsa.
+2. En Assetto Corsa ve a **Opciones → General** y activa las **Apps de Python**.
+3. En sesión, habilita la app **ACTI** desde la barra de apps del HUD.
+4. ACTI grabará automáticamente un archivo `.ldx` / CSV crudo por vuelta. Por defecto en `Documentos\Assetto Corsa\logs\`.
+5. Para exportar a CSV: abre **MoTeC i2**, conecta el archivo de log y sigue los pasos de exportación MoTeC indicados abajo.
+
+### iRacing — Logging de telemetría
+
+iRacing puede escribir un archivo `.ibt` de telemetría de forma nativa.
+
+**Activar en iRacing:**
+1. Abre `Documentos\iRacing\app.ini` con un editor de texto.
+2. Busca (o agrega) la sección `[Telemetry]` y configura:
+   ```
+   logToDisk=1
+   diskSamplingRate=60
+   ```
+3. Alternativamente, ve a **Opciones → Telemetría → Grabar en disco** en la interfaz de iRacing (si está disponible en tu versión).
+4. Los archivos `.ibt` se guardan en `Documentos\iRacing\telemetry\`.
+5. Usa **MoTeC i2 Pro** (con el workspace de iRacing) o herramientas de terceros (p.ej. *ibt2csv*) para convertir `.ibt` → `.csv`.
+
+### MoTeC i2 — Exportar a CSV
+
+MoTeC i2 es la herramienta de análisis de datos profesional para visualizar y exportar telemetría de ACTI, iRacing y otras fuentes.
+
+**Exportar una vuelta específica:**
+1. Abre MoTeC i2 y carga tu archivo de log (**Archivo → Abrir**).
+2. Navega a la vuelta deseada en el panel **Laps**.
+3. Ve a **Archivo → Exportar → Exportar a hoja de cálculo (CSV)**.
+4. En el diálogo: selecciona el **rango de tiempo** de esa vuelta, elige **Todos los canales**, configura la frecuencia de salida (60 Hz recomendado) y haz clic en **Exportar**.
+
+**Exportar un stint completo:**
+1. Selecciona el rango de tiempo de toda la sesión (desde la Vuelta 1 hasta la última) en el panel Laps.
+2. Sigue los mismos pasos de **Archivo → Exportar → CSV**.
+3. El CSV resultante contendrá todas las vueltas como un dataset continuo — la app segmentará automáticamente las vueltas individuales detectando transiciones de velocidad cero.
+
+**Canales requeridos para análisis completo:**
+
+| Categoría | Nombres típicos de canal |
+|---|---|
+| Velocidad | `Speed`, `Ground Speed` |
+| Distancia | `Lap Distance`, `Distance` |
+| Freno / Gas | `Brake Pos`, `Throttle Pos` |
+| G Lateral / Longitudinal | `Lateral Acc`, `Longitudinal Acc` |
+| Velocidad de guiñada | `Yaw Rate` |
+| Ángulo de volante | `Steer Angle` |
+| Temp. neumáticos | `Tyre Temp FL`, `Tyre Temp FR`, `Tyre Temp RL`, `Tyre Temp RR` |
+| Viaje de suspensión | `Susp Travel FL`, `Susp Travel FR`, `Susp Travel RL`, `Susp Travel RR` |
+
+Los canales faltantes simplemente desactivan el panel de análisis correspondiente — la app degrada de forma elegante.
+
+---
+
+## 🏎️ Uso Rápido
+
+```bash
+# Backend
+python -m venv .venv && .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# Frontend (otra terminal)
+cd frontend && npm install && npm run dev
+```
+
+Abre **http://localhost:5173**, sube un CSV exportado desde MoTeC i2 y haz clic en **Analizar Sesión Completa**.
 
 ## 🏗️ Arquitectura del Pipeline
 

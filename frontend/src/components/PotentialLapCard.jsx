@@ -1,21 +1,24 @@
-const STATUS_CONFIG = {
-  consistente: { label: '✓ Consistente',    color: 'var(--green)' },
-  optimizable: { label: '⚠ Optimizable',    color: 'var(--amber)' },
-  critico:     { label: '▲ Pérdida Crítica', color: 'var(--red)'   },
-};
+import { useLanguage } from '../context/LanguageContext';
 
 const PotentialLapCard = ({ tiempoPotencial, xgboostPred, historySamples }) => {
+  const { t } = useLanguage();
   if (!tiempoPotencial) return null;
 
   const { theoretical_best_delta_s, potential_gain_s, use_reachable, sectors } = tiempoPotencial;
   const gainColor = potential_gain_s > 1.0 ? 'var(--red)' : potential_gain_s > 0.3 ? 'var(--amber)' : 'var(--green)';
-  const modeLabel = use_reachable ? 'Reachable Lap — P10 histórico' : 'Theoretical Best Lap';
+  const modeLabel = use_reachable ? t.potentialReachable : t.potentialTheoretical;
+
+  const STATUS_CONFIG = {
+    consistente: { label: t.potentialStatusConsistent, color: 'var(--green)' },
+    optimizable: { label: t.potentialStatusOptimizable, color: 'var(--amber)' },
+    critico:     { label: t.potentialStatusCritical, color: 'var(--red)'   },
+  };
 
   return (
     <div className="chart-card">
       <div className="chart-header">
         <div className="chart-title">
-          <span>◎</span> Tiempo Potencial — {modeLabel}
+          <span>◎</span> {t.potentialTitle} {modeLabel}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {historySamples != null && (
@@ -25,12 +28,12 @@ const PotentialLapCard = ({ tiempoPotencial, xgboostPred, historySamples }) => {
           )}
           {xgboostPred && (
             <span className="chart-zoom-badge" style={{ color: 'var(--purple)', borderColor: 'rgba(124,58,237,0.3)', background: 'rgba(124,58,237,0.1)' }}>
-              XGBoost activo
+              {t.potentialXGBoost}
             </span>
           )}
           {use_reachable && (
             <span className="chart-zoom-badge" style={{ color: 'var(--cyan)', borderColor: 'var(--cyan-border)', background: 'var(--cyan-dim)' }}>
-              P10 histórico
+              {t.potentialP10}
             </span>
           )}
         </div>
@@ -38,24 +41,23 @@ const PotentialLapCard = ({ tiempoPotencial, xgboostPred, historySamples }) => {
 
       <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
         {use_reachable
-          ? 'Basado en el percentil-10 de cada curva en tu historial — tiempo que logras en el 10% de tus mejores intentos.'
-          : 'Suma de los mejores tiempos parciales disponibles (método F1/DTM).'}
+          ? t.potentialDescReachable
+          : t.potentialDescTheoretical}
         {xgboostPred
-          ? ` XGBoost estima el óptimo con ${xgboostPred.training_samples} observaciones históricas.`
+          ? ` ${t.potentialDescXGBoost(xgboostPred.training_samples)}`
           : historySamples != null && historySamples < 30
-          ? ` XGBoost se activa a partir de 30 observaciones (${30 - historySamples} restantes).`
+          ? ` ${t.potentialDescXGBoostPending(historySamples)}`
           : ''}
       </p>
 
-      {/* KPIs */}
       <div className="summary-grid" style={{ marginBottom: 'var(--s4)' }}>
         <div className="summary-card summary-card--highlight">
-          <div className="summary-card__label">⏱ Potencial de Mejora</div>
+          <div className="summary-card__label">{t.potentialImprovement}</div>
           <div className="summary-card__value" style={{ color: gainColor, fontSize: '2rem' }}>
-            {potential_gain_s > 0 ? `-${potential_gain_s.toFixed(3)}s` : '≈ Óptimo'}
+            {potential_gain_s > 0 ? `-${potential_gain_s.toFixed(3)}s` : t.potentialOptimal}
           </div>
           <div className="summary-card__sub">
-            {use_reachable ? 'recuperable (P10 por curva)' : 'tiempo recuperable en vuelta lenta'}
+            {t.potentialRecoverable(use_reachable)}
           </div>
         </div>
 
@@ -65,29 +67,28 @@ const PotentialLapCard = ({ tiempoPotencial, xgboostPred, historySamples }) => {
             <div className="summary-card__value" style={{ color: 'var(--purple)', fontSize: '1.6rem' }}>
               -{xgboostPred.predicted_gain_s.toFixed(3)}s
             </div>
-            <div className="summary-card__sub">mejora estimada por ML</div>
+            <div className="summary-card__sub">{t.potentialMLImprovement}</div>
           </div>
         )}
 
         <div className="summary-card">
-          <div className="summary-card__label">📊 Delta vs Referencia</div>
+          <div className="summary-card__label">{t.potentialDeltaVsReference}</div>
           <div className="summary-card__value" style={{ fontSize: '1.4rem', color: theoretical_best_delta_s < 0 ? 'var(--green)' : 'var(--text-2)' }}>
             {theoretical_best_delta_s >= 0 ? '+' : ''}{theoretical_best_delta_s.toFixed(3)}s
           </div>
-          <div className="summary-card__sub">frente a la vuelta rápida</div>
+          <div className="summary-card__sub">{t.potentialVsFastLap}</div>
         </div>
       </div>
 
-      {/* Tabla de sectores */}
       {sectors && sectors.length > 0 && (
         <div className="sector-table">
           <div className="sector-table__head">
-            <span>Sector</span>
-            <span>Zona</span>
-            <span>Delta actual</span>
-            <span>{use_reachable ? 'Reachable (P10)' : 'Recuperable'}</span>
-            {use_reachable && <span>Consistencia</span>}
-            <span>Estado</span>
+            <span>{t.potentialSector}</span>
+            <span>{t.potentialZone}</span>
+            <span>{t.potentialCurrentDelta}</span>
+            <span>{t.potentialReachableP(use_reachable)}</span>
+            {use_reachable && <span>{t.potentialConsistency}</span>}
+            <span>{t.potentialStatus}</span>
           </div>
           {sectors.map((s) => {
             const st = STATUS_CONFIG[s.estado] || STATUS_CONFIG.optimizable;

@@ -1,14 +1,19 @@
+import { useLanguage } from '../context/LanguageContext';
 
-const CLUSTER_COLOR = {
-  'Ataque Limpio':         '#00E676',
-  'Entrada Agresiva':      '#FF8C42',
-  'Conservador':           '#00D4FF',
-  'Salida Tardía':         '#FFB300',
-  'Conducción Errática':   '#FF3D3D',
-  'Ejecución Consistente': '#7C3AED',
-};
+const SEV_MAP = { leve: 'severityLeve', media: 'severityMedia', critico: 'severityCritico' };
 
 const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cornerClusters, xgboostPred }) => {
+  const { t } = useLanguage();
+
+  const CLUSTER_COLOR = {
+    [t.clusterAttack]:         '#00E676',
+    [t.clusterAggressive]:     '#FF8C42',
+    [t.clusterConservative]:   '#00D4FF',
+    [t.clusterLateExit]:       '#FFB300',
+    [t.clusterErratic]:        '#FF3D3D',
+    [t.clusterConsistent]:     '#7C3AED',
+  };
+
   if (!corners || corners.length === 0) return null;
 
   const eventsByCorner = {};
@@ -34,10 +39,10 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
       <div className="section-header">
         <div className="section-heading">
           <span>⬡</span>
-          Análisis Detallado por Curva
+          {t.cornerReportTitle}
         </div>
         {activeCorner != null && (
-          <span className="active-corner-badge">Curva {activeCorner} seleccionada</span>
+          <span className="active-corner-badge">{t.cornerReportSelected(activeCorner)}</span>
         )}
       </div>
 
@@ -67,10 +72,10 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                 );
               }}
               role={hasZoom ? 'button' : undefined}
-              aria-label={hasZoom ? `Zoom en Curva ${corner.corner_number}` : undefined}
+              aria-label={hasZoom ? t.cornerReportCorner(corner.corner_number) : undefined}
               tabIndex={hasZoom ? 0 : undefined}
               onKeyDown={hasZoom ? (e) => { if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click(); } : undefined}
-              title={hasZoom ? (isActive ? 'Clic para quitar zoom' : 'Clic para zoom') : ''}
+              title={hasZoom ? (isActive ? t.cornerReportZoomOut : t.cornerReportZoomIn) : ''}
             >
               {hasZoom && (
                 <div className="corner-card__zoom-badge">
@@ -80,7 +85,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
 
               <div className="corner-card__header">
                 <div>
-                  <div className="corner-card__name">Curva {corner.corner_number}</div>
+                  <div className="corner-card__name">{t.cornerReportCorner(corner.corner_number)}</div>
                   {corner.start_distance != null && (
                     <div className="corner-card__zone">
                       {corner.start_distance.toFixed(0)}m – {corner.end_distance.toFixed(0)}m
@@ -94,31 +99,31 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
 
               <div className="corner-metrics">
                 <div className="corner-metric">
-                  <span className="corner-metric__label">Punto de frenado</span>
+                  <span className="corner-metric__label">{t.cornerReportBrakePoint}</span>
                   <span className={`corner-metric__value ${brakeDelta < -2 ? 'corner-metric__value--bad' : brakeDelta > 2 ? 'corner-metric__value--good' : 'corner-metric__value--neutral'}`}>
                     {brakeDelta < 0
-                      ? `${Math.abs(brakeDelta).toFixed(0)}m antes`
+                      ? t.cornerReportBefore(Math.abs(brakeDelta).toFixed(0))
                       : brakeDelta > 0
-                      ? `${brakeDelta.toFixed(0)}m después`
-                      : 'Similar'}
+                      ? t.cornerReportAfter(brakeDelta.toFixed(0))
+                      : t.cornerReportSimilar}
                   </span>
                 </div>
 
                 <div className="corner-metric">
-                  <span className="corner-metric__label">Velocidad apex</span>
+                  <span className="corner-metric__label">{t.cornerReportApexSpeed}</span>
                   <span className={`corner-metric__value ${apexDelta < -1 ? 'corner-metric__value--bad' : apexDelta > 1 ? 'corner-metric__value--good' : 'corner-metric__value--neutral'}`}>
                     {apexDelta > 0 ? '+' : ''}{apexDelta.toFixed(1)} km/h
                   </span>
                 </div>
 
                 <div className="corner-metric">
-                  <span className="corner-metric__label">Aceleración</span>
+                  <span className="corner-metric__label">{t.cornerReportAcceleration}</span>
                   <span className={`corner-metric__value ${throttleDelta > 2 ? 'corner-metric__value--bad' : throttleDelta < -2 ? 'corner-metric__value--good' : 'corner-metric__value--neutral'}`}>
                     {throttleDelta > 0
-                      ? `${throttleDelta.toFixed(0)}m después`
+                      ? t.cornerReportAfter(throttleDelta.toFixed(0))
                       : throttleDelta < 0
-                      ? `${Math.abs(throttleDelta).toFixed(0)}m antes`
-                      : 'Similar'}
+                      ? t.cornerReportBefore(Math.abs(throttleDelta).toFixed(0))
+                      : t.cornerReportSimilar}
                   </span>
                 </div>
               </div>
@@ -128,7 +133,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                   {eventsByCorner[corner.corner_number].map((ev, ei) => (
                     <span key={ei} className={`corner-event-badge corner-event-badge--${ev.tipo}`}
                       title={ev.diagnostico}>
-                      {ev.tipo === 'subviraje' ? 'SUB' : 'OVER'} · {ev.severidad}
+                      {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver} · {t[SEV_MAP[ev.severidad]] || ev.severidad?.toUpperCase()}
                     </span>
                   ))}
                 </div>
@@ -144,7 +149,6 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                 </div>
               )}
 
-              {/* Capa 2: Consistency badge */}
               {corner.consistency_pct != null && corner.n_hist_samples >= 3 && (
                 <div className="corner-consistency">
                   <div className="corner-consistency__bar">
@@ -163,13 +167,12 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                       ? 'var(--green)' : corner.consistency_pct >= 50
                       ? 'var(--amber)' : 'var(--red)',
                   }}>
-                    {corner.consistency_pct.toFixed(0)}% consistente
+                    {t.cornerReportConsistent(corner.consistency_pct.toFixed(0))}
                   </span>
-                  <span className="corner-consistency__n">({corner.n_hist_samples} vueltas)</span>
+                  <span className="corner-consistency__n">{t.cornerReportLaps(corner.n_hist_samples)}</span>
                 </div>
               )}
 
-              {/* Capa 3: XGBoost explanation chips */}
               {xgbByCorner[corner.corner_number]?.explanations?.length > 0 && (
                 <div className="corner-xgb-chips">
                   {xgbByCorner[corner.corner_number].explanations.map((exp, ei) => (
@@ -179,7 +182,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                         {exp.gap > 0 ? '+' : ''}{exp.gap.toFixed(1)}{exp.unit}
                       </span>
                       <span className="corner-xgb-chip__optimal" style={{ color: 'var(--text-3)' }}>
-                        óptimo: {exp.optimal.toFixed(1)}{exp.unit}
+                        {t.cornerReportOptimal} {exp.optimal.toFixed(1)}{exp.unit}
                       </span>
                     </div>
                   ))}

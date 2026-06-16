@@ -1,11 +1,9 @@
-/**
- * SectorTable — Tabla de sectorización entre Apexes con Time Delta parcial
- * y barra de progreso visual para cada sector.
- */
+import { useLanguage } from '../context/LanguageContext';
 
 const sign = (v) => (v > 0 ? '+' : '');
 
 const SectorTable = ({ sectores, totalDelta }) => {
+  const { t } = useLanguage();
   if (!sectores || sectores.length === 0) return null;
 
   const maxAbs = Math.max(...sectores.map((s) => Math.abs(s.delta_parcial)));
@@ -15,7 +13,7 @@ const SectorTable = ({ sectores, totalDelta }) => {
       <div className="chart-header">
         <div className="chart-title">
           <span>⬡</span>
-          Sectorización — Time Delta por Segmento
+          {t.sectorTitle}
         </div>
         {totalDelta != null && (
           <span
@@ -29,11 +27,11 @@ const SectorTable = ({ sectores, totalDelta }) => {
 
       <div className="sector-table">
         <div className="sector-table__head">
-          <span>#</span>
-          <span>Zona</span>
-          <span>Metros</span>
-          <span>Delta Parcial</span>
-          <span>Barra</span>
+          <span>{t.sectorNumber}</span>
+          <span>{t.sectorZone}</span>
+          <span>{t.sectorMeters}</span>
+          <span>{t.sectorPartialDelta}</span>
+          <span>{t.sectorBar}</span>
         </div>
 
         {sectores.map((s) => {

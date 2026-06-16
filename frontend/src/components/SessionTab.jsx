@@ -2,8 +2,10 @@ import { useState } from 'react';
 import FileUploader from './FileUploader';
 import TrackMap from './TrackMap';
 import { analyzeSession } from '../api/telemetry';
+import { useLanguage } from '../context/LanguageContext';
 
 const SessionTab = () => {
+  const { t } = useLanguage();
   const [sessionFile, setSessionFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,7 +19,7 @@ const SessionTab = () => {
       const data = await analyzeSession(sessionFile);
       setResults(data);
     } catch (err) {
-      setError(err.message || 'Error desconocido al analizar la sesión.');
+      setError(err.message || t.errorSession);
       setResults(null);
     } finally {
       setLoading(false);
@@ -34,15 +36,15 @@ const SessionTab = () => {
   return (
     <div>
       {/* Upload section */}
-      <section className="section card" aria-label="Cargar sesión">
+      <section className="section card" aria-label={t.uploadAria}>
         <div className="card__title">
           <span className="card__title-icon">▦</span>
-          Cargar Sesión Completa (Múltiples Vueltas)
+          {t.sessionLoadTitle}
         </div>
 
         <div style={{ marginBottom: 'var(--s4)' }}>
           <FileUploader
-            label="Archivo CSV de Sesión Completa"
+            label={t.sessionCsvLabel}
             selectedFile={sessionFile}
             onFileSelect={setSessionFile}
           />
@@ -52,7 +54,7 @@ const SessionTab = () => {
           <div className="error-banner" role="alert" style={{ marginBottom: 'var(--s3)' }}>
             <span className="error-banner__icon">✕</span>
             <div className="error-banner__text">
-              <div className="error-banner__title">Error de análisis</div>
+              <div className="error-banner__title">{t.errorTitle}</div>
               {error}
             </div>
           </div>
@@ -62,11 +64,11 @@ const SessionTab = () => {
           className="btn-analyze"
           onClick={handleAnalyze}
           disabled={!sessionFile || loading}
-          aria-label={loading ? 'Analizando sesión...' : 'Analizar sesión'}
+          aria-label={loading ? t.sessionAnalyzingAria : t.sessionAnalyzeAria}
         >
           {loading
-            ? <><div className="spinner" /> Procesando sesión...</>
-            : '⚡ Analizar Sesión'
+            ? <><div className="spinner" /> {t.sessionProcessing}</>
+            : `⚡ ${t.analyzeSession}`
           }
         </button>
       </section>
@@ -77,13 +79,13 @@ const SessionTab = () => {
           {/* KPI summary */}
           <div className="kpi-grid" style={{ marginBottom: 'var(--s5)' }}>
             <div className="kpi-card kpi-card--info">
-              <div className="kpi-card__label">Vueltas válidas</div>
+              <div className="kpi-card__label">{t.validLaps}</div>
               <div className="kpi-card__value kpi-card__value--neutral">{results.total_laps}</div>
             </div>
 
             {results.fastest_lap && (
               <div className="kpi-card kpi-card--negative">
-                <div className="kpi-card__label">Mejor Vuelta</div>
+                <div className="kpi-card__label">{t.bestLap}</div>
                 <div className="kpi-card__value kpi-card__value--neutral">
                   #{results.fastest_lap.lap_number}
                 </div>
@@ -93,11 +95,11 @@ const SessionTab = () => {
 
             {results.fastest_lap && (
               <div className="kpi-card kpi-card--info">
-                <div className="kpi-card__label">Vel. Máxima</div>
+                <div className="kpi-card__label">{t.maxSpeed}</div>
                 <div className="kpi-card__value kpi-card__value--info" style={{ fontSize: '1.5rem' }}>
                   {results.fastest_lap.max_speed?.toFixed(0) ?? '—'}
                 </div>
-                <div className="kpi-card__sub">km/h en mejor vuelta</div>
+                <div className="kpi-card__sub">{t.kmhInBestLap}</div>
               </div>
             )}
           </div>
@@ -113,17 +115,17 @@ const SessionTab = () => {
             <div className="card">
               <div className="card__title">
                 <span className="card__title-icon">▤</span>
-                Lista de Vueltas
+                {t.sessionListTitle}
               </div>
               <div style={{ overflowX: 'auto' }}>
                 <table className="session-lap-table">
                   <thead>
                     <tr>
-                      <th>Vuelta</th>
-                      <th>Tiempo</th>
-                      <th>Vel. Máx.</th>
-                      <th>Distancia</th>
-                      <th>Δ vs Mejor</th>
+                      <th>{t.lapCol}</th>
+                      <th>{t.timeCol}</th>
+                      <th>{t.maxSpeedCol}</th>
+                      <th>{t.distanceCol}</th>
+                      <th>{t.deltaCol}</th>
                     </tr>
                   </thead>
                   <tbody>

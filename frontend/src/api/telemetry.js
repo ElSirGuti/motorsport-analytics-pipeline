@@ -17,7 +17,7 @@ function extractErrorMessage(error) {
   return error.message || 'Error desconocido';
 }
 
-export const compareLaps = async (lapA, lapB) => {
+export const compareLaps = async (lapA, lapB, lang = 'en') => {
   const formData = new FormData();
   formData.append('lap_a', lapA);
   formData.append('lap_b', lapB);
@@ -25,6 +25,7 @@ export const compareLaps = async (lapA, lapB) => {
   try {
     const response = await apiClient.post('/compare-laps', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      params: { lang },
     });
     return response.data;
   } catch (error) {
@@ -36,7 +37,7 @@ export const compareLaps = async (lapA, lapB) => {
  * Pipeline avanzado: geometría + Time Delta acumulado + sectorización.
  * Llama al endpoint POST /api/telemetry/compare
  */
-export const compareAdvanced = async (lapFast, lapSlow, resolutionM = 5) => {
+export const compareAdvanced = async (lapFast, lapSlow, resolutionM = 5, lang = 'en') => {
   const formData = new FormData();
   formData.append('lap_fast', lapFast);
   formData.append('lap_slow', lapSlow);
@@ -45,6 +46,7 @@ export const compareAdvanced = async (lapFast, lapSlow, resolutionM = 5) => {
   try {
     const response = await apiClient.post('/telemetry/compare', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      params: { lang },
     });
     return response.data;
   } catch (error) {
@@ -52,7 +54,7 @@ export const compareAdvanced = async (lapFast, lapSlow, resolutionM = 5) => {
   }
 };
 
-export const analyzeTelemetry = async (lapFast, lapSlow, resolutionM = 5) => {
+export const analyzeTelemetry = async (lapFast, lapSlow, resolutionM = 5, lang = 'en') => {
   const formData = new FormData();
   formData.append('lap_fast', lapFast);
   formData.append('lap_slow', lapSlow);
@@ -61,6 +63,7 @@ export const analyzeTelemetry = async (lapFast, lapSlow, resolutionM = 5) => {
   try {
     const response = await apiClient.post('/telemetry/analyze', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      params: { lang },
     });
     return response.data;
   } catch (error) {
@@ -68,13 +71,14 @@ export const analyzeTelemetry = async (lapFast, lapSlow, resolutionM = 5) => {
   }
 };
 
-export const analyzeSession = async (sessionFile) => {
+export const analyzeSession = async (sessionFile, lang = 'en') => {
   const formData = new FormData();
   formData.append('session_file', sessionFile);
 
   try {
     const response = await apiClient.post('/analyze-session', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      params: { lang },
     });
     return response.data;
   } catch (error) {
@@ -82,7 +86,7 @@ export const analyzeSession = async (sessionFile) => {
   }
 };
 
-export const compareSessionLaps = async (sessionFile, lapA, lapB) => {
+export const compareSessionLaps = async (sessionFile, lapA, lapB, lang = 'en') => {
   const formData = new FormData();
   formData.append('session_file', sessionFile);
   formData.append('lap_a', String(lapA));
@@ -92,6 +96,7 @@ export const compareSessionLaps = async (sessionFile, lapA, lapB) => {
     const response = await apiClient.post('/compare-session-laps', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 120000,
+      params: { lang },
     });
     return response.data;
   } catch (error) {
@@ -99,22 +104,24 @@ export const compareSessionLaps = async (sessionFile, lapA, lapB) => {
   }
 };
 
-export const downloadPdfReport = async (compareResult) => {
+export const downloadPdfReport = async (compareResult, lang = 'en') => {
   const response = await apiClient.post('/report/pdf-from-json', compareResult, {
     responseType: 'blob',
     headers: { 'Content-Type': 'application/json' },
     timeout: 60000,
+    params: { lang },
   });
   return response.data;
 };
 
-export const analyzeStint = async (lapFiles) => {
+export const analyzeStint = async (lapFiles, lang = 'en') => {
   const formData = new FormData();
   lapFiles.forEach(f => formData.append('laps', f));
   try {
     const response = await apiClient.post('/stint/analyze', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 120000,
+      params: { lang },
     });
     return response.data;
   } catch (error) {

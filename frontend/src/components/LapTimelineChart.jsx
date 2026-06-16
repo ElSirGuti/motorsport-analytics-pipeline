@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ReferenceLine, ResponsiveContainer,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
 function fmtLaptime(seconds) {
   if (seconds == null || isNaN(seconds) || seconds <= 0) return '—';
@@ -18,7 +19,7 @@ function fmtAxis(seconds) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-const CustomTooltip = ({ active, payload, label }) => {
+const CustomTooltip = ({ active, payload, label, t }) => {
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload;
   const isPit = point?.pit_actual_time != null;
@@ -33,11 +34,11 @@ const CustomTooltip = ({ active, payload, label }) => {
       fontFamily: "'JetBrains Mono', monospace",
     }}>
       <div style={{ color: isPit ? '#FF3D3D' : 'var(--text-2)', marginBottom: 6, fontWeight: 600 }}>
-        {isPit ? '🔧 Pit Stop · ' : ''}Vuelta {label}
+        {isPit ? `${t.timelinePitStop} · ` : ''}{t.timelineLap} {label}
       </div>
       {isPit ? (
         <div style={{ color: '#FF3D3D' }}>
-          Tiempo en boxes: {fmtLaptime(point.pit_actual_time)}
+          {t.timelinePitStop}: {fmtLaptime(point.pit_actual_time)}
         </div>
       ) : (
         payload.map((p) => {
@@ -53,17 +54,18 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-const LegendContent = ({ hasPitLaps }) => (
+const LegendContent = ({ hasPitLaps, t }) => (
   <div style={{ display: 'flex', gap: 20, justifyContent: 'center', fontSize: '0.72rem',
     fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-2)', marginTop: 8 }}>
-    <span style={{ color: 'var(--cyan)' }}>● Actual</span>
-    <span style={{ color: 'rgba(0,212,255,0.4)' }}>╌ Tendencia</span>
-    <span style={{ color: 'var(--amber)' }}>╌ Proyección MC</span>
-    {hasPitLaps && <span style={{ color: '#FF3D3D' }}>● Pit Stop</span>}
+    <span style={{ color: 'var(--cyan)' }}>● {t.timelineLegendActual}</span>
+    <span style={{ color: 'rgba(0,212,255,0.4)' }}>╌ {t.timelineLegendTrend}</span>
+    <span style={{ color: 'var(--amber)' }}>╌ {t.timelineLegendMC}</span>
+    {hasPitLaps && <span style={{ color: '#FF3D3D' }}>● {t.timelineLegendPit}</span>}
   </div>
 );
 
 export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
+  const { t } = useLanguage();
   const { chartData, separatorLap, yDomain, pitLapNums } = useMemo(() => {
     if (!degradacion?.available) return { chartData: [], separatorLap: null, yDomain: ['auto', 'auto'], pitLapNums: new Set() };
 
@@ -89,7 +91,6 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
       });
     }
 
-    // Y domain from racing laps only — pit laps are not included
     const racingTimes = [
       ...(degradacion.actual_times || []),
       ...(montecarlo?.p10 || []),
@@ -99,7 +100,6 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
     const minT = racingTimes.length ? Math.min(...racingTimes) - 1.0 : 0;
     const maxT = racingTimes.length ? Math.max(...racingTimes) + 1.0 : 300;
 
-    // All laps including pit laps for proper X axis span
     const allLaps = new Set([
       ...(degradacion.actual_laps || []),
       ...(degradacion.projected_laps || []),
@@ -136,11 +136,11 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
     return (
       <div className="chart-card">
         <div className="chart-header">
-          <div className="chart-title">◎ Evolución de Tiempos por Vuelta</div>
+          <div className="chart-title">◎ {t.timelineTitle}</div>
         </div>
         <div className="chart-empty">
           <span className="chart-empty__icon">◎</span>
-          Sin datos de degradación disponibles
+          {t.timelineNoData}
         </div>
       </div>
     );
@@ -149,7 +149,7 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
   return (
     <div className="chart-card">
       <div className="chart-header">
-        <div className="chart-title">◎ Evolución de Tiempos · Proyección Monte Carlo</div>
+        <div className="chart-title">◎ {t.timelineTitle}</div>
         {montecarlo?.available && (
           <span className="chart-zoom-badge">σ = {montecarlo.sigma_real_s}s</span>
         )}
@@ -160,7 +160,7 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
           <XAxis
             dataKey="lap"
             tick={{ fill: 'var(--text-3)', fontSize: 11 }}
-            label={{ value: 'Vuelta', position: 'insideBottom', offset: -2, fill: 'var(--text-3)', fontSize: 10 }}
+            label={{ value: t.timelineLap, position: 'insideBottom', offset: -2, fill: 'var(--text-3)', fontSize: 10 }}
           />
           <YAxis
             domain={yDomain}
@@ -168,10 +168,9 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
             tick={{ fill: 'var(--text-3)', fontSize: 11 }}
             width={52}
           />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend content={<LegendContent hasPitLaps={pitLapNums.size > 0} />} />
+          <Tooltip content={<CustomTooltip t={t} />} />
+          <Legend content={<LegendContent hasPitLaps={pitLapNums.size > 0} t={t} />} />
 
-          {/* Pit stop vertical markers */}
           {[...pitLapNums].map(lapNum => (
             <ReferenceLine
               key={`pit-${lapNum}`}
@@ -182,36 +181,30 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
             />
           ))}
 
-          {/* Historical / projected separator */}
           {separatorLap && (
             <ReferenceLine
               x={separatorLap}
               stroke="rgba(255,255,255,0.15)"
               strokeDasharray="4 4"
-              label={{ value: 'Proyección →', fill: 'var(--text-3)', fontSize: 9, position: 'insideTopRight' }}
+              label={{ value: `${t.timelineProjection}`, fill: 'var(--text-3)', fontSize: 9, position: 'insideTopRight' }}
             />
           )}
 
-          {/* MC bands — stacked areas */}
           <Area dataKey="band_floor"    stackId="mc" fill="transparent"          stroke="none" isAnimationActive={false} legendType="none" />
           <Area dataKey="band_dim_low"  stackId="mc" fill="rgba(255,179,0,0.07)" stroke="none" isAnimationActive={false} legendType="none" />
           <Area dataKey="band_bright"   stackId="mc" fill="rgba(255,179,0,0.18)" stroke="none" isAnimationActive={false} legendType="none" />
           <Area dataKey="band_dim_high" stackId="mc" fill="rgba(255,179,0,0.07)" stroke="none" isAnimationActive={false} legendType="none" />
 
-          {/* P50 projection */}
-          <Line dataKey="mc_p50" name="Proyección MC" stroke="var(--amber)" strokeWidth={1.5}
+          <Line dataKey="mc_p50" name={t.timelineLegendMC} stroke="var(--amber)" strokeWidth={1.5}
             strokeDasharray="5 3" dot={false} isAnimationActive={false} connectNulls={false} />
 
-          {/* Trend */}
-          <Line dataKey="trend" name="Tendencia" stroke="rgba(0,212,255,0.4)" strokeWidth={1}
+          <Line dataKey="trend" name={t.timelineLegendTrend} stroke="rgba(0,212,255,0.4)" strokeWidth={1}
             strokeDasharray="4 4" dot={false} isAnimationActive={false} connectNulls={false} />
 
-          {/* Actual racing laps */}
-          <Line dataKey="actual" name="Actual" stroke="var(--cyan)" strokeWidth={2}
+          <Line dataKey="actual" name={t.timelineLegendActual} stroke="var(--cyan)" strokeWidth={2}
             dot={{ fill: 'var(--cyan)', r: 4, strokeWidth: 0 }}
             activeDot={{ r: 6 }} isAnimationActive={false} connectNulls={false} />
 
-          {/* Pit stop markers — rendered at the bottom of the Y range */}
           <Line dataKey="pit_marker" name="pit_marker" stroke="none" strokeWidth={0}
             dot={{ fill: '#FF3D3D', r: 5, strokeWidth: 2, stroke: 'rgba(255,61,61,0.4)' }}
             activeDot={{ r: 7 }} isAnimationActive={false} connectNulls={false} legendType="none" />

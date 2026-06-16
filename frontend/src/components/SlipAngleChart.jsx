@@ -3,6 +3,7 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
 const renderTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -23,24 +24,26 @@ const renderTooltip = ({ active, payload, label }) => {
 };
 
 const BalanceBar = ({ us, os, neutral }) => {
+  const { t } = useLanguage();
   if (us == null) return null;
   return (
     <div style={{ marginTop: 6 }}>
       <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1 }}>
-        <div style={{ width: `${us}%`, background: '#4FC3F7' }} title={`Subviraje ${us}%`} />
-        <div style={{ width: `${neutral}%`, background: 'rgba(255,255,255,0.15)' }} title={`Neutral ${neutral}%`} />
-        <div style={{ width: `${os}%`, background: '#FF3D3D' }} title={`Sobreviraje ${os}%`} />
+        <div style={{ width: `${us}%`, background: '#4FC3F7' }} title={`${t.slipAngleSub} ${us}%`} />
+        <div style={{ width: `${neutral}%`, background: 'rgba(255,255,255,0.15)' }} title={`${t.slipAngleNeutral} ${neutral}%`} />
+        <div style={{ width: `${os}%`, background: '#FF3D3D' }} title={`${t.slipAngleOver} ${os}%`} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-3)', marginTop: 3 }}>
-        <span style={{ color: '#4FC3F7' }}>SUB {us?.toFixed(0)}%</span>
-        <span>NEUTRAL {neutral?.toFixed(0)}%</span>
-        <span style={{ color: '#FF3D3D' }}>SOBRE {os?.toFixed(0)}%</span>
+        <span style={{ color: '#4FC3F7' }}>{t.slipAngleSub} {us?.toFixed(0)}%</span>
+        <span>{t.slipAngleNeutral} {neutral?.toFixed(0)}%</span>
+        <span style={{ color: '#FF3D3D' }}>{t.slipAngleOver} {os?.toFixed(0)}%</span>
       </div>
     </div>
   );
 };
 
 const LapSummaryCard = ({ summary, label, color }) => {
+  const { t } = useLanguage();
   if (!summary) return null;
   const { beta_max, beta_p95, understeer_pct, oversteer_pct, neutral_pct, balance_mean } = summary;
   return (
@@ -51,20 +54,20 @@ const LapSummaryCard = ({ summary, label, color }) => {
       <div style={{ fontSize: '0.78rem', color, fontWeight: 600, marginBottom: 8 }}>{label}</div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>β máx.</div>
+          <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>{t.slipAngleMax}</div>
           <div style={{ fontSize: '1.1rem', fontWeight: 700, color }}>
             {beta_max != null ? `${beta_max.toFixed(1)}°` : '—'}
           </div>
         </div>
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>β p95</div>
+          <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>{t.slipAngleP95}</div>
           <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-2)' }}>
             {beta_p95 != null ? `${beta_p95.toFixed(1)}°` : '—'}
           </div>
         </div>
         {balance_mean != null && (
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>Balance</div>
+            <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>{t.slipAngleBalanceLabel}</div>
             <div style={{
               fontSize: '1.0rem', fontWeight: 700,
               color: balance_mean > 1 ? '#4FC3F7' : balance_mean < -1 ? '#FF3D3D' : '#00E676',
@@ -80,6 +83,7 @@ const LapSummaryCard = ({ summary, label, color }) => {
 };
 
 const SlipAngleChart = ({ slip_angle, metadata }) => {
+  const { t } = useLanguage();
   const data = slip_angle;
   if (!data?.available) return null;
 
@@ -91,7 +95,6 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
   const pdA  = hasA ? data.per_distance_a : null;
   const pdB  = hasB ? data.per_distance_b : null;
 
-  // β chart data (body slip)
   const betaData = useMemo(() => {
     const src = pdA || pdB;
     if (!src?.distance) return [];
@@ -103,7 +106,6 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
     }));
   }, [pdA, pdB]);
 
-  // Balance chart (αF − αR) — shows US/OS character over the lap
   const balanceData = useMemo(() => {
     if (!pdA?.balance) return [];
     return pdA.distance.map((d, i) => ({
@@ -118,28 +120,24 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
   return (
     <div className="chart-card">
       <div className="chart-header">
-        <div className="chart-title"><span>◈</span> Ángulo de Deslizamiento (Sideslip β)</div>
-        <span className="chart-zoom-badge">modelo bicicleta cinemático</span>
+        <div className="chart-title"><span>◈</span> {t.slipAngleTitle}</div>
+        <span className="chart-zoom-badge">{t.slipAngleModel}</span>
       </div>
 
       <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
-        β es el ángulo entre la dirección de movimiento del vehículo y su eje longitudinal.
-        Valores altos indican que el chasis se mueve "de costado". El balance αF−αR muestra
-        si el coche trabaja más en el eje delantero (subviraje, azul) o trasero (sobreviraje, rojo).
-        <span style={{ opacity: 0.6 }}> Geometría asumida: L={data.wheelbase_m}m, ratio={data.steer_ratio}:1.</span>
+        {t.slipAngleDescription}
+          <span style={{ opacity: 0.6 }}> {t.slipAngleGeometry.replace('{wheelbase}', data.wheelbase_m?.toFixed(2)).replace('{ratio}', data.steer_ratio)}</span>
       </p>
 
-      {/* Summary cards */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
         {hasA && <LapSummaryCard summary={data.summary_a} label={labelA} color="#00D4FF" />}
         {hasB && <LapSummaryCard summary={data.summary_b} label={labelB} color="#FF6B6B" />}
       </div>
 
-      {/* β over distance */}
       {betaData.length > 0 && (
         <>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', marginBottom: 6 }}>
-            Ángulo de deslizamiento del chasis β (°)
+            {t.slipAngleChassis}
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <ComposedChart data={betaData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
@@ -173,11 +171,10 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
         </>
       )}
 
-      {/* Balance (αF − αR) over distance */}
       {hasBalance && balanceData.length > 0 && (
         <>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', marginTop: 12, marginBottom: 6 }}>
-            Balance de pista: αF − αR (+ = subviraje · − = sobreviraje)
+            {t.slipAngleBalance}
           </div>
           <ResponsiveContainer width="100%" height={140}>
             <ComposedChart data={balanceData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>

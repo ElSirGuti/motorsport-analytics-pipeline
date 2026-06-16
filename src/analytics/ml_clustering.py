@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
+from src.i18n import _ as t
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ def clasificar_curvas(
     df_aligned: pd.DataFrame,
     corners: list[dict],
     n_clusters: int = DEFAULT_CLUSTERS,
+    lang: str = "es",
 ) -> list[dict]:
     """
     Asigna un perfil de conducción a cada curva mediante K-Means.
@@ -46,7 +48,7 @@ def clasificar_curvas(
     labels = model.fit_predict(X_sc)
     centroids_orig = scaler.inverse_transform(model.cluster_centers_)
 
-    perfiles = _interpretar_centroides(centroids_orig, k)
+    perfiles = _interpretar_centroides(centroids_orig, k, lang=lang)
 
     results = []
     for corner_num, label, feat in zip(refs, labels, vectors):
@@ -107,7 +109,7 @@ def _build_feature_matrix(
     return vectors, refs
 
 
-def _interpretar_centroides(centroids: np.ndarray, k: int) -> dict[int, str]:
+def _interpretar_centroides(centroids: np.ndarray, k: int, lang: str = "es") -> dict[int, str]:
     """
     Asigna etiquetas legibles a cada centroide basándose en su posición en el espacio de features.
 
@@ -131,19 +133,19 @@ def _interpretar_centroides(centroids: np.ndarray, k: int) -> dict[int, str]:
         steer_v = c[5]
 
         if apex_d > 3 and thr_d < -5 and loss < 0.2:
-            label = "Ataque Limpio — Apex veloz y salida temprana"
+            label = t("cluster_ataque_limpio", lang=lang)
         elif brake_d < -8 and loss > 0.3:
-            label = "Entrada Agresiva — Frena tarde, salida comprometida"
+            label = t("cluster_entrada_agresiva", lang=lang)
         elif apex_d < -3 and g_eff < 65:
-            label = "Conservador — Subutilización del grip disponible"
+            label = t("cluster_conservador", lang=lang)
         elif thr_d > 8:
-            label = "Salida Tardía — Aceleración retrasada"
+            label = t("cluster_salida_tardia", lang=lang)
         elif steer_v > 60:
-            label = "Conducción Errática — Volante inestable en el vértice"
+            label = t("cluster_erractico", lang=lang)
         elif abs(apex_d) < 1 and loss < 0.15:
-            label = "Ejecución Consistente — Réplica fiel de la referencia"
+            label = t("cluster_consistente", lang=lang)
         else:
-            label = f"Perfil Mixto — Clúster {i + 1}"
+            label = t("cluster_mixto", lang=lang, n=i + 1)
 
         labels[i] = label
 

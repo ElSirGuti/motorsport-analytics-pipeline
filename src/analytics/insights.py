@@ -14,10 +14,11 @@ Métricas doradas extraídas:
 import logging
 import pandas as pd
 import numpy as np
+from src.i18n import _ as t
 
 logger = logging.getLogger(__name__)
 
-def analizar_errores_por_curva(df_alineado: pd.DataFrame, df_apexes: pd.DataFrame) -> list[dict]:
+def analizar_errores_por_curva(df_alineado: pd.DataFrame, df_apexes: pd.DataFrame, lang: str = "es") -> list[dict]:
     """
     Analiza la telemetría en ventanas alrededor de cada Apex para generar
     diagnósticos técnicos automatizados sobre el rendimiento en cada curva.
@@ -111,19 +112,19 @@ def analizar_errores_por_curva(df_alineado: pd.DataFrame, df_apexes: pd.DataFram
         
         if is_loss:
             if v_delta > 3.0 and brake_delta_m > 10.0:
-                diagnostico = f"Frenada anticipada. Frenaste {brake_delta_m:.1f}m antes que la referencia, resultando en una velocidad mínima de paso {v_delta:.1f} km/h más lenta."
+                diagnostico = t("insight_brake_early", lang=lang, brake_delta=f"{brake_delta_m:.1f}", v_delta=f"{v_delta:.1f}")
             elif brake_delta_m < -5.0 and throttle_delta_m > 10.0:
-                diagnostico = f"Entrada pasada (Overdriving). Frenaste tarde ({abs(brake_delta_m):.1f}m después), perdiste el vértice y retrasaste la aceleración {throttle_delta_m:.1f}m."
+                diagnostico = t("insight_overdriving", lang=lang, brake_delta=f"{abs(brake_delta_m):.1f}", throttle_delta=f"{throttle_delta_m:.1f}")
             elif v_delta > 5.0:
-                diagnostico = f"Paso por curva excesivamente lento. Perdiste {v_delta:.1f} km/h en el vértice respecto a la vuelta óptima."
+                diagnostico = t("insight_slow_apex", lang=lang, v_delta=f"{v_delta:.1f}")
             elif throttle_delta_m > 15.0:
-                diagnostico = f"Salida comprometida. Te tomó {throttle_delta_m:.1f}m adicionales volver a dar gas a fondo."
+                diagnostico = t("insight_late_throttle", lang=lang, throttle_delta=f"{throttle_delta_m:.1f}")
             else:
-                diagnostico = f"Pérdida general en el sector de {delta_entrada:.3f}s. Revisa la trazada."
+                diagnostico = t("insight_general_loss", lang=lang, delta=f"{delta_entrada:.3f}")
         elif delta_entrada < -0.05:
-             diagnostico = f"¡Excelente ejecución! Ganaste {abs(delta_entrada):.3f}s en esta sección."
+             diagnostico = t("insight_excellent", lang=lang, delta=f"{abs(delta_entrada):.3f}")
         else:
-            diagnostico = "Ejecución óptima, muy similar a la referencia."
+            diagnostico = t("insight_optimal", lang=lang)
             
         reporte_insights.append({
             'corner_number': curva_num,
