@@ -247,18 +247,18 @@ Todos los módulos están documentados con fundamentos matemáticos, pseudocódi
 
 | Módulo | Documento |
 |--------|-----------|
-| Geometría de pista y detección de apexes | [docs/01_geometry.md](./docs/01_geometry.md) |
-| Time Delta y alineación por distancia | [docs/02_time_delta.md](./docs/02_time_delta.md) |
-| Diagrama GG y círculo de fricción | [docs/03_gg_diagram.md](./docs/03_gg_diagram.md) |
-| Subviraje / sobreviraje (3 niveles de severidad) | [docs/04_dynamics.md](./docs/04_dynamics.md) |
-| Isolation Forest — detección de anomalías | [docs/05_anomaly_detection.md](./docs/05_anomaly_detection.md) |
-| K-Means — clustering de estilo de conducción | [docs/06_clustering.md](./docs/06_clustering.md) |
-| Reachable Lap, Consistencia y XGBoost | [docs/07_lap_time_potential.md](./docs/07_lap_time_potential.md) |
-| Análisis de stint y simulación Monte Carlo | [docs/08_stint_analysis.md](./docs/08_stint_analysis.md) |
-| Temperatura de Neumáticos — ventana térmica y ΔT | [docs/09_thermodynamics.md](./docs/09_thermodynamics.md) |
-| Brake Fade — eficiencia y degradación de frenado | [docs/10_brake_fade.md](./docs/10_brake_fade.md) |
-| Inputs del Piloto — FFT y nerviosismo de volante | [docs/11_driver_inputs.md](./docs/11_driver_inputs.md) |
-| Suspensión — pitch, roll y bottoming | [docs/12_suspension.md](./docs/12_suspension.md) |
-| Ángulo de Deslizamiento — sideslip β y balance αF/αR | [docs/13_slip_angle.md](./docs/13_slip_angle.md) |
+| Geometría de pista y detección de apexes | [docs/01_geometry.md](./docs/01_geometry.es.md) |
+| Time Delta y alineación por distancia | [docs/02_time_delta.md](./docs/02_time_delta.es.md) |
+| Diagrama GG y círculo de fricción | [docs/03_gg_diagram.md](./docs/03_gg_diagram.es.md) |
+| Subviraje / sobreviraje (3 niveles de severidad) | [docs/04_dynamics.md](./docs/04_dynamics.es.md) |
+| Isolation Forest — detección de anomalías | [docs/05_anomaly_detection.md](./docs/05_anomaly_detection.es.md) |
+| K-Means — clustering de estilo de conducción | [docs/06_clustering.md](./docs/06_clustering.es.md) |
+| Reachable Lap, Consistencia y XGBoost | [docs/07_lap_time_potential.md](./docs/07_lap_time_potential.es.md) |
+| Análisis de stint y simulación Monte Carlo | [docs/08_stint_analysis.md](./docs/08_stint_analysis.es.md) |
+| Temperatura de Neumáticos — ventana térmica y ΔT | [docs/09_thermodynamics.md](./docs/09_thermodynamics.es.md) |
+| Brake Fade — eficiencia y degradación de frenado | [docs/10_brake_fade.md](./docs/10_brake_fade.es.md) |
+| Inputs del Piloto — FFT y nerviosismo de volante | [docs/11_driver_inputs.md](./docs/11_driver_inputs.es.md) |
+| Suspensión — pitch, roll y bottoming | [docs/12_suspension.md](./docs/12_suspension.es.md) |
+| Ángulo de Deslizamiento — sideslip β y balance αF/αR | [docs/13_slip_angle.md](./docs/13_slip_angle.es.md) |
 
-Ver índice completo en [docs/README.md](./docs/README.md).
+Ver índice completo en [docs/README.md](./docs/README.es.md).
