@@ -21,6 +21,8 @@ import SlipAngleChart from './components/SlipAngleChart';
 import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps, downloadPdfReport } from './api/telemetry';
 import CornerAnalysisPanel from './components/CornerAnalysisPanel';
 import SetupRecommendations from './components/SetupRecommendations';
+import TyreDegradationPanel from './components/TyreDegradationPanel';
+import RacingLinePanel from './components/RacingLinePanel';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
@@ -857,6 +859,16 @@ export default function App() {
               {stintResult.setup_sesion?.available && (
                 <div style={{ marginTop: 'var(--s4)' }}>
                   <SetupRecommendations setup_advisor={stintResult.setup_sesion} />
+                </div>
+              )}
+              {stintResult.degradacion_neumatico?.available && (
+                <div style={{ marginTop: 'var(--s4)' }}>
+                  <TyreDegradationPanel data={stintResult.degradacion_neumatico} />
+                </div>
+              )}
+              {stintResult.racing_line_rl?.available && (
+                <div style={{ marginTop: 'var(--s4)' }}>
+                  <RacingLinePanel data={stintResult.racing_line_rl} />
                 </div>
               )}
             </div>
