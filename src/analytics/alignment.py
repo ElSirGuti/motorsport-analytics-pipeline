@@ -27,6 +27,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from src.i18n import _ as t
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,7 @@ def alinear_vueltas_y_calcular_delta(
 def resumir_delta_por_sector(
     df_alineado: pd.DataFrame,
     apexes: pd.DataFrame,
+    lang: str = "es",
 ) -> pd.DataFrame:
     """
     Divide el circuito en sectores entre Apexes y calcula el Time Delta
@@ -164,11 +166,11 @@ def resumir_delta_por_sector(
         delta_parcial = delta_final - delta_inicio
 
         if i == 0:
-            desc = f"Inicio → Curva 1"
+            desc = t("align_start_curve1", lang=lang)
         elif i < len(distancias_corte) - 2:
-            desc = f"Curva {i} → Curva {i + 1}"
+            desc = t("align_curve_n", lang=lang, i=i, next_i=i + 1)
         else:
-            desc = f"Curva {i} → Línea de Meta"
+            desc = t("align_curve_finish", lang=lang, i=i)
 
         filas.append({
             "sector":        i + 1,

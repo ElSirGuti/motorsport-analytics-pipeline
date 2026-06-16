@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
+from src.i18n import _ as t
 
 logger = logging.getLogger(__name__)
 
@@ -131,46 +132,38 @@ def _build_gg_points(
     return gg
 
 
-def _sev_subviraje(d_steer: float, steer_angle: float) -> str:
-    """Leve / media / critico según la velocidad de aplicación de volante y el ángulo."""
+def _sev_subviraje(d_steer: float, steer_angle: float, lang: str = "es") -> str:
     if d_steer >= 0.6 or steer_angle > 15:
-        return "critico"
+        return t("sev_critico", lang=lang)
     if d_steer >= 0.3 or steer_angle > 8:
-        return "media"
-    return "leve"
+        return t("sev_media", lang=lang)
+    return t("sev_leve", lang=lang)
 
 
-def _diag_subviraje(sev: str, curva: int, steer: float, lat_g: float) -> str:
-    base = f"Curva {curva}: volante en {steer:.1f}° con solo {lat_g:.2f}G laterales."
+def _diag_subviraje(sev: str, curva: int, steer: float, lat_g: float, lang: str = "es") -> str:
+    base = t("dyn_base_subviraje", lang=lang, curva=curva, steer=f"{steer:.1f}", lat_g=f"{lat_g:.2f}")
     if sev == "critico":
-        return (f"SUBVIRAJE CRÍTICO — {base} Tren delantero completamente saturado. "
-                f"Reducir velocidad de entrada o ablandar barra estabilizadora delantera.")
+        return t("dyn_subviraje_critico", lang=lang, base=base)
     if sev == "media":
-        return (f"Subviraje moderado — {base} El piloto está añadiendo volante sin "
-                f"obtener rotación. Revisar trazada de entrada o balance de setup.")
-    return (f"Subviraje leve — {base} Velocidad de entrada ligeramente elevada. "
-            f"El tren delantero pierde adherencia de forma marginal.")
+        return t("dyn_subviraje_media", lang=lang, base=base)
+    return t("dyn_subviraje_leve", lang=lang, base=base)
 
 
-def _sev_sobreviraje(lat_jerk: float, umbral: float) -> str:
-    """Leve / media / critico según la brusquedad del pico de G lateral."""
+def _sev_sobreviraje(lat_jerk: float, umbral: float, lang: str = "es") -> str:
     if lat_jerk >= umbral * 2.5:
-        return "critico"
+        return t("sev_critico", lang=lang)
     if lat_jerk >= umbral * 1.5:
-        return "media"
-    return "leve"
+        return t("sev_media", lang=lang)
+    return t("sev_leve", lang=lang)
 
 
-def _diag_sobreviraje(sev: str, curva: int, dist: float, lat_g: float) -> str:
-    base = f"Curva {curva} a {dist:.0f}m: pico de {lat_g:.2f}G con corrección de volante."
+def _diag_sobreviraje(sev: str, curva: int, dist: float, lat_g: float, lang: str = "es") -> str:
+    base = t("dyn_base_sobreviraje", lang=lang, curva=curva, dist=f"{dist:.0f}", lat_g=f"{lat_g:.2f}")
     if sev == "critico":
-        return (f"SOBREVIRAJE CRÍTICO — {base} El tren trasero se desplaza violentamente. "
-                f"Revisar presión de neumáticos traseros, ajuste de diferencial o dureza de barra trasera.")
+        return t("dyn_sobreviraje_critico", lang=lang, base=base)
     if sev == "media":
-        return (f"Sobreviraje moderado — {base} Pérdida de agarre trasero controlable. "
-                f"Evaluar ajuste de diferencial o reducir entrada a la curva.")
-    return (f"Sobreviraje leve — {base} Ligero movimiento de cola, "
-            f"corregido sin pérdida de control. Monitorear en condiciones de mayor temperatura.")
+        return t("dyn_sobreviraje_media", lang=lang, base=base)
+    return t("dyn_sobreviraje_leve", lang=lang, base=base)
 
 
 def detectar_subviraje_sobreviraje(
@@ -181,6 +174,7 @@ def detectar_subviraje_sobreviraje(
     ventana_m: float = 60.0,
     umbral_sub: float = 0.15,
     umbral_over: float = 0.5,
+    lang: str = "es",
 ) -> list[dict]:
     has_lat = f"{canal_lat}_Fast" in df_aligned.columns
     has_steer = f"{canal_steer}_Fast" in df_aligned.columns
@@ -218,15 +212,15 @@ def detectar_subviraje_sobreviraje(
             steer_rising = d_steer[i] > 0.1
             lat_flat = abs(d_lat[i]) < umbral_sub * abs(steer_smooth[i])
             if steer_rising and lat_flat and d_apex - dists[i] > 0:
-                sev = _sev_subviraje(d_steer[i], steer_smooth[i])
+                sev = _sev_subviraje(d_steer[i], steer_smooth[i], lang=lang)
                 eventos.append({
-                    "tipo": "subviraje",
+                    "tipo": t("tipo_subviraje", lang=lang),
                     "curva": idx + 1,
                     "distancia": round(float(dists[i]), 1),
                     "steer_angle": round(float(steer_smooth[i]), 1),
                     "lat_g": round(float(lat_smooth[i]), 3),
                     "severidad": sev,
-                    "diagnostico": _diag_subviraje(sev, idx + 1, steer_smooth[i], lat_smooth[i]),
+                    "diagnostico": _diag_subviraje(sev, idx + 1, steer_smooth[i], lat_smooth[i], lang=lang),
                 })
                 break
 
@@ -241,18 +235,19 @@ def detectar_subviraje_sobreviraje(
                 after = abs(steer_smooth[i + 1])
                 steer_correction = after < before * 0.7 or after > before * 1.3
             if lat_jerk > umbral_over and steer_correction:
-                sev = _sev_sobreviraje(lat_jerk, umbral_over)
+                sev = _sev_sobreviraje(lat_jerk, umbral_over, lang=lang)
                 eventos.append({
-                    "tipo": "sobreviraje",
+                    "tipo": t("tipo_sobreviraje", lang=lang),
                     "curva": idx + 1,
                     "distancia": round(float(dists[i]), 1),
                     "lat_g": round(float(lat_smooth[i]), 3),
                     "jerkyness": round(float(lat_jerk), 3),
                     "severidad": sev,
-                    "diagnostico": _diag_sobreviraje(sev, idx + 1, dists[i], lat_smooth[i]),
+                    "diagnostico": _diag_sobreviraje(sev, idx + 1, dists[i], lat_smooth[i], lang=lang),
                 })
                 break
 
-    logger.info(f"Eventos de dinámica: {len([e for e in eventos if e['tipo']=='subviraje'])} subviraje, "
-                f"{len([e for e in eventos if e['tipo']=='sobreviraje'])} sobreviraje")
+    n_sub = len([e for e in eventos if e['tipo'] == t("tipo_subviraje", lang=lang)])
+    n_over = len([e for e in eventos if e['tipo'] == t("tipo_sobreviraje", lang=lang)])
+    logger.info(t("dyn_log_summary", lang=lang, n_sub=n_sub, n_over=n_over))
     return eventos

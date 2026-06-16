@@ -11,10 +11,11 @@ import logging
 from typing import Optional
 
 import matplotlib
-matplotlib.use("Agg")               # non-interactive backend — must precede pyplot import
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import numpy as np
+from src.i18n import _ as t
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -439,6 +440,38 @@ def _chart_slip(result: dict, la: str, lb: str,
         return None
 
 
+def _chart_corner_losses(result: dict, la: str, lb: str,
+                         w: float = _PAGE_W_CM, h: float = 5.0) -> Optional[Image]:
+    corners = result.get("corners") or []
+    data = [(c.get("corner_number"), c.get("time_loss_seconds") or 0)
+            for c in corners if abs(c.get("time_loss_seconds") or 0) >= 0.01]
+    if not data:
+        return None
+    try:
+        nums, losses = zip(*data)
+        colors_bars = ["#CC2200" if v > 0 else "#006622" for v in losses]
+        fig, ax = plt.subplots(figsize=(w / 2.54, h / 2.54))
+        fig.patch.set_facecolor("white")
+        bars = ax.bar(nums, losses, color=colors_bars, edgecolor="white", linewidth=0.5,
+                      width=0.6, zorder=3)
+        ax.axhline(0, color="#AAAAAA", lw=0.7)
+        _style_ax(ax, xlabel="Número de curva", ylabel=f"Δ tiempo (s)  [+ = {lb} pierde]")
+        ax.set_xticks(list(nums))
+        # Add value labels on bars
+        for bar, v in zip(bars, losses):
+            if abs(v) >= 0.02:
+                ax.text(bar.get_x() + bar.get_width() / 2,
+                        v + (0.005 if v >= 0 else -0.008),
+                        f"{v:+.3f}", ha="center", va="bottom" if v >= 0 else "top",
+                        fontsize=6, color="#333333")
+        fig.tight_layout(pad=0.5)
+        return _to_image(fig, w, h)
+    except Exception as e:
+        logger.warning("chart_corner_losses: %s", e)
+        plt.close("all")
+        return None
+
+
 # ── Section builders ──────────────────────────────────────────────────────────
 
 def _section_identity(result: dict, s: dict) -> list:
@@ -485,11 +518,11 @@ def _section_summary(result: dict, s: dict) -> list:
         delta_txt   = f"{lb} es <b>{abs(delta):.3f}s MÁS RÁPIDO</b> que {la}"
         delta_color = "#006622"
     else:
-        delta_txt   = "Tiempos idénticos"
+        delta_txt   = t("pdf_identical_times", lang=lang)
         delta_color = "#444444"
     elems.append(Paragraph(f'<font color="{delta_color}">{delta_txt}</font>', s["body"]))
     elems.append(Spacer(1, 0.15*cm))
-    rows = [["Curvas analizadas", "Peor curva", "Pérdida peor curva"]]
+    rows = [[t("pdf_corners_analyzed", lang=lang), t("pdf_worst_corner", lang=lang), t("pdf_worst_loss", lang=lang)]]
     rows.append([
         str(summary.get("num_corners_analyzed", "—")),
         f"#{summary.get('worst_corner', '—')}",
@@ -785,12 +818,12 @@ def _section_slip(result: dict, s: dict) -> list:
     sb = slip.get("summary_b", {}) or {}
     rows = [["", la, lb]]
     for key, display in [
-        ("beta_max",       "β máximo (°)"),
+        ("beta_max",       "β max (°)"),
         ("beta_p95",       "β P95 (°)"),
-        ("balance_mean",   "Balance medio αF-αR (°)"),
-        ("understeer_pct", "Subviraje (%)"),
-        ("neutral_pct",    "Neutral (%)"),
-        ("oversteer_pct",  "Sobreviraje (%)"),
+        ("balance_mean",   "αF-αR balance (°)"),
+        ("understeer_pct", t("pdf_understeer_pct", lang=lang)),
+        ("neutral_pct",    t("pdf_neutral_pct", lang=lang)),
+        ("oversteer_pct",  t("pdf_oversteer_pct", lang=lang)),
     ]:
         va = sa.get(key)
         vb = sb.get(key)
@@ -820,7 +853,14 @@ def _section_corners(result: dict, s: dict) -> list:
     if not corners:
         return []
     elems = [Paragraph("ANÁLISIS DETALLADO POR CURVA", s["h2"])]
-    header = ["Curva", "Δ Frenada (m)", "Δ Apex (km/h)", "Δ Gas (m)", "Pérdida (s)", "Diagnóstico"]
+    header = [
+        t("pdf_corner_header", lang=lang),
+        t("pdf_brake_delta", lang=lang),
+        t("pdf_apex_delta", lang=lang),
+        t("pdf_throttle_delta", lang=lang),
+        t("pdf_loss_seconds", lang=lang),
+        t("pdf_diagnosis", lang=lang),
+    ]
     rows = [header]
     for c in corners:
         tl  = c.get("time_loss_seconds",    0.0) or 0.0
@@ -850,9 +890,127 @@ def _section_corners(result: dict, s: dict) -> list:
     return elems
 
 
+def _section_corner_analysis(result: dict, s: dict) -> list:
+    meta = result.get("metadata", {})
+    la   = meta.get("label_a", "A")
+    lb   = meta.get("label_b", "B")
+    advisor = result.get("setup_advisor") or {}
+    priority = advisor.get("corner_priority", [])
+    elems = [Paragraph("ANÁLISIS DE PÉRDIDA DE TIEMPO POR CURVA", s["h2"])]
+
+    img = _chart_corner_losses(result, la, lb)
+    if img:
+        elems.append(img)
+        elems.append(Paragraph(
+            f"Barras rojas = {lb} pierde tiempo respecto a {la}. "
+            "Barras verdes = {lb} gana tiempo. Los escalones más altos indican las curvas "
+            "que más afectan al tiempo de vuelta total.",
+            s["explain"]
+        ))
+
+    if priority:
+        elems.append(Spacer(1, 0.25*cm))
+        elems.append(Paragraph("Curvas prioritarias — dónde se decide la vuelta:", s["body"]))
+        header = [
+            "#",
+            t("pdf_corner_header", lang=lang),
+            t("pdf_loss_seconds", lang=lang),
+            t("pdf_brake_delta", lang=lang),
+            t("pdf_apex_delta", lang=lang),
+            t("pdf_throttle_delta", lang=lang),
+            t("pdf_dominant_phase", lang=lang),
+            t("pdf_action", lang=lang),
+        ]
+        rows = [header]
+        PHASE_ES = {"frenada": "Frenada", "apex": "Apex", "salida": "Salida"}
+        for i, c in enumerate(priority, 1):
+            rows.append([
+                str(i),
+                str(c.get("corner_number", "?")),
+                f"{c.get('time_loss_seconds', 0):+.3f}s",
+                f"{c.get('braking_delta_meters', 0):+.0f} m"  if abs(c.get('braking_delta_meters', 0)) > 0.5 else "—",
+                f"{c.get('apex_speed_delta_kmh', 0):+.1f} km/h" if abs(c.get('apex_speed_delta_kmh', 0)) > 0.5 else "—",
+                f"{c.get('throttle_delta_meters', 0):+.0f} m"  if abs(c.get('throttle_delta_meters', 0)) > 0.5 else "—",
+                PHASE_ES.get(c.get("dominant_phase", ""), "—"),
+                (c.get("focus", "") or "")[:35],
+            ])
+        tbl = Table(rows, colWidths=[0.6*cm, 1.2*cm, 1.8*cm, 2.0*cm, 2.4*cm, 1.8*cm, 2.2*cm, 5.0*cm])
+        tbl.setStyle(_tbl_style())
+        # Highlight time-loss column red for losers
+        for i, c in enumerate(priority, 1):
+            if c.get("time_loss_seconds", 0) > 0.05:
+                tbl.setStyle(TableStyle([("TEXTCOLOR", (2, i), (2, i), _RED)]))
+        elems.append(tbl)
+    return elems
+
+
+def _section_setup_advisor(result: dict, s: dict) -> list:
+    advisor = result.get("setup_advisor") or {}
+    if not advisor.get("available"):
+        return []
+    recs = advisor.get("recommendations", [])
+    if not recs:
+        return []
+
+    PRIORITY_STYLE = {"alta": ("⚠", "#CC2200"), "media": ("●", "#AA7700"), "baja": ("○", "#006622")}
+    elems = [Paragraph("RECOMENDACIONES DE SETUP", s["h2"])]
+
+    # Summary
+    gain = advisor.get("total_gain_range", "—")
+    elems.append(Paragraph(
+        f"<b>{len(recs)} recomendaciones identificadas</b> — ganancia potencial total: "
+        f"<b>{gain}s/vuelta</b> si se aplican todos los cambios de forma óptima.",
+        s["body"]
+    ))
+    elems.append(Spacer(1, 0.2*cm))
+
+    # Group by priority
+    for prio_key, prio_label in [("alta", "PRIORIDAD ALTA"), ("media", "PRIORIDAD MEDIA"), ("baja", "PRIORIDAD BAJA")]:
+        group = [r for r in recs if r.get("priority") == prio_key]
+        if not group:
+            continue
+        icon, col_hex = PRIORITY_STYLE.get(prio_key, ("●", "#555555"))
+        rl_col = colors.HexColor(col_hex)
+        elems.append(Paragraph(f"{icon} {prio_label}", ParagraphStyle(
+            f"rp_prio_{prio_key}", parent=s["body"],
+            fontSize=9, fontName="Helvetica-Bold", textColor=rl_col,
+            spaceBefore=8, spaceAfter=3,
+        )))
+        header = [
+            t("pdf_setup_area", lang=lang),
+            t("pdf_setup_problem", lang=lang),
+            t("pdf_setup_rec", lang=lang),
+            t("pdf_setup_gain", lang=lang),
+        ]
+        rows = [header]
+        for r in group:
+            problem = r.get("problem", "")
+            if len(problem) > 55:
+                problem = problem[:52] + "..."
+            rec_text = r.get("recommendation", "")
+            if len(rec_text) > 80:
+                rec_text = rec_text[:77] + "..."
+            rows.append([
+                r.get("category", "")[:22],
+                problem,
+                rec_text,
+                r.get("expected_gain", "—"),
+            ])
+        tbl = Table(rows, colWidths=[3.5*cm, 5.0*cm, 6.5*cm, 2.0*cm])
+        tbl.setStyle(_tbl_style())
+        elems.append(tbl)
+        elems.append(Spacer(1, 0.15*cm))
+
+    elems.append(Paragraph(
+        "* Ganancias estimadas son rangos teóricos. Aplicar cambios de forma incremental y verificar en pista.",
+        s["caption"]
+    ))
+    return elems
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def export_report_pdf(comparison_result: dict, filepath: Optional[str] = None) -> bytes:
+def export_report_pdf(comparison_result: dict, filepath: Optional[str] = None, lang: str = "es") -> bytes:
     """
     Generate a comprehensive PDF report with matplotlib charts from a comparison result dict.
     Returns PDF bytes; optionally saves to filepath.
@@ -885,6 +1043,10 @@ def export_report_pdf(comparison_result: dict, filepath: Optional[str] = None) -
     story += _section_suspension(comparison_result, s)
     story.append(Spacer(1, 0.3*cm))
     story += _section_slip(comparison_result, s)
+    story.append(Spacer(1, 0.3*cm))
+    story += _section_corner_analysis(comparison_result, s)
+    story.append(Spacer(1, 0.3*cm))
+    story += _section_setup_advisor(comparison_result, s)
     story.append(Spacer(1, 0.3*cm))
     story += _section_corners(comparison_result, s)
 

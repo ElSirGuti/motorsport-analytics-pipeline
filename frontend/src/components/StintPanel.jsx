@@ -1,15 +1,16 @@
-import React, { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { analyzeStint } from '../api/telemetry';
+import { useLanguage } from '../context/LanguageContext';
 import LapTimelineChart from './LapTimelineChart';
 import PitWindowWidget from './PitWindowWidget';
+import CornerAnalysisPanel from './CornerAnalysisPanel';
+import SetupRecommendations from './SetupRecommendations';
 
-const STINT_STEPS = ['Cargando vueltas', 'Extrayendo métricas', 'Analizando degradación', 'Simulación Monte Carlo'];
-
-function sigmaNote(sigma, laps) {
+function sigmaNote(sigma, laps, t) {
   if (!sigma || laps < 3) return null;
-  if (sigma < 0.3) return 'Piloto muy consistente. Las proyecciones son altamente fiables.';
-  if (sigma < 0.8) return 'Consistencia normal de carrera. Las bandas MC reflejan variación típica de stint.';
-  return 'Alta variabilidad entre vueltas. Las bandas de proyección son amplias — revisar factores externos (tráfico, errores).';
+  if (sigma < 0.3) return t.stintSigmaNoteVery;
+  if (sigma < 0.8) return t.stintSigmaNoteNormal;
+  return t.stintSigmaNoteHigh;
 }
 
 function KpiCard({ label, value, sub, accent }) {
@@ -23,6 +24,7 @@ function KpiCard({ label, value, sub, accent }) {
 }
 
 export default function StintPanel() {
+  const { t } = useLanguage();
   const [files, setFiles] = useState([]);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -60,6 +62,7 @@ export default function StintPanel() {
 
   const isSessionMode = files.length === 1;
   const canAnalyze = isSessionMode || files.length >= 3;
+  const steps = t.stintSteps;
 
   const handleAnalyze = async () => {
     if (!canAnalyze) return;
@@ -71,14 +74,14 @@ export default function StintPanel() {
     const stepDelay = (i) => new Promise(r => setTimeout(r, i === 0 ? 80 : 250));
 
     try {
-      for (let i = 0; i < STINT_STEPS.length; i++) {
+      for (let i = 0; i < steps.length; i++) {
         setStep(i);
         await stepDelay(i);
       }
       const data = await analyzeStint(files);
       setResult(data);
     } catch (err) {
-      setError(err.message || 'Error desconocido al analizar el stint.');
+      setError(err.message || t.errorUnknown);
     } finally {
       setLoading(false);
       setStep(-1);
@@ -111,7 +114,7 @@ export default function StintPanel() {
       <div className="card" style={{ marginBottom: 'var(--s4)' }}>
         <div className="card__title">
           <span className="card__title-icon">◉</span>
-          Análisis de Stint — Degradación y Estrategia
+          {t.stintTitle}
         </div>
 
         {/* Dropzone */}
@@ -129,9 +132,9 @@ export default function StintPanel() {
           }}
         >
           <div className="dropzone__icon">◎</div>
-          <div className="dropzone__label">Arrastra los CSVs de telemetría aquí</div>
+          <div className="dropzone__label">{t.stintDropLabel}</div>
           <div className="dropzone__sub">
-            Un CSV de sesión completa · o varios CSVs (mínimo 3) en orden cronológico
+            {t.stintDropSub}
           </div>
         </div>
         <input
@@ -152,7 +155,7 @@ export default function StintPanel() {
                 padding: '4px 8px', marginBottom: 4,
                 background: 'var(--cyan-dim)', borderRadius: 4, border: '1px solid var(--cyan-border)',
               }}>
-                ◎ Modo sesión — las vueltas se segmentarán automáticamente
+                ◎ {t.stintSessionMode}
               </div>
             )}
             {files.map((f, i) => (
@@ -162,7 +165,7 @@ export default function StintPanel() {
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontFamily: "'JetBrains Mono', monospace" }}>
                   {(f.size / 1024).toFixed(0)} KB
                 </span>
-                <button className="stint-file-row__remove" onClick={(e) => { e.stopPropagation(); removeFile(i); }} aria-label={`Quitar ${isSessionMode ? 'sesión' : `vuelta ${i + 1}`}`}>
+                <button className="stint-file-row__remove" onClick={(e) => { e.stopPropagation(); removeFile(i); }} aria-label={t.stintRemoveAria(isSessionMode, i)}>
                   ×
                 </button>
               </div>
@@ -173,7 +176,7 @@ export default function StintPanel() {
         {/* Progress steps */}
         {loading && step >= 0 && (
           <div className="progress-steps" aria-live="polite">
-            {STINT_STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <div
                 key={s}
                 className={`progress-step ${i < step ? 'progress-step--done' : i === step ? 'progress-step--active' : ''}`}
@@ -190,7 +193,7 @@ export default function StintPanel() {
           <div className="error-banner" role="alert">
             <span className="error-banner__icon">✕</span>
             <div className="error-banner__text">
-              <div className="error-banner__title">Error de análisis</div>
+              <div className="error-banner__title">{t.errorTitle}</div>
               {error}
             </div>
           </div>
@@ -200,20 +203,20 @@ export default function StintPanel() {
           className="btn-analyze"
           onClick={handleAnalyze}
           disabled={!canAnalyze || loading}
-          aria-label={loading ? 'Analizando stint...' : isSessionMode ? 'Analizar sesión completa' : `Analizar ${files.length} vueltas`}
+          aria-label={loading ? t.stintAnalyzeAria('analyze') : isSessionMode ? t.stintAnalyzeAria('session') : t.stintAnalyzeAria('analyze')}
         >
           {loading
-            ? <><div className="spinner" /> Procesando stint...</>
+            ? <><div className="spinner" /> {t.stintProcessing}</>
             : isSessionMode
-              ? '◉ Analizar Sesión Completa'
-              : `◉ Analizar Stint · ${files.length} Vuelta${files.length !== 1 ? 's' : ''}`
+              ? `◉ ${t.stintAnalyzeSession}`
+              : `◉ ${t.stintAnalyzeN(files.length)}`
           }
         </button>
 
         {files.length > 1 && files.length < 3 && !loading && (
           <div style={{ marginTop: 8, fontSize: '0.72rem', color: 'var(--amber)',
             fontFamily: "'JetBrains Mono', monospace", textAlign: 'center' }}>
-            Agrega {3 - files.length} vuelta{3 - files.length !== 1 ? 's' : ''} más para habilitar el análisis
+            {t.stintNeedMore(3 - files.length)}
           </div>
         )}
       </div>
@@ -224,31 +227,31 @@ export default function StintPanel() {
           {/* KPI grid */}
           <div className="stint-kpi-grid">
             <KpiCard
-              label="Total Vueltas"
+              label={t.stintKpiTotal}
               value={racingLaps.length}
               sub={result.n_laps > racingLaps.length
-                ? `${result.n_laps - racingLaps.length} pit/outlier excluidas`
-                : 'en carrera'}
+                ? t.stintExcluded(result.n_laps - racingLaps.length)
+                : t.stintRacing}
             />
             <KpiCard
-              label="Mejor Tiempo"
+              label={t.stintKpiBest}
               value={fmtLaptime(bestTime)}
               accent="var(--cyan)"
             />
             <KpiCard
-              label="Tiempo Medio"
+              label={t.stintKpiMean}
               value={fmtLaptime(meanTime)}
             />
             <KpiCard
-              label="Degradación"
+              label={t.stintKpiDeg}
               value={tasa != null ? `${tasa > 0 ? '+' : ''}${tasa.toFixed(3)}s` : '—'}
-              sub="por vuelta"
+              sub={t.perLap}
               accent={tasa != null ? (tasa > 0.1 ? 'var(--red)' : tasa > 0 ? 'var(--amber)' : 'var(--green)') : undefined}
             />
             <KpiCard
-              label="σ Consistencia"
+              label={t.stintKpiSigma}
               value={sigma != null ? `${sigma.toFixed(3)}s` : '—'}
-              sub={sigma < 0.3 ? 'Muy consistente' : sigma < 0.8 ? 'Normal' : 'Alta variación'}
+              sub={sigma < 0.3 ? t.stintConsistencyVery : sigma < 0.8 ? t.stintConsistencyNormal : t.stintConsistencyHigh}
               accent="var(--purple)"
             />
           </div>
@@ -270,13 +273,39 @@ export default function StintPanel() {
           {/* Sigma note */}
           {sigma != null && (
             <div className="stint-sigma-note">
-              <strong>σ = {sigma.toFixed(3)}s</strong> — {sigmaNote(sigma, result.n_laps)}
+              <strong>σ = {sigma.toFixed(3)}s</strong> — {sigmaNote(sigma, result.n_laps, t)}
               {result.degradacion?.r_squared != null && (
                 <span style={{ display: 'block', marginTop: 4, color: 'var(--text-3)', fontSize: '0.72rem' }}>
-                  R² del modelo de degradación: {result.degradacion.r_squared.toFixed(3)}
-                  {result.degradacion.r_squared > 0.8 ? ' — ajuste excelente' : result.degradacion.r_squared > 0.5 ? ' — ajuste moderado' : ' — baja correlación, ruido alto'}
+                  {t.stintRSquared(result.degradacion.r_squared)}
+                  {result.degradacion.r_squared > 0.8 ? ` ${t.stintRSquaredExcellent}` : result.degradacion.r_squared > 0.5 ? ` ${t.stintRSquaredModerate}` : ` ${t.stintRSquaredPoor}`}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* Session corner analysis */}
+          {result.curvas_sesion?.available && (
+            <div style={{ marginTop: 'var(--s4)' }}>
+              <CornerAnalysisPanel
+                result={{
+                  corners: result.curvas_sesion.corners,
+                  setup_advisor: result.setup_sesion,
+                }}
+                metadata={{
+                  label_a: `${t.timelineLap} ${result.curvas_sesion.reference_lap} (${t.anomalyReference})`,
+                  label_b: `${t.timelineLap} ${result.curvas_sesion.n_laps_compared}`,
+                }}
+                sessionMode
+                referenceLap={result.curvas_sesion.reference_lap}
+                nLaps={result.curvas_sesion.n_laps_compared}
+              />
+            </div>
+          )}
+
+          {/* Session setup advisor */}
+          {result.setup_sesion?.available && (
+            <div style={{ marginTop: 'var(--s4)' }}>
+              <SetupRecommendations setup_advisor={result.setup_sesion} />
             </div>
           )}
         </div>

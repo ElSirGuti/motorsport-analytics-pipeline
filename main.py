@@ -78,6 +78,9 @@ from src.analytics.brake_fade import analizar_eficiencia_frenado
 from src.analytics.driver_inputs import analizar_inputs_piloto
 from src.analytics.suspension import analizar_suspension
 from src.analytics.slip_angle import analizar_slip_angle
+from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
+from src.analytics.session_corner_analysis import analizar_curvas_sesion
+from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -109,6 +112,21 @@ async def _read_upload(upload: UploadFile) -> bytes:
 
 
 import math
+from src.i18n import DEFAULT_LANG
+
+
+def _detect_lang(request: Request) -> str:
+    """Detect language from query parameter or Accept-Language header."""
+    lang = request.query_params.get("lang", "")
+    if lang in ("es", "en"):
+        return lang
+    accept = request.headers.get("accept-language", "")
+    for part in accept.split(","):
+        code = part.split(";")[0].strip().split("-")[0]
+        if code in ("es", "en"):
+            return code
+    return DEFAULT_LANG
+
 
 def _sanitize(obj):
     """Recursively replace NaN/Inf floats with None so the payload is JSON-safe."""
@@ -128,14 +146,18 @@ async def health_check():
 
 
 @app.post("/api/report/pdf-from-json")
-async def generate_pdf_from_json(result: dict = Body(...)):
+async def generate_pdf_from_json(
+    request: Request,
+    result: dict = Body(...),
+):
     """
     Genera un PDF a partir de un resultado de comparación ya calculado (JSON).
     Acepta el objeto compareResult del frontend y devuelve el PDF directamente.
     Funciona tanto para el flujo de dos archivos como para el flujo de sesión.
     """
     try:
-        pdf_bytes = export_report_pdf(result)
+        lang = _detect_lang(request)
+        pdf_bytes = export_report_pdf(result, lang=lang)
         meta      = result.get("metadata", {})
         label_a   = meta.get("label_a", "A")
         label_b   = meta.get("label_b", "B")
@@ -152,6 +174,7 @@ async def generate_pdf_from_json(result: dict = Body(...)):
 
 @app.post("/api/report/pdf")
 async def generate_pdf_report(
+    request: Request,
     session_file: UploadFile = File(..., description="CSV con la sesión completa"),
     lap_a: int = Form(0, description="Vuelta A (1-based). 0 = auto-selecciona la más rápida"),
     lap_b: int = Form(0, description="Vuelta B (1-based). 0 = auto-selecciona la más lenta"),
@@ -166,6 +189,7 @@ async def generate_pdf_report(
     logger.info("Solicitud PDF: %s  lap_a=%d  lap_b=%d", session_file.filename, lap_a, lap_b)
     tmp_dir = None
     try:
+        lang = _detect_lang(request)
         content = await _read_upload(session_file)
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_pdf_")
         path = os.path.join(tmp_dir, "session.csv")
@@ -177,8 +201,7 @@ async def generate_pdf_report(
         n = len(laps)
 
         if lap_a == 0 or lap_b == 0:
-            lap_times  = [_lap_time_seconds(lap) for lap in laps]
-            flying     = _flying_lap_indices(laps, lap_times)
+            flying, lap_times = _flying_lap_indices(laps)
             if len(flying) < 2:
                 raise HTTPException(422, "No hay suficientes vueltas flying para auto-seleccionar (posibles vueltas de pit detectadas)")
             best_idx  = min(flying, key=lambda i: lap_times[i])
@@ -187,7 +210,7 @@ async def generate_pdf_report(
                 lap_a = best_idx + 1
             if lap_b == 0:
                 lap_b = worst_idx + 1
-            logger.info("PDF auto-selección: V%d (%.1fs rápida) vs V%d (%.1fs lenta) — %d vueltas flying de %d totales",
+            logger.info("PDF auto-selección: V%d (%.1fs rápida) vs V%d (%.1fs lenta) — %d flying de %d totales",
                         lap_a, lap_times[best_idx], lap_b, lap_times[worst_idx], len(flying), n)
 
         if lap_a < 1 or lap_a > n:
@@ -218,8 +241,8 @@ async def generate_pdf_report(
             ]
             df_adv = alinear_vueltas_y_calcular_delta(df_a, df_b, paso_metros=1.0, canales_extra=canales_extra)
             df_adv, _ = calcular_limites_dinamicos(df_adv)
-            df_sectores    = resumir_delta_por_sector(df_adv, apexes)
-            insights_curvas = analizar_errores_por_curva(df_adv, apexes)
+            df_sectores    = resumir_delta_por_sector(df_adv, apexes, lang=lang)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes, lang=lang)
 
             result["corners"]        = insights_curvas
             result["sectores"]       = df_sectores.to_dict(orient="records") if not df_sectores.empty else []
@@ -246,7 +269,7 @@ async def generate_pdf_report(
             "distance_synthetic": df.attrs.get("distance_synthetic", False),
         }
 
-        pdf_bytes = export_report_pdf(result)
+        pdf_bytes = export_report_pdf(result, lang=lang)
         filename  = f"report_V{lap_a}_vs_V{lap_b}.pdf"
         return Response(
             content=pdf_bytes,
@@ -269,6 +292,7 @@ async def generate_pdf_report(
 
 @app.post("/api/compare-laps")
 async def compare_laps_endpoint(
+    request: Request,
     lap_a: UploadFile = File(..., description="CSV de la vuelta de referencia"),
     lap_b: UploadFile = File(..., description="CSV de la vuelta a comparar"),
 ):
@@ -289,6 +313,8 @@ async def compare_laps_endpoint(
 
     tmp_dir = None
     try:
+        lang = _detect_lang(request)
+
         content_a = await _read_upload(lap_a)
         content_b = await _read_upload(lap_b)
 
@@ -365,7 +391,7 @@ async def compare_laps_endpoint(
 
             logger.info("Avanzado 5/5: Compresión + Anomalías + Módulos avanzados...")
             df_compressed = comprimir_telemetria(df_adv, asegurar_apexes=apexes)
-            anomaly_data  = detectar_anomalias(df_adv)
+            anomaly_data  = detectar_anomalias(df_adv, lang=lang)
 
             tyre_data   = analizar_neumaticos_comparativo(df_adv)
             brake_data  = analizar_eficiencia_frenado(df_adv)
@@ -460,7 +486,12 @@ async def compare_laps_endpoint(
             df_b.attrs.get("distance_synthetic", False)
         )
 
-        result["text_report"] = export_report_text(result)
+        try:
+            result["setup_advisor"] = analizar_setup(result, lang=lang)
+        except Exception as _e:
+            logger.warning("setup_advisor (compare-laps): %s", _e)
+            result["setup_advisor"] = {"available": False}
+        result["text_report"] = export_report_text(result, lang=lang)
         logger.info("✓ Comparación completada exitosamente")
         return JSONResponse(content=_sanitize(result))
 
@@ -480,6 +511,7 @@ async def compare_laps_endpoint(
 
 @app.post("/api/analyze-session")
 async def analyze_session_endpoint(
+    request: Request,
     session_file: UploadFile = File(..., description="CSV con la sesión completa"),
 ):
     """Analiza un CSV de telemetría de sesión completa y extrae las vueltas."""
@@ -489,6 +521,8 @@ async def analyze_session_endpoint(
 
     tmp_dir = None
     try:
+        lang = _detect_lang(request)
+
         content = await _read_upload(session_file)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_session_")
@@ -517,71 +551,32 @@ async def analyze_session_endpoint(
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
-def _lap_time_seconds(lap_df: pd.DataFrame) -> float:
-    """Estimate lap duration in seconds from a single-lap DataFrame."""
-    for col in ("LapTime", "Lap Time", "lap_time"):
-        if col in lap_df.columns:
-            val = pd.to_numeric(lap_df[col], errors="coerce").dropna()
-            if len(val):
-                return float(val.max())
-    for col in ("LR Sample Clock", "HR Sample Clock", "MR Sample Clock", "Time"):
-        if col in lap_df.columns:
-            t = pd.to_numeric(lap_df[col], errors="coerce").dropna()
-            if len(t) >= 2:
-                return float(t.iloc[-1] - t.iloc[0])
-    # Fallback: estimate from Distance / mean Speed
-    if "Distance" in lap_df.columns and "Speed" in lap_df.columns:
-        dist = pd.to_numeric(lap_df["Distance"], errors="coerce").dropna()
-        spd  = pd.to_numeric(lap_df["Speed"],    errors="coerce").dropna()
-        if len(dist) and spd.mean() > 1:
-            return float((dist.max() - dist.min()) / (spd.mean() / 3.6))
-    return float("inf")
 
-
-def _is_pit_lap(lap_df: pd.DataFrame, lap_time: float, fastest_time: float) -> bool:
+def _flying_lap_indices(laps: list) -> tuple:
     """
-    Returns True when a lap is likely a pit/formation/outlap that should be
-    excluded from best-vs-worst flying-lap auto-selection.
+    Returns (flying_indices, lap_times_s) using stint module pit detection.
 
-    Two independent criteria — either one is sufficient:
-    1. Time gate  : lap_time > 1.5 × fastest flying lap  (pit stop adds ≥30 s)
-    2. Speed gate : >10 % of samples below 80 km/h       (pit lane limiter zone)
-    """
-    if lap_time in (float("inf"), float("-inf")) or lap_time <= 10:
-        return True
-    # Criterion 1 — dramatically longer than fastest lap
-    if fastest_time > 0 and fastest_time != float("inf"):
-        if lap_time > fastest_time * 1.5:
-            return True
-    # Criterion 2 — extended low-speed zone (pit lane)
-    for col in ("Speed", "GPS Speed", "GPS_Speed"):
-        if col in lap_df.columns:
-            speed = pd.to_numeric(lap_df[col], errors="coerce").dropna()
-            if len(speed) > 10 and float((speed < 80).mean()) > 0.10:
-                return True
-            break
-    return False
+    Delegates to extraer_metricas_por_vuelta which combines two detection layers:
+    1. In Pit channel (MoTeC hardware signal)
+    2. Post-hoc outlier filter: laps outside 70–115 % of median flying-lap time
 
-
-def _flying_lap_indices(laps: list, lap_times: list) -> list:
+    Falls back to all laps with a measurable time when fewer than 2 flying laps
+    survive filtering (e.g. short qualifying session with only an outlap + inlap).
     """
-    Returns indices of flying (non-pit) laps sorted fastest first.
-    Falls back to all finite-time laps if no flying laps can be identified.
-    """
-    finite = [t for t in lap_times if 10 < t < float("inf")]
-    if not finite:
-        return []
-    fastest = min(finite)
-    flying = [i for i, t in enumerate(lap_times)
-               if not _is_pit_lap(laps[i], t, fastest)]
+    df_laps   = extraer_metricas_por_vuelta(laps)
+    lap_times = [float(t) if pd.notna(t) else float("inf")
+                 for t in df_laps["lap_time_s"]]
+    flying = df_laps.index[
+        ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
+    ].tolist()
     if len(flying) < 2:
-        # Relax filter — keep all laps with a measurable time
         flying = [i for i, t in enumerate(lap_times) if 10 < t < float("inf")]
-    return flying
+    return flying, lap_times
 
 
 @app.post("/api/compare-session-laps")
 async def compare_session_laps_endpoint(
+    request: Request,
     session_file: UploadFile = File(..., description="CSV con la sesión completa"),
     lap_a: int = Form(0, description="Vuelta A (1-based). 0 = auto-selecciona la más rápida"),
     lap_b: int = Form(0, description="Vuelta B (1-based). 0 = auto-selecciona la más lenta"),
@@ -599,6 +594,8 @@ async def compare_session_laps_endpoint(
 
     tmp_dir = None
     try:
+        lang = _detect_lang(request)
+
         content = await _read_upload(session_file)
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_csl_")
         path = os.path.join(tmp_dir, "session.csv")
@@ -614,8 +611,7 @@ async def compare_session_laps_endpoint(
 
         # Auto-select best (fastest) and worst (slowest) flying lap when 0 is passed
         if lap_a == 0 or lap_b == 0:
-            lap_times = [_lap_time_seconds(lap) for lap in laps]
-            flying    = _flying_lap_indices(laps, lap_times)
+            flying, lap_times = _flying_lap_indices(laps)
             if len(flying) < 2:
                 raise HTTPException(422, "No hay suficientes vueltas flying para auto-seleccionar (posibles vueltas de pit detectadas)")
             best_idx  = min(flying, key=lambda i: lap_times[i])
@@ -698,12 +694,12 @@ async def compare_session_laps_endpoint(
             eventos = detectar_subviraje_sobreviraje(df_adv, apexes)
 
             logger.info("Paso avanzado 4/5: Sectores + Insights por curva...")
-            df_sectores = resumir_delta_por_sector(df_adv, apexes)
-            insights_curvas = analizar_errores_por_curva(df_adv, apexes)
+            df_sectores    = resumir_delta_por_sector(df_adv, apexes, lang=lang)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes, lang=lang)
 
             logger.info("Paso avanzado 5/5: Compresión + Anomalías + Módulos avanzados...")
             df_compressed = comprimir_telemetria(df_adv, asegurar_apexes=apexes)
-            anomaly_data = detectar_anomalias(df_adv)
+            anomaly_data = detectar_anomalias(df_adv, lang=lang)
 
             # ── Nuevos módulos de análisis ────────────────────────────────────
             tyre_data    = analizar_neumaticos_comparativo(df_adv)
@@ -779,7 +775,12 @@ async def compare_session_laps_endpoint(
             "distance_synthetic":    df.attrs.get("distance_synthetic", False),
         }
 
-        result["text_report"] = export_report_text(result)
+        try:
+            result["setup_advisor"] = analizar_setup(result, lang=lang)
+        except Exception as _e:
+            logger.warning("setup_advisor (compare-session-laps): %s", _e)
+            result["setup_advisor"] = {"available": False}
+        result["text_report"] = export_report_text(result, lang=lang)
         logger.info("✓ Comparación de vueltas de sesión completada")
         return JSONResponse(content=_sanitize(result))
 
@@ -799,6 +800,7 @@ async def compare_session_laps_endpoint(
 
 @app.post("/api/telemetry/compare")
 async def compare_telemetry_endpoint(
+    request: Request,
     lap_fast: UploadFile = File(..., description="CSV de la vuelta rápida (base/referencia)"),
     lap_slow: UploadFile = File(..., description="CSV de la vuelta a comparar"),
     resolution_m: int = 5,
@@ -818,6 +820,8 @@ async def compare_telemetry_endpoint(
 
     tmp_dir = None
     try:
+        lang = _detect_lang(request)
+
         content_fast = await _read_upload(lap_fast)
         content_slow = await _read_upload(lap_slow)
 
@@ -843,8 +847,8 @@ async def compare_telemetry_endpoint(
 
         # 4. Sectorización
         logger.info("Paso 4/4: Sectorización del circuito y extracción de Insights...")
-        df_sectores = resumir_delta_por_sector(df_alineado, apexes)
-        insights_curvas = analizar_errores_por_curva(df_alineado, apexes)
+        df_sectores = resumir_delta_por_sector(df_alineado, apexes, lang=lang)
+        insights_curvas = analizar_errores_por_curva(df_alineado, apexes, lang=lang)
 
         # 5. Reducir resolución para la respuesta JSON
         step = max(1, resolution_m)
@@ -909,6 +913,7 @@ async def compare_telemetry_endpoint(
 
 @app.post("/api/telemetry/analyze")
 async def analyze_telemetry_endpoint(
+    request: Request,
     lap_fast: UploadFile = File(..., description="CSV de la vuelta rápida (referencia)"),
     lap_slow: UploadFile = File(..., description="CSV de la vuelta lenta (a comparar)"),
     resolution_m: int = 5,
@@ -930,6 +935,8 @@ async def analyze_telemetry_endpoint(
 
     tmp_dir = None
     try:
+        lang = _detect_lang(request)
+
         content_fast = await _read_upload(lap_fast)
         content_slow = await _read_upload(lap_slow)
 
@@ -969,8 +976,8 @@ async def analyze_telemetry_endpoint(
         eventos_dinamica = detectar_subviraje_sobreviraje(df_aligned, apexes)
 
         logger.info("Paso 6/7: Extrayendo insights por curva...")
-        df_sectores = resumir_delta_por_sector(df_aligned, apexes)
-        insights_curvas = analizar_errores_por_curva(df_aligned, apexes)
+        df_sectores = resumir_delta_por_sector(df_aligned, apexes, lang=lang)
+        insights_curvas = analizar_errores_por_curva(df_aligned, apexes, lang=lang)
 
         logger.info("Paso 7/7: Comprimiendo payload con RDP...")
         df_compressed = comprimir_telemetria(df_aligned, asegurar_apexes=apexes)
@@ -992,8 +999,8 @@ async def analyze_telemetry_endpoint(
 
         # ── Fase IA ───────────────────────────────────────────────────────────
         logger.info("Paso 8/8: IA — Isolation Forest · K-Means · Tiempo Potencial...")
-        anomaly_data    = detectar_anomalias(df_aligned)
-        corner_clusters = clasificar_curvas(df_aligned, insights_curvas)
+        anomaly_data    = detectar_anomalias(df_aligned, lang=lang)
+        corner_clusters = clasificar_curvas(df_aligned, insights_curvas, lang=lang)
 
         meta_dict = {
             "driver_fast":  meta_fast.get("driver") or "Piloto A",
@@ -1059,6 +1066,7 @@ async def analyze_telemetry_endpoint(
 
 @app.post("/api/stint/analyze")
 async def analyze_stint_endpoint(
+    request: Request,
     laps: List[UploadFile] = File(..., description="CSVs de cada vuelta, o un único CSV de sesión completa"),
 ):
     """
@@ -1074,6 +1082,8 @@ async def analyze_stint_endpoint(
 
     tmp_dir = None
     try:
+        lang = _detect_lang(request)
+
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
         dfs = []
 
@@ -1118,20 +1128,44 @@ async def analyze_stint_endpoint(
         logger.info("Paso 4/4: Simulación Monte Carlo...")
         montecarlo = simular_tiempos_stint(df_laps, degradacion)
 
+        logger.info("Paso 5/5: Análisis de curvas y telemetría por sesión...")
+        curvas_sesion:     dict = {"available": False}
+        telemetria_sesion: dict = {"available": False}
+        setup_sesion:      dict = {"available": False}
+        try:
+            curvas_sesion = analizar_curvas_sesion(dfs, df_laps, lang=lang)
+        except Exception as _exc:
+            logger.warning("session_corner_analysis: %s", _exc)
+        try:
+            telemetria_sesion = analizar_telemetria_sesion(dfs, df_laps)
+        except Exception as _exc:
+            logger.warning("session_telemetry_analysis: %s", _exc)
+        try:
+            if curvas_sesion.get("available") or telemetria_sesion.get("available"):
+                setup_sesion = analizar_setup_sesion(
+                    curvas_sesion, degradacion, telemetria_sesion, lang=lang
+                )
+        except Exception as _exc:
+            logger.warning("setup_sesion: %s", _exc)
+
         laps_json = df_laps.where(df_laps.notna(), None).to_dict(orient="records")
 
         logger.info(
             f"✓ Stint completado: {len(dfs)} vueltas, "
             f"deg={degradacion.get('tasa_s_per_lap', 0):+.4f}s/lap, "
+            f"curvas={'sí' if curvas_sesion.get('available') else 'no'}, "
             f"combustible={'sí' if combustible.get('available') else 'no'}"
         )
         return JSONResponse(content=_sanitize({
-            "status":      "success",
-            "n_laps":      len(dfs),
-            "laps":        laps_json,
-            "degradacion": degradacion,
-            "combustible": combustible,
-            "montecarlo":  montecarlo,
+            "status":             "success",
+            "n_laps":             len(dfs),
+            "laps":               laps_json,
+            "degradacion":        degradacion,
+            "combustible":        combustible,
+            "montecarlo":         montecarlo,
+            "curvas_sesion":      curvas_sesion,
+            "telemetria_sesion":  telemetria_sesion,
+            "setup_sesion":       setup_sesion,
         }))
 
     except HTTPException:

@@ -3,14 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from 'recharts';
-
-const LABEL_MAP = {
-  'Muy suave': { color: '#00E676', bg: 'rgba(0,230,118,0.12)' },
-  'Suave':     { color: '#69F0AE', bg: 'rgba(105,240,174,0.10)' },
-  'Normal':    { color: '#00D4FF', bg: 'rgba(0,212,255,0.10)' },
-  'Activo':    { color: '#FFB300', bg: 'rgba(255,179,0,0.12)' },
-  'Nervioso':  { color: '#FF3D3D', bg: 'rgba(255,61,61,0.15)' },
-};
+import { useLanguage } from '../context/LanguageContext';
 
 const renderTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -46,11 +39,20 @@ const BandBar = ({ label: lbl, value, title, lapLabel, color }) => {
 };
 
 const PilotCard = ({ scoreKey, labelKey, bandsKey, overlapKey, data, lapLabel, colorPrimary }) => {
+  const { t } = useLanguage();
   const score  = data[scoreKey];
   const lbl    = data[labelKey];
   const bands  = data[bandsKey];
   const overlap = data[overlapKey];
   if (score == null) return null;
+
+  const LABEL_MAP = {
+    [t.driverInputsVerySmooth]: { color: '#00E676', bg: 'rgba(0,230,118,0.12)' },
+    [t.driverInputsSmooth]:     { color: '#69F0AE', bg: 'rgba(105,240,174,0.10)' },
+    [t.driverInputsNormal]:    { color: '#00D4FF', bg: 'rgba(0,212,255,0.10)' },
+    [t.driverInputsActive]:    { color: '#FFB300', bg: 'rgba(255,179,0,0.12)' },
+    [t.driverInputsNervous]:  { color: '#FF3D3D', bg: 'rgba(255,61,61,0.15)' },
+  };
 
   const style = LABEL_MAP[lbl] || { color: 'var(--text-2)', bg: 'rgba(255,255,255,0.06)' };
 
@@ -70,18 +72,18 @@ const PilotCard = ({ scoreKey, labelKey, bandsKey, overlapKey, data, lapLabel, c
       </div>
       <div style={{ fontSize: '1.4rem', fontWeight: 700, color: style.color, marginBottom: 8 }}>
         {(score * 100).toFixed(1)}%
-        <span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: 4 }}>nerviosismo</span>
+        <span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: 4 }}>{t.driverInputsNervousness}</span>
       </div>
       {bands && (
         <div style={{ marginBottom: 8 }}>
-          <BandBar lbl="Baja freq. (<0.5 Hz)" value={bands.low} color="#00E676" />
-          <BandBar lbl="Media freq. (0.5–2 Hz)" value={bands.mid} color="#FFB300" />
-          <BandBar lbl="Alta freq. (>2 Hz)"  value={bands.high} color="#FF3D3D" />
+          <BandBar lbl={t.driverInputsLowFreq} value={bands.low} color="#00E676" />
+          <BandBar lbl={t.driverInputsMidFreq} value={bands.mid} color="#FFB300" />
+          <BandBar lbl={t.driverInputsHighFreq}  value={bands.high} color="#FF3D3D" />
         </div>
       )}
       {overlap != null && (
         <div style={{ fontSize: '0.67rem', color: overlap > 5 ? '#FFB300' : 'var(--text-3)' }}>
-          Solapamiento freno-gas: {overlap.toFixed(1)}%
+          {t.driverInputsOverlap(overlap)}
         </div>
       )}
     </div>
@@ -89,6 +91,7 @@ const PilotCard = ({ scoreKey, labelKey, bandsKey, overlapKey, data, lapLabel, c
 };
 
 const DriverInputsChart = ({ driver_inputs, metadata }) => {
+  const { t } = useLanguage();
   const data = driver_inputs;
   if (!data?.available) return null;
 
@@ -108,17 +111,14 @@ const DriverInputsChart = ({ driver_inputs, metadata }) => {
   return (
     <div className="chart-card">
       <div className="chart-header">
-        <div className="chart-title"><span>◈</span> Análisis de Inputs del Piloto</div>
-        <span className="chart-zoom-badge">FFT · Nerviosismo</span>
+        <div className="chart-title"><span>◈</span> {t.driverInputsTitle}</div>
+        <span className="chart-zoom-badge">{t.driverInputsFFT}</span>
       </div>
 
       <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
-        Las micro-correcciones de alta frecuencia en el volante indican falta de confianza
-        en el agarre o fatiga del piloto. El índice se normaliza por vuelta (0=suavísimo,
-        100%=máxima actividad registrada).
+        {t.driverInputsDescription}
       </p>
 
-      {/* Pilot cards */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
         <PilotCard
           scoreKey="nervousness_score_a" labelKey="nervousness_label_a"
@@ -132,7 +132,6 @@ const DriverInputsChart = ({ driver_inputs, metadata }) => {
         />
       </div>
 
-      {/* Nervousness over distance */}
       {chartData.length > 0 && (
         <ResponsiveContainer width="100%" height={180}>
           <AreaChart data={chartData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>

@@ -3,6 +3,7 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
 const renderTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -23,6 +24,7 @@ const renderTooltip = ({ active, payload, label }) => {
 };
 
 const FadeZoneList = ({ zones, color, label }) => {
+  const { t } = useLanguage();
   if (!zones?.length) return null;
   return (
     <div style={{ marginTop: 8 }}>
@@ -34,7 +36,7 @@ const FadeZoneList = ({ zones, color, label }) => {
             borderRadius: 6, padding: '3px 8px', color,
           }}>
             {z.start.toFixed(0)}–{z.end.toFixed(0)}m
-            <span style={{ opacity: 0.7, marginLeft: 4 }}>({(z.severity * 100).toFixed(0)}% caída)</span>
+            <span style={{ opacity: 0.7, marginLeft: 4 }}>{t.brakeFadeDrop((z.severity * 100).toFixed(0))}</span>
           </div>
         ))}
       </div>
@@ -43,6 +45,7 @@ const FadeZoneList = ({ zones, color, label }) => {
 };
 
 const ScoreBadge = ({ score, baseline, label, color }) => {
+  const { t } = useLanguage();
   if (score == null) return null;
   const ratio = baseline > 0 ? score / baseline : 1;
   const pct = (ratio * 100).toFixed(0);
@@ -58,7 +61,7 @@ const ScoreBadge = ({ score, baseline, label, color }) => {
       </div>
       {baseline > 0 && (
         <div style={{ fontSize: '0.65rem', color: ratio < 0.85 ? '#FF3D3D' : '#00E676', marginTop: 2 }}>
-          {pct}% del baseline
+          {t.brakeFadeBaseline(pct)}
         </div>
       )}
     </div>
@@ -66,6 +69,7 @@ const ScoreBadge = ({ score, baseline, label, color }) => {
 };
 
 const BrakeFadeChart = ({ brake_analysis, metadata }) => {
+  const { t } = useLanguage();
   const data = brake_analysis;
   if (!data?.available) return null;
 
@@ -88,17 +92,14 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
   return (
     <div className="chart-card">
       <div className="chart-header">
-        <div className="chart-title"><span>◈</span> Eficiencia de Frenado — Brake Fade</div>
-        <span className="chart-zoom-badge">|LonG| / (presión / 100)</span>
+        <div className="chart-title"><span>◈</span> {t.brakeFadeTitle}</div>
+        <span className="chart-zoom-badge">{t.brakeFadeBadge}</span>
       </div>
 
       <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
-        Ratio entre la desaceleración generada y la presión aplicada en el pedal.
-        Una caída progresiva indica fade térmico. Las zonas sombreadas muestran
-        dónde la eficiencia cae más del 15% respecto al baseline inicial.
+        {t.brakeFadeDescription}
       </p>
 
-      {/* Score badges */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
         {hasA && (
           <ScoreBadge
@@ -114,7 +115,6 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
         )}
       </div>
 
-      {/* Chart */}
       {chartData.length > 0 && (
         <ResponsiveContainer width="100%" height={200}>
           <ComposedChart data={chartData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
@@ -132,14 +132,12 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
             <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Number(v).toFixed(0)}m`} />
             <YAxis tick={{ fontSize: 10 }} domain={[0, 'auto']} width={40} />
             <Tooltip content={renderTooltip} />
-            {/* Baseline reference lines */}
             {hasA && data.baseline_a > 0 && (
               <ReferenceLine y={data.baseline_a} stroke="#00D4FF" strokeDasharray="4 3" strokeOpacity={0.4} />
             )}
             {hasB && data.baseline_b > 0 && (
               <ReferenceLine y={data.baseline_b} stroke="#FF6B6B" strokeDasharray="4 3" strokeOpacity={0.4} />
             )}
-            {/* Fade zones for A */}
             {data.fade_zones_a?.map((z, i) => (
               <Area
                 key={`fade_a_${i}`}
@@ -166,9 +164,8 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
         </ResponsiveContainer>
       )}
 
-      {/* Fade zone lists */}
-      <FadeZoneList zones={data.fade_zones_a} color="#00D4FF" label={`Zonas de fade — ${labelA}`} />
-      <FadeZoneList zones={data.fade_zones_b} color="#FF6B6B" label={`Zonas de fade — ${labelB}`} />
+      <FadeZoneList zones={data.fade_zones_a} color="#00D4FF" label={t.brakeFadeZones(labelA)} />
+      <FadeZoneList zones={data.fade_zones_b} color="#FF6B6B" label={t.brakeFadeZones(labelB)} />
     </div>
   );
 };

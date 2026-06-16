@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, Legend,
+  Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
-const CORNERS     = ['FL', 'FR', 'RL', 'RR'];
-const CORNER_LABEL = { FL: 'Del. Izq.', FR: 'Del. Der.', RL: 'Tra. Izq.', RR: 'Tra. Der.' };
+const CORNERS = ['FL', 'FR', 'RL', 'RR'];
 
 const STATUS_COLOR = {
   fria:          '#4FC3F7',
@@ -15,16 +15,24 @@ const STATUS_COLOR = {
   sobrecalentada:'#FF3D3D',
   desconocida:   'var(--text-3)',
 };
-const STATUS_LABEL = {
-  fria:          'FRÍA',
-  suboptima:     'SUBÓPTIMA',
-  optima:        'ÓPTIMA',
-  caliente:      'CALIENTE',
-  sobrecalentada:'SOBRE',
-  desconocida:   '—',
-};
 
 const CORNER_COLORS = { FL: '#00D4FF', FR: '#FF6B6B', RL: '#FFD93D', RR: '#6BCB77' };
+
+const statusToKey = (s) => ({
+  fria: 'tyreCold',
+  suboptima: 'tyreSuboptimal',
+  optima: 'tyreOptimal',
+  caliente: 'tyreHot',
+  sobrecalentada: 'tyreOverheated',
+  desconocida: 'tyreUnknown',
+}[s] || 'tyreUnknown');
+
+const cornerLabelKey = (corner) => ({
+  FL: 'tyreFL',
+  FR: 'tyreFR',
+  RL: 'tyreRL',
+  RR: 'tyreRR',
+}[corner] || 'tyreUnknown');
 
 const renderTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -44,15 +52,16 @@ const renderTooltip = ({ active, payload, label }) => {
   );
 };
 
-const CornerCard = ({ corner, data, t_min, t_max }) => {
+const CornerCard = ({ corner, data, t }) => {
   if (!data) return null;
   const status  = data.window_status || 'desconocida';
   const color   = STATUS_COLOR[status];
-  const label   = STATUS_LABEL[status];
+  const label   = t[statusToKey(status)];
   const surface = data.surface_mean;
   const core    = data.core_mean;
   const delta   = data.delta_t_mean;
   const dev     = data.window_deviation;
+  const stress  = data.high_stress_pct;
 
   return (
     <div style={{
@@ -61,7 +70,7 @@ const CornerCard = ({ corner, data, t_min, t_max }) => {
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
         <span style={{ fontSize: '0.78rem', color: 'var(--text-2)', fontWeight: 600 }}>
-          {CORNER_LABEL[corner]}
+          {t[cornerLabelKey(corner)]}
         </span>
         <span style={{
           fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em',
@@ -74,15 +83,15 @@ const CornerCard = ({ corner, data, t_min, t_max }) => {
         {surface != null ? `${surface.toFixed(0)}°C` : '—'}
       </div>
       <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', lineHeight: 1.7 }}>
-        {core  != null && <div>Core: {core.toFixed(0)}°C</div>}
+        {core  != null && <div>{t.tyreCore} {core.toFixed(0)}°C</div>}
         {delta != null && <div>ΔT: {delta > 0 ? '+' : ''}{delta.toFixed(1)}°C</div>}
         {dev   != null && dev !== 0 && (
           <div style={{ color: dev > 0 ? '#FFB300' : '#4FC3F7' }}>
-            {dev > 0 ? `+${dev}° sobre ventana` : `${dev}° bajo ventana`}
+            {dev > 0 ? t.tyreAbove(dev) : t.tyreBelow(Math.abs(dev))}
           </div>
         )}
-        {data.high_stress_pct > 0 && (
-          <div style={{ color: '#FF3D3D' }}>Estrés: {data.high_stress_pct.toFixed(0)}%</div>
+        {stress > 0 && (
+          <div style={{ color: '#FF3D3D' }}>{t.tyreStress} {stress.toFixed(0)}%</div>
         )}
       </div>
     </div>
@@ -90,6 +99,7 @@ const CornerCard = ({ corner, data, t_min, t_max }) => {
 };
 
 const TyreHeatmap = ({ tyre_analysis, metadata }) => {
+  const { t } = useLanguage();
   const lap = tyre_analysis;
   if (!lap?.available) return null;
 
@@ -118,11 +128,10 @@ const TyreHeatmap = ({ tyre_analysis, metadata }) => {
   return (
     <div className="chart-card">
       <div className="chart-header">
-        <div className="chart-title"><span>◈</span> Temperatura de Neumáticos</div>
-        <span className="chart-zoom-badge">ventana {t_min}–{t_max}°C</span>
+        <div className="chart-title"><span>◈</span> {t.tyreTitle}</div>
+        <span className="chart-zoom-badge">{t.tyreWindow(t_min, t_max)}</span>
       </div>
 
-      {/* Vuelta A */}
       {lapA?.available && (
         <>
           <div style={{ fontSize: '0.72rem', color: '#00D4FF', marginBottom: 8, fontWeight: 600 }}>
@@ -130,13 +139,12 @@ const TyreHeatmap = ({ tyre_analysis, metadata }) => {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             {lapA.corners?.map((c) => (
-              <CornerCard key={c.corner} corner={c.corner} data={c} t_min={t_min} t_max={t_max} />
+              <CornerCard key={c.corner} corner={c.corner} data={c} t={t} />
             ))}
           </div>
         </>
       )}
 
-      {/* Vuelta B */}
       {lapB?.available && (
         <>
           <div style={{ fontSize: '0.72rem', color: '#FF6B6B', marginBottom: 8, fontWeight: 600 }}>
@@ -144,17 +152,16 @@ const TyreHeatmap = ({ tyre_analysis, metadata }) => {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             {lapB.corners?.map((c) => (
-              <CornerCard key={c.corner} corner={c.corner} data={c} t_min={t_min} t_max={t_max} />
+              <CornerCard key={c.corner} corner={c.corner} data={c} t={t} />
             ))}
           </div>
         </>
       )}
 
-      {/* Trend chart (surface temp over distance) */}
       {distSeries.length > 0 && (
         <>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginBottom: 8 }}>
-            Temperatura superficial por distancia
+            {t.tyreSurface}
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={distSeries} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
@@ -166,7 +173,7 @@ const TyreHeatmap = ({ tyre_analysis, metadata }) => {
               <ReferenceLine y={t_max} stroke="rgba(255,179,0,0.4)"  strokeDasharray="4 3" label={{ value: `${t_max}°`, position: 'insideLeft', fontSize: 9, fill: '#FFB300' }} />
               {CORNERS.map((c) => (
                 <Line
-                  key={c} type="monotone" dataKey={`${c}_s`} name={CORNER_LABEL[c]}
+                  key={c} type="monotone" dataKey={`${c}_s`} name={t[cornerLabelKey(c)]}
                   stroke={CORNER_COLORS[c]} strokeWidth={1.5} dot={false}
                   isAnimationActive={false} connectNulls
                 />

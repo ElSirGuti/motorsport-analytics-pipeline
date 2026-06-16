@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import StandardScaler
+from src.i18n import _ as t
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ MIN_ZONE_METERS = 15.0
 def detectar_anomalias(
     df_aligned: pd.DataFrame,
     contamination: float = 0.10,
+    lang: str = "es",
 ) -> dict:
     """
     Entrena IsolationForest sobre la vuelta rápida y detecta zonas anómalas en la lenta.
@@ -81,7 +83,7 @@ def detectar_anomalias(
     score_slow = pd.Series(score_slow).rolling(5, center=True, min_periods=1).mean().values
 
     # ── Detección de zonas continuas ──────────────────────────────────────────
-    zones = _extraer_zonas(distances, score_slow)
+    zones = _extraer_zonas(distances, score_slow, lang=lang)
 
     # ── Downsample para frontend ──────────────────────────────────────────────
     step = max(1, len(distances) // MAX_SCORE_POINTS)
@@ -100,7 +102,7 @@ def detectar_anomalias(
     }
 
 
-def _extraer_zonas(distances: np.ndarray, scores: np.ndarray) -> list[dict]:
+def _extraer_zonas(distances: np.ndarray, scores: np.ndarray, lang: str = "es") -> list[dict]:
     zones = []
     in_zone = False
     start_d = 0.0
@@ -117,36 +119,33 @@ def _extraer_zonas(distances: np.ndarray, scores: np.ndarray) -> list[dict]:
             if in_zone:
                 end_d = float(d)
                 if end_d - start_d >= MIN_ZONE_METERS:
-                    zones.append(_build_zone(start_d, end_d, zone_scores))
+                    zones.append(_build_zone(start_d, end_d, zone_scores, lang=lang))
                 in_zone = False
                 zone_scores = []
 
     if in_zone and zone_scores:
         end_d = float(distances[-1])
         if end_d - start_d >= MIN_ZONE_METERS:
-            zones.append(_build_zone(start_d, end_d, zone_scores))
+            zones.append(_build_zone(start_d, end_d, zone_scores, lang=lang))
 
     return zones
 
 
-def _build_zone(start_m: float, end_m: float, scores: list[float]) -> dict:
+def _build_zone(start_m: float, end_m: float, scores: list[float], lang: str = "es") -> dict:
     avg = float(np.mean(scores))
     peak = float(np.max(scores))
 
+    start_m_s = f"{start_m:.0f}"
+    end_m_s = f"{end_m:.0f}"
     if avg > 0.82:
-        sev = "critico"
-        desc = (f"Error crítico de ejecución entre {start_m:.0f}m y {end_m:.0f}m. "
-                f"El modelo detecta desviaciones severas en múltiples canales simultáneos. "
-                f"Revisar trazada, punto de frenada y dinámica del carro.")
+        sev = t("anomaly_sev_critico", lang=lang)
+        desc = t("anomaly_desc_critico", lang=lang, start_m=start_m_s, end_m=end_m_s)
     elif avg > 0.68:
-        sev = "media"
-        desc = (f"Anomalía moderada entre {start_m:.0f}m y {end_m:.0f}m. "
-                f"La combinación de velocidad, pedales y volante difiere de la ejecución de referencia. "
-                f"Posible sobrecalentamiento de neumáticos o error de línea.")
+        sev = t("anomaly_sev_media", lang=lang)
+        desc = t("anomaly_desc_media", lang=lang, start_m=start_m_s, end_m=end_m_s)
     else:
-        sev = "leve"
-        desc = (f"Desviación leve entre {start_m:.0f}m y {end_m:.0f}m. "
-                f"El perfil de conducción se separa marginalmente de la vuelta óptima.")
+        sev = t("anomaly_sev_leve", lang=lang)
+        desc = t("anomaly_desc_leve", lang=lang, start_m=start_m_s, end_m=end_m_s)
 
     return {
         "start_m": round(start_m, 1),

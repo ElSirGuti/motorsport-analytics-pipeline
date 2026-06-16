@@ -4,8 +4,10 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { setCursorDistance } from '../api/cursorStore';
+import { useLanguage } from '../context/LanguageContext';
 
 const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
+  const { t } = useLanguage();
   const chartData = useMemo(() => {
     if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => ({
@@ -22,7 +24,7 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-card">
         <div className="chart-empty">
           <span className="chart-empty__icon">◌</span>
-          Sin datos de delta
+          {t.timeDeltaNoData}
         </div>
       </div>
     );
@@ -36,7 +38,7 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-header">
         <div className="chart-title">
           <span>◷</span>
-          Delta de Tiempo Acumulado
+          {t.timeDeltaTitle}
         </div>
         {zoomDomain && (
           <span className="chart-zoom-badge">
@@ -87,27 +89,24 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
               itemStyle={{ color: chartData.find((r) => r.delta > 0) ? 'var(--red)' : 'var(--green)' }}
             />
             <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" strokeDasharray="4 3" />
-            {/* Positive area (B is slower) */}
             <Area
               type="monotone"
               dataKey={(d) => (d.delta >= 0 ? d.delta : 0)}
-              name="Pérdida"
+              name={t.timeDeltaLoss}
               stroke="var(--red)"
               strokeWidth={0}
               fill="url(#deltaGradAbove)"
               isAnimationActive={false}
             />
-            {/* Negative area (B is faster) */}
             <Area
               type="monotone"
               dataKey={(d) => (d.delta <= 0 ? d.delta : 0)}
-              name="Ganancia"
+              name={t.timeDeltaGain}
               stroke="var(--green)"
               strokeWidth={0}
               fill="url(#deltaGradBelow)"
               isAnimationActive={false}
             />
-            {/* Main delta line */}
             <Area
               type="monotone"
               dataKey="delta"

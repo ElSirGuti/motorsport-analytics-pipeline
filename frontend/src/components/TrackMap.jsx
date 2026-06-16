@@ -1,5 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { getCursorDistance } from '../api/cursorStore';
+import { useLanguage } from '../context/LanguageContext';
 
 const PADDING = 32;
 
@@ -25,6 +26,7 @@ function getInterpolatedPosition(points, distances, targetDist) {
 }
 
 const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
+  const { t } = useLanguage();
   const { points, distances, viewBox } = useMemo(() => {
     if (!trackData || trackData.length < 2) return { points: [], distances: [], viewBox: '0 0 400 300' };
 
@@ -126,13 +128,13 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
     <div className="card track-map-card">
       <div className="card__title">
         <span className="card__title-icon">◎</span>
-        Mapa del Circuito
+        {t.trackMapTitle}
         {fixedDistance != null && (
           <button
             className="track-map-clear-btn"
             onClick={onClearFixed}
-            title="Quitar punto fijo"
-            aria-label="Quitar punto fijo"
+            title={t.trackMapClear}
+            aria-label={t.trackMapClear}
           >
             ✕
           </button>
@@ -144,7 +146,7 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
           width="100%"
           height="100%"
           style={{ display: 'block' }}
-          aria-label="Mapa del circuito generado desde coordenadas GPS"
+          aria-label={t.trackMapAria}
         >
           <defs>
             <filter id="trackGlow">

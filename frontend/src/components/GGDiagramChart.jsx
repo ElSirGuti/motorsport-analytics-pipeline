@@ -1,41 +1,12 @@
+import { useMemo } from 'react';
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Customized, Legend, Cell,
+  Tooltip, ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
-const FAST_COLOR = '#00D4FF';
-const SLOW_COLOR = '#FF3D3D';
-const CIRCLE_COLOR = 'rgba(255,255,255,0.2)';
-
-function FrictionCircle({ gLimit, xAxisMap, yAxisMap }) {
-  const xKey = Object.keys(xAxisMap || {})[0];
-  const yKey = Object.keys(yAxisMap || {})[0];
-  if (!xKey || !yKey) return null;
-  const xAxis = xAxisMap[xKey];
-  const yAxis = yAxisMap[yKey];
-  if (!xAxis || !yAxis) return null;
-
-  const cx = xAxis.scale(0);
-  const cy = yAxis.scale(0);
-  const xRadius = Math.abs(xAxis.scale(gLimit) - cx);
-  const yRadius = Math.abs(cy - yAxis.scale(gLimit));
-
-  return (
-    <g>
-      <ellipse cx={cx} cy={cy} rx={xRadius} ry={yRadius}
-        fill="none" stroke={CIRCLE_COLOR}
-        strokeWidth={1.5} strokeDasharray="4 4" />
-      <line x1={cx - xRadius} y1={cy} x2={cx + xRadius} y2={cy}
-        stroke={CIRCLE_COLOR} strokeWidth={0.5} strokeDasharray="2 3" />
-      <line x1={cx} y1={cy - yRadius} x2={cx} y2={cy + yRadius}
-        stroke={CIRCLE_COLOR} strokeWidth={0.5} strokeDasharray="2 3" />
-    </g>
-  );
-}
-
-
-const renderTooltip = ({ active, payload }) => {
-  if (!active || !payload || payload.length === 0) return null;
+const renderTooltip = ({ active, payload, t }) => {
+  if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div style={{
@@ -44,7 +15,7 @@ const renderTooltip = ({ active, payload }) => {
       fontFamily: "'JetBrains Mono', monospace", color: '#8899BB',
     }}>
       <div style={{ color: '#fff', marginBottom: 4 }}>
-        {d._lap === 'fast' ? '🔵 Vuelta rápida' : '🔴 Vuelta lenta'}
+        {d._lap === 'fast' ? `🔵 ${t.ggFast}` : `🔴 ${t.ggSlow}`}
       </div>
       <div>Lat: <span style={{ color: '#fff' }}>{d.lat.toFixed(3)} G</span></div>
       <div>Lon: <span style={{ color: '#fff' }}>{d.lon.toFixed(3)} G</span></div>
@@ -56,65 +27,81 @@ const renderTooltip = ({ active, payload }) => {
   );
 };
 
-const CircleDot = (props) => {
-  const { cx, cy, fill, fillOpacity } = props;
-  if (cx == null || cy == null) return null;
-  return <circle cx={cx} cy={cy} r={3} fill={fill} fillOpacity={fillOpacity} />;
-};
-
 const GGDiagramChart = ({ ggData, gLimit }) => {
-  const hasFast = ggData?.fast?.length > 0;
-  const hasSlow = ggData?.slow?.length > 0;
-  if (!hasFast && !hasSlow) return null;
+  const { t } = useLanguage();
 
-  const limit = gLimit || 1.0;
-  const pad = limit * 0.15;
-  const domain = [-limit - pad, limit + pad];
+  const fastPoints = useMemo(() => {
+    if (!ggData?.length) return [];
+    return ggData
+      .filter((d) => d._lap === 'fast')
+      .map((d) => ({ lat: d.lat, lon: d.lon, eff: d.eff, _lap: d._lap }));
+  }, [ggData]);
 
-  const fastData = hasFast ? ggData.fast.map((p) => ({ ...p, _lap: 'fast' })) : [];
-  const slowData = hasSlow ? ggData.slow.map((p) => ({ ...p, _lap: 'slow' })) : [];
+  const slowPoints = useMemo(() => {
+    if (!ggData?.length) return [];
+    return ggData
+      .filter((d) => d._lap === 'slow')
+      .map((d) => ({ lat: d.lat, lon: d.lon, eff: d.eff, _lap: d._lap }));
+  }, [ggData]);
+
+  if (!ggData?.length && !gLimit) return null;
+
+  const limit = gLimit || 1.3;
 
   return (
     <div className="chart-card">
       <div className="chart-header">
-        <div className="chart-title"><span>◎</span> Diagrama G-G — Círculo de Fricción</div>
-        <div className="chart-zoom-badge">Límite {limit.toFixed(2)} G</div>
+        <div className="chart-title"><span>◈</span> {t.ggTitle}</div>
+        <span className="chart-zoom-badge">{t.ggLimit(limit)}</span>
       </div>
-      <ResponsiveContainer width="100%" height={380}>
-        <ScatterChart margin={{ top: 12, right: 20, bottom: 8, left: 8 }}>
+
+      <ResponsiveContainer width="100%" height={340}>
+        <ScatterChart margin={{ top: 8, right: 16, bottom: 8, left: 16 }}>
           <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
           <XAxis
-            type="number" dataKey="lon" domain={domain}
-            tick={{ fontSize: 11 }} tickCount={7}
-            label={{ value: 'Longitudinal G (frenada ← → aceleración)', position: 'insideBottom', offset: -4, fill: '#667799', fontSize: 11 }}
+            dataKey="lon"
+            type="number"
+            domain={[-limit * 1.15, limit * 1.15]}
+            tick={{ fontSize: 10 }}
+            label={{ value: t.ggAxisLabel, position: 'insideBottom', offset: -4, style: { fill: 'var(--text-3)', fontSize: 10 } }}
           />
           <YAxis
-            type="number" dataKey="lat" domain={domain}
-            tick={{ fontSize: 11 }} tickCount={7}
-            label={{ value: 'Lateral G', angle: -90, position: 'insideLeft', offset: 2, fill: '#667799', fontSize: 11 }}
+            dataKey="lat"
+            type="number"
+            domain={[-limit * 1.15, limit * 1.15]}
+            tick={{ fontSize: 10 }}
+            width={36}
           />
-          <Tooltip content={renderTooltip} cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 1 }} />
+          <Tooltip content={<renderTooltip t={t} />} />
           <Legend
-            formatter={(v) => v === 'fast' ? 'Vuelta rápida' : v === 'slow' ? 'Vuelta lenta' : v}
+            formatter={(value) => <span style={{ color: '#fff', fontSize: '0.75rem' }}>{value}</span>}
           />
-          <Customized component={(p) => <FrictionCircle gLimit={limit} {...p} />} />
-          {fastData.length > 0 && (
-            <Scatter name="fast" data={fastData} isAnimationActive={false}
-              shape={<CircleDot fill={FAST_COLOR} fillOpacity={0.5} />}>
-              {fastData.map((p, i) => {
-                const color = p.eff >= 90 ? '#00E676' : p.eff >= 70 ? '#FFB300' : p.eff >= 50 ? '#FF8C42' : FAST_COLOR;
-                return <Cell key={i} fill={color} fillOpacity={0.5} />;
-              })}
-            </Scatter>
+
+          <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" />
+          <ReferenceLine x={0} stroke="rgba(255,255,255,0.15)" />
+
+          {fastPoints.length > 0 && (
+            <Scatter
+              name={t.ggFast}
+              data={fastPoints}
+              fill="#00D4FF"
+              fillOpacity={0.25}
+              stroke="#00D4FF"
+              strokeWidth={0.5}
+              isAnimationActive={false}
+            />
           )}
-          {slowData.length > 0 && (
-            <Scatter name="slow" data={slowData} isAnimationActive={false}
-              shape={<CircleDot fill={SLOW_COLOR} fillOpacity={0.35} />}>
-              {slowData.map((p, i) => {
-                const color = p.eff >= 90 ? '#00E676' : p.eff >= 70 ? '#FFB300' : p.eff >= 50 ? '#FF8C42' : SLOW_COLOR;
-                return <Cell key={i} fill={color} fillOpacity={0.35} />;
-              })}
-            </Scatter>
+
+          {slowPoints.length > 0 && (
+            <Scatter
+              name={t.ggSlow}
+              data={slowPoints}
+              fill="#FF6B6B"
+              fillOpacity={0.25}
+              stroke="#FF6B6B"
+              strokeWidth={0.5}
+              isAnimationActive={false}
+            />
           )}
         </ScatterChart>
       </ResponsiveContainer>

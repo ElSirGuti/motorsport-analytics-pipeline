@@ -1,9 +1,9 @@
-import React from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
-const FuelTooltip = ({ active, payload, label }) => {
+const FuelTooltip = ({ active, payload, label, t }) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{
@@ -14,20 +14,21 @@ const FuelTooltip = ({ active, payload, label }) => {
       fontSize: '0.72rem',
       fontFamily: "'JetBrains Mono', monospace",
     }}>
-      <div style={{ color: 'var(--text-2)', marginBottom: 4 }}>Vuelta {label}</div>
+      <div style={{ color: 'var(--text-2)', marginBottom: 4 }}>{t.pitWindowLap(label)}</div>
       <div style={{ color: 'var(--amber)' }}>{payload[0]?.value?.toFixed(3)} L</div>
     </div>
   );
 };
 
 export default function PitWindowWidget({ combustible }) {
+  const { t } = useLanguage();
   if (!combustible) return null;
 
   if (!combustible.available) {
     return (
       <div className="chart-card" style={{ marginBottom: 'var(--s4)' }}>
         <div className="chart-header">
-          <div className="chart-title">⛽ Estrategia de Combustible</div>
+          <div className="chart-title">⛽ {t.pitWindowTitle}</div>
         </div>
         <div style={{
           background: 'rgba(255,255,255,0.025)',
@@ -38,8 +39,7 @@ export default function PitWindowWidget({ combustible }) {
           color: 'var(--text-3)',
           lineHeight: 1.6,
         }}>
-          Canal de combustible no detectado en los CSV. Los canales soportados son:
-          Fuel, FuelLevel, FuelMass o equivalentes MoTeC.
+          {t.pitWindowNoFuel}
         </div>
       </div>
     );
@@ -66,13 +66,13 @@ export default function PitWindowWidget({ combustible }) {
   return (
     <div className="chart-card" style={{ marginBottom: 'var(--s4)' }}>
       <div className="chart-header">
-        <div className="chart-title">⛽ Estrategia de Combustible</div>
+        <div className="chart-title">⛽ {t.pitWindowTitle}</div>
         <span style={{
           fontSize: '0.7rem',
           fontFamily: "'JetBrains Mono', monospace",
           color: 'var(--text-3)',
         }}>
-          {combustible_actual_l?.toFixed(1)} L restantes
+          {t.pitFuelRemaining(combustible_actual_l)}
         </span>
       </div>
 
@@ -85,15 +85,15 @@ export default function PitWindowWidget({ combustible }) {
           fontSize: '0.78rem',
           color: 'var(--text-2)',
         }}>
-          Necesita más vueltas para calcular la ventana de pit stop con precisión.
+          {t.pitWindowNeedMore}
         </div>
       ) : (
         <div className={`pit-window-banner ${bannerMod}`}>
           <span className="pit-window-banner__icon">{bannerIcon}</span>
           <div className="pit-window-banner__text">
-            <div className="pit-window-banner__title">Ventana de Pit Stop</div>
+            <div className="pit-window-banner__title">{t.pitWindowLabel}</div>
             <div className="pit-window-banner__laps">
-              Vuelta {open} – {close}
+              {t.pitWindowLap(open)} – {t.pitWindowLap(close)}
             </div>
           </div>
           <div style={{
@@ -103,8 +103,8 @@ export default function PitWindowWidget({ combustible }) {
             color: 'var(--text-3)',
             lineHeight: 1.8,
           }}>
-            <div>{vueltas_restantes_min}–{vueltas_restantes_max} vueltas</div>
-            <div>{consumo_medio_l?.toFixed(3)} L/v ±{consumo_std_l?.toFixed(3)}</div>
+            <div>{t.pitWindowLapsRange(vueltas_restantes_min, vueltas_restantes_max)}</div>
+            <div>{consumo_medio_l?.toFixed(3)} {t.pitFuelPerLapShort} ±{consumo_std_l?.toFixed(3)}</div>
           </div>
         </div>
       )}
@@ -119,7 +119,7 @@ export default function PitWindowWidget({ combustible }) {
             color: 'var(--text-3)',
             marginBottom: 8,
           }}>
-            Consumo por Vuelta
+            {t.pitWindowConsumptionTitle}
           </div>
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={barData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
@@ -130,7 +130,7 @@ export default function PitWindowWidget({ combustible }) {
                 tickFormatter={v => `${v}L`}
                 width={36}
               />
-              <Tooltip content={<FuelTooltip />} />
+              <Tooltip content={<FuelTooltip t={t} />} />
               <Bar
                 dataKey="burned"
                 fill="var(--amber)"
@@ -150,9 +150,9 @@ export default function PitWindowWidget({ combustible }) {
         marginTop: 'var(--s3)',
       }}>
         {[
-          { label: 'Combustible', value: `${combustible_actual_l?.toFixed(1)} L` },
-          { label: 'Consumo medio', value: `${consumo_medio_l?.toFixed(3)} L/v` },
-          { label: 'Desv. std', value: `±${consumo_std_l?.toFixed(3)} L` },
+          { label: t.pitValueFuel, value: `${combustible_actual_l?.toFixed(1)} L` },
+          { label: t.pitValueConsumption, value: `${consumo_medio_l?.toFixed(3)} L/v` },
+          { label: t.pitValueStd, value: `±${consumo_std_l?.toFixed(3)} L` },
         ].map(({ label, value }) => (
           <div key={label} style={{
             background: 'var(--bg-glass)',

@@ -3,6 +3,7 @@ import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+import { useLanguage } from '../context/LanguageContext';
 
 const renderTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -57,13 +58,13 @@ const BottomingBadges = ({ events, color, label }) => {
 };
 
 const SuspensionChart = ({ suspension, metadata }) => {
+  const { t } = useLanguage();
   const data = suspension;
   if (!data?.available) return null;
 
   const labelA = metadata?.label_a || 'A';
   const labelB = metadata?.label_b || 'B';
 
-  // Use lap A series primarily; fall back to B
   const seriesA = data.available_a ? data.per_distance_a : null;
   const seriesB = data.available_b ? data.per_distance_b : null;
   const primary = seriesA || seriesB;
@@ -86,36 +87,32 @@ const SuspensionChart = ({ suspension, metadata }) => {
   return (
     <div className="chart-card">
       <div className="chart-header">
-        <div className="chart-title"><span>◈</span> Análisis de Suspensión — Pitch &amp; Roll</div>
-        <span className="chart-zoom-badge">SuspTravel FL/FR/RL/RR</span>
+        <div className="chart-title"><span>◈</span> {t.suspensionTitle}</div>
+        <span className="chart-zoom-badge">{t.suspensionBadge}</span>
       </div>
 
       <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
-        Roll: diferencia de recorrido izquierda–derecha (+ = más carga a la derecha).
-        Pitch: diferencia delantera–trasera (+ = morro bajo, típico de frenada).
-        Los eventos de fondo detectan compresión extrema del amortiguador.
+        {t.suspensionDescription}
       </p>
 
-      {/* Summary stats */}
       {(summaryA || summaryB) && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           {summaryA && (
             <>
-              <StatCell label={`Roll Ax. Del. [${labelA}]`} value={summaryA.max_roll_f} color="#00D4FF" />
-              <StatCell label={`Roll Ax. Tra. [${labelA}]`} value={summaryA.max_roll_r} color="#00D4FF" />
-              <StatCell label={`Pitch max. [${labelA}]`}    value={summaryA.max_pitch}  color="#00D4FF" />
+              <StatCell label={t.suspensionRollFront(labelA)} value={summaryA.max_roll_f} color="#00D4FF" />
+              <StatCell label={t.suspensionRollRear(labelA)} value={summaryA.max_roll_r} color="#00D4FF" />
+              <StatCell label={t.suspensionPitch(labelA)}    value={summaryA.max_pitch}  color="#00D4FF" />
             </>
           )}
           {summaryB && (
             <>
-              <StatCell label={`Roll Ax. Del. [${labelB}]`} value={summaryB.max_roll_f} color="#FF6B6B" />
-              <StatCell label={`Pitch max. [${labelB}]`}    value={summaryB.max_pitch}  color="#FF6B6B" />
+              <StatCell label={t.suspensionRollFront(labelB)} value={summaryB.max_roll_f} color="#FF6B6B" />
+              <StatCell label={t.suspensionPitch(labelB)}    value={summaryB.max_pitch}  color="#FF6B6B" />
             </>
           )}
         </div>
       )}
 
-      {/* Chart: roll_f + pitch over distance */}
       {chartData.length > 0 && (
         <>
           <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', marginBottom: 6 }}>
@@ -154,14 +151,13 @@ const SuspensionChart = ({ suspension, metadata }) => {
         </>
       )}
 
-      {/* Bottoming events */}
       <BottomingBadges
         events={data.bottoming_a} color="#00D4FF"
-        label={`Eventos de fondo — ${labelA}`}
+        label={t.suspensionBottoming(labelA)}
       />
       <BottomingBadges
         events={data.bottoming_b} color="#FF6B6B"
-        label={`Eventos de fondo — ${labelB}`}
+        label={t.suspensionBottoming(labelB)}
       />
     </div>
   );

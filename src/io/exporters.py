@@ -1,12 +1,13 @@
 """
-Módulo de exportación de reportes.
+Report export module.
 
-Transforma el resultado de la comparación de vueltas en diferentes formatos
-para consumo humano o por API.
+Transforms lap comparison results into different formats
+for human consumption or API delivery.
 """
 
 import json
 import logging
+from src.i18n import _ as t
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +33,10 @@ def export_report_json(comparison_result: dict, filepath: str = None) -> str:
     return json_str
 
 
-def export_report_text(comparison_result: dict, filepath: str = None) -> str:
+def export_report_text(comparison_result: dict, filepath: str = None, lang: str = "es") -> str:
     """
-    Genera un reporte en texto plano legible para el piloto/ingeniero.
-    Incluye todos los módulos de análisis avanzado disponibles.
+    Generates a plain-text report readable for the driver/engineer.
+    Includes all available advanced analysis modules.
     """
     summary  = comparison_result["summary"]
     corners  = comparison_result["corners"]
@@ -46,52 +47,53 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
 
     lines = []
     lines.append("=" * 70)
-    lines.append("  REPORTE DE COMPARACIÓN DE VUELTAS — EL ANALISTA AUTOMATIZADO")
+    lines.append("  " + t("export_header", lang=lang))
     lines.append("=" * 70)
     lines.append("")
 
-    # ── Identidad ─────────────────────────────────────────────────────────────
+    # ── Identity ─────────────────────────────────────────────────────────────
     if metadata:
-        lines.append("─── IDENTIDAD ───")
+        lines.append("─── " + t("export_identity", lang=lang) + " ───")
         lines.append(f"  {label_a}: {metadata.get('driver_a', '—')} | {metadata.get('vehicle_a', '—')}")
         lines.append(f"  {label_b}: {metadata.get('driver_b', '—')} | {metadata.get('vehicle_b', '—')}")
         if metadata.get("venue"):
             lines.append(f"  Circuito: {metadata.get('venue')}")
         if not metadata.get("same_vehicle", True):
             lines.append("")
-            lines.append("  ⚠️  ADVERTENCIA: Vehículos distintos.")
-            lines.append("      Los deltas pueden reflejar diferencias mecánicas, no solo pilotaje.")
+            lines.append("  " + t("export_vehicle_diff_warning", lang=lang))
+            lines.append("      " + t("export_vehicle_diff_detail", lang=lang))
         elif not metadata.get("same_driver", True):
-            lines.append("  ℹ️  INFO: Comparando pilotos en el mismo vehículo.")
+            lines.append("  " + t("export_same_vehicle_info", lang=lang))
         lines.append("")
 
-    # ── Advertencia de distancia sintética ───────────────────────────────────
+    # ── Synthetic distance warning ───────────────────────────────────
     if metadata.get("distance_synthetic"):
-        lines.append("⚠️  ADVERTENCIA DE PRECISIÓN ──────────────────────────────────────────")
-        lines.append("  El canal Distance no estaba presente en el CSV original.")
-        lines.append("  La distancia fue sintetizada integrando Velocidad × Tiempo.")
-        lines.append("  Los deltas de punto de frenada pueden tener un error de ±5–15 m.")
-        lines.append("  Los resultados de ángulo de deslizamiento (β) no están disponibles.")
+        lines.append("⚠️  " + t("export_synthetic_distance", lang=lang) + " ──────────────────────────────────────────")
+        lines.append("  " + t("export_synthetic_distance_msg", lang=lang))
+        lines.append("  " + t("export_synthetic_distance_integrated", lang=lang))
+        lines.append("  " + t("export_synthetic_distance_error", lang=lang))
+        lines.append("  " + t("export_synthetic_distance_no_slip", lang=lang))
         lines.append("─" * 70)
         lines.append("")
 
-    # ── Resumen general ───────────────────────────────────────────────────────
+    # ── General summary ───────────────────────────────────────────────────────
     delta = summary["total_time_delta"]
-    lines.append("─── RESUMEN GENERAL ───")
+    lines.append("─── " + t("export_summary", lang=lang) + " ───")
     lines.append("")
     if delta > 0:
-        lines.append(f"  ⏱  {label_b} es {delta:.3f}s MÁS LENTO que {label_a}")
+        lines.append("  ⏱  " + t("export_slower", lang=lang, label_b=label_b, delta=f"{delta:.3f}"))
     elif delta < 0:
-        lines.append(f"  ⏱  {label_b} es {abs(delta):.3f}s MÁS RÁPIDO que {label_a}")
+        lines.append("  ⏱  " + t("export_faster", lang=lang, label_b=label_b, delta=f"{abs(delta):.3f}"))
     else:
-        lines.append(f"  ⏱  Tiempos idénticos entre ambos")
-    lines.append(f"  📊  Curvas analizadas: {summary['num_corners_analyzed']}")
+        lines.append("  ⏱  " + t("export_identical", lang=lang))
+    lines.append("  📊  " + t("export_corners_analyzed", lang=lang, n=summary['num_corners_analyzed']))
     if summary.get("worst_corner", 0) > 0:
-        lines.append(f"  ⚠️  Peor curva: #{summary['worst_corner']} "
-                     f"(pérdida de {summary['worst_corner_loss']:.3f}s)")
+        lines.append("  ⚠️  " + t("export_worst_corner", lang=lang,
+                                   num=summary['worst_corner'],
+                                   loss=f"{summary['worst_corner_loss']:.3f}"))
     lines.append("")
 
-    # ── Temperatura de Neumáticos ─────────────────────────────────────────────
+    # ── Tyre Temperature ─────────────────────────────────────────────
     tyre = comparison_result.get("tyre_analysis", {})
     if tyre.get("available"):
         STATUS_ICON = {
@@ -100,7 +102,7 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
         }
         t_min = tyre.get("t_min", 80)
         t_max = tyre.get("t_max", 100)
-        lines.append(f"─── TEMPERATURA DE NEUMÁTICOS (ventana óptima {t_min}–{t_max}°C) ───")
+        lines.append("─── " + t("export_tyre_temp", lang=lang, t_min=t_min, t_max=t_max) + " ───")
         lines.append("")
 
         for lap_key, lap_label in [("lap_a", label_a), ("lap_b", label_b)]:
@@ -125,7 +127,7 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
                     parts.append(f"ΔT {dt:.1f}°C  (estrés {stress:.0f}%){stress_flag}")
                 lines.append("    " + "  |  ".join(parts))
 
-            # Tiempo en ventana óptima por corner
+            # Time in optimal window per corner
             opt_corners = [c["corner"] for c in lap_data["corners"]
                            if c.get("window_status") == "optima"]
             hot_corners = [c["corner"] for c in lap_data["corners"]
@@ -133,17 +135,17 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
             cold_corners = [c["corner"] for c in lap_data["corners"]
                             if c.get("window_status") in ("fria", "suboptima")]
             if opt_corners:
-                lines.append(f"    ✓ En ventana: {', '.join(opt_corners)}")
+                lines.append("    " + t("export_tyre_in_window", lang=lang, corners=", ".join(opt_corners)))
             if hot_corners:
-                lines.append(f"    ⚠️ Caliente/Sobrecalentado: {', '.join(hot_corners)}")
+                lines.append("    " + t("export_tyre_hot", lang=lang, corners=", ".join(hot_corners)))
             if cold_corners:
-                lines.append(f"    ℹ️ Frío/Subóptimo: {', '.join(cold_corners)}")
+                lines.append("    " + t("export_tyre_cold", lang=lang, corners=", ".join(cold_corners)))
             lines.append("")
 
-    # ── Eficiencia de Frenos ──────────────────────────────────────────────────
+    # ── Brake Efficiency ──────────────────────────────────────────────────
     brake = comparison_result.get("brake_analysis", {})
     if brake.get("available"):
-        lines.append("─── EFICIENCIA DE FRENOS ───")
+        lines.append("─── " + t("export_brake_efficiency", lang=lang) + " ───")
         lines.append("")
         score_a    = brake.get("score_a")
         score_b    = brake.get("score_b")
@@ -154,7 +156,10 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
             if s is None:
                 return "—"
             degradation = (1 - s / bl) * 100 if bl and bl > 0 else 0
-            deg_str = f"  ({degradation:.1f}% bajo baseline)" if abs(degradation) > 3 else "  (sin fade)"
+            if abs(degradation) > 3:
+                deg_str = "  (" + t("export_brake_degradation", lang=lang, deg=f"{degradation:.1f}") + ")"
+            else:
+                deg_str = "  (" + t("export_brake_no_fade", lang=lang) + ")"
             return f"{s:.4f} g/%  baseline {bl:.4f}{deg_str}"
 
         lines.append(f"  {label_a}: {_fmt_score(score_a, baseline_a)}")
@@ -164,25 +169,30 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
             diff_pct = (score_a - score_b) / score_b * 100
             if abs(diff_pct) > 3:
                 better = label_a if diff_pct > 0 else label_b
-                lines.append(f"  → {better} frena {abs(diff_pct):.1f}% más eficientemente")
+                lines.append("  " + t("export_brake_more_efficient", lang=lang, better=better, diff=f"{abs(diff_pct):.1f}"))
 
         for lap_key, lap_label in [("fade_zones_a", label_a), ("fade_zones_b", label_b)]:
             zones = brake.get(lap_key, [])
             if zones:
-                lines.append(f"  Zonas de fade {lap_label}: {len(zones)}")
+                lines.append("  " + t("export_brake_fade_zones", lang=lang, label=lap_label, n=len(zones)))
                 for z in zones:
                     sev = z.get("severity", 0)
-                    sev_label = "leve" if sev < 0.15 else ("moderado" if sev < 0.30 else "severo ⚠️")
+                    if sev < 0.15:
+                        sev_label = t("export_brake_fade_sev_light", lang=lang)
+                    elif sev < 0.30:
+                        sev_label = t("export_brake_fade_sev_moderate", lang=lang)
+                    else:
+                        sev_label = t("export_brake_fade_sev_severe", lang=lang)
                     lines.append(f"    • {z.get('start', 0):.0f}m – {z.get('end', 0):.0f}m  "
                                  f"severidad {sev*100:.0f}%  ({sev_label})")
             else:
-                lines.append(f"  Zonas de fade {lap_label}: ninguna ✓")
+                lines.append("  " + t("export_brake_fade_zones_none", lang=lang, label=lap_label))
         lines.append("")
 
-    # ── Inputs del Piloto ─────────────────────────────────────────────────────
+    # ── Driver Inputs ─────────────────────────────────────────────────────
     inputs = comparison_result.get("driver_inputs", {})
     if inputs.get("available"):
-        lines.append("─── INPUTS DEL PILOTO ───")
+        lines.append("─── " + t("export_driver_inputs", lang=lang) + " ───")
         lines.append("")
         for score_key, bands_key, label_key, overlap_key, lap_label in [
             ("nervousness_score_a", "fft_bands_a", "nervousness_label_a", "overlap_pct_a", label_a),
@@ -195,32 +205,32 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
 
             if ni is None:
                 continue
-            lines.append(f"  [{lap_label}]  Nerviosismo: {ni*100:.1f}%  → {label}")
+            lines.append(f"  [{lap_label}]  " + t("export_driver_nervousness", lang=lang, pct=f"{ni*100:.1f}", label=label))
             if bands:
                 low  = bands.get("low", 0) * 100
                 mid  = bands.get("mid", 0) * 100
                 high = bands.get("high", 0) * 100
-                high_flag = "  ⚠️ muchas micro-correcciones" if high > 35 else ""
-                lines.append(f"    FFT: Baja {low:.1f}%  |  Media {mid:.1f}%  |  Alta {high:.1f}%{high_flag}")
+                high_flag = t("export_driver_fft_flag", lang=lang) if high > 35 else ""
+                lines.append("    " + t("export_driver_fft", lang=lang, low=f"{low:.1f}", mid=f"{mid:.1f}", high=f"{high:.1f}", flag=high_flag))
             if overlap is not None:
-                overlap_flag = "  ⚠️ solapamiento alto" if overlap > 12 else ""
-                lines.append(f"    Solapamiento freno-gas: {overlap:.1f}%{overlap_flag}")
+                overlap_flag = t("export_driver_overlap_flag", lang=lang) if overlap > 12 else ""
+                lines.append("    " + t("export_driver_overlap", lang=lang, ov=f"{overlap:.1f}", flag=overlap_flag))
             lines.append("")
 
-        # Comparación directa
+        # Direct comparison
         ni_a = inputs.get("nervousness_score_a")
         ni_b = inputs.get("nervousness_score_b")
         if ni_a is not None and ni_b is not None:
             diff = (ni_b - ni_a) * 100
             if abs(diff) > 5:
                 more = label_b if diff > 0 else label_a
-                lines.append(f"  → {more} es {abs(diff):.1f}% más nervioso/a al volante")
+                lines.append("  " + t("export_driver_more_nervous", lang=lang, more=more, diff=f"{abs(diff):.1f}"))
                 lines.append("")
 
-    # ── Suspensión ────────────────────────────────────────────────────────────
+    # ── Suspension ────────────────────────────────────────────────────────────
     susp = comparison_result.get("suspension", {})
     if susp.get("available"):
-        lines.append("─── SUSPENSIÓN (Pitch / Roll / Bottoming) ───")
+        lines.append("─── " + t("export_suspension", lang=lang) + " ───")
         lines.append("")
         for sum_key, bot_key, lap_label in [
             ("summary_a", "bottoming_a", label_a),
@@ -235,34 +245,34 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
             pitch  = s.get("max_pitch")
             m_pitch = s.get("mean_pitch")
             if roll_f is not None:
-                roll_flag = "  ⚠️ roll excesivo" if roll_f > 12 else ""
-                lines.append(f"    Roll máx. delantero: {roll_f:.1f} mm  |  trasero: {roll_r:.1f} mm{roll_flag}")
+                roll_flag = t("export_suspension_roll_flag", lang=lang) if roll_f > 12 else ""
+                lines.append("    " + t("export_suspension_roll", lang=lang, roll_f=f"{roll_f:.1f}", roll_r=f"{roll_r:.1f}", flag=roll_flag))
             if pitch is not None:
-                pitch_flag = "  ⚠️ pitch pronunciado" if pitch > 10 else ""
-                lines.append(f"    Pitch máximo: {pitch:.1f} mm  |  medio: {m_pitch:.1f} mm{pitch_flag}")
+                pitch_flag = t("export_suspension_pitch_flag", lang=lang) if pitch > 10 else ""
+                lines.append("    " + t("export_suspension_pitch", lang=lang, pitch=f"{pitch:.1f}", mean_pitch=f"{m_pitch:.1f}", flag=pitch_flag))
                 if roll_f is not None and roll_r is not None:
                     if abs(roll_f) > abs(roll_r) * 1.3:
-                        lines.append(f"    ↳ Eje trasero más rígido en roll → tendencia a sobreviraje")
+                        lines.append("    " + t("export_suspension_oversteer_tendency", lang=lang))
                     elif abs(roll_r) > abs(roll_f) * 1.3:
-                        lines.append(f"    ↳ Eje delantero más rígido en roll → tendencia a subviraje")
+                        lines.append("    " + t("export_suspension_understeer_tendency", lang=lang))
 
             bottoming = susp.get(bot_key, [])
             if bottoming:
-                lines.append(f"    Bottoming: {len(bottoming)} evento(s)")
+                lines.append("    " + t("export_suspension_bottoming", lang=lang, n=len(bottoming)))
                 for ev in bottoming:
                     sev = ev.get("severity", 0)
-                    sev_flag = "  ⚠️ crítico" if sev > 0.96 else ""
+                    sev_flag = t("export_suspension_bottoming_critical_flag", lang=lang) if sev > 0.96 else ""
                     lines.append(f"      • {ev.get('corner', '?')}  "
                                  f"{ev.get('start_m', 0):.0f}m – {ev.get('end_m', 0):.0f}m  "
                                  f"sev. {sev*100:.0f}%{sev_flag}")
             else:
-                lines.append(f"    Bottoming: ninguno ✓")
+                lines.append("    " + t("export_suspension_bottoming_none", lang=lang))
             lines.append("")
 
-    # ── Ángulo de Deslizamiento ───────────────────────────────────────────────
+    # ── Slip Angle ───────────────────────────────────────────────
     slip = comparison_result.get("slip_angle", {})
     if slip.get("available"):
-        lines.append("─── ÁNGULO DE DESLIZAMIENTO (Sideslip β) ───")
+        lines.append("─── " + t("export_slip_angle", lang=lang) + " ───")
         lines.append("")
         for sum_key, lap_label in [("summary_a", label_a), ("summary_b", label_b)]:
             s = slip.get(sum_key, {})
@@ -277,86 +287,84 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
 
             lines.append(f"  [{lap_label}]")
             if beta_max is not None:
-                beta_flag = "  ⚠️ deslizamiento elevado" if beta_max > 6 else ""
-                lines.append(f"    β máximo: {beta_max:.1f}°  |  β P95: {beta_p95:.1f}°{beta_flag}")
+                beta_flag = t("export_slip_beta_flag", lang=lang) if beta_max > 6 else ""
+                lines.append("    " + t("export_slip_beta", lang=lang, beta_max=f"{beta_max:.1f}", beta_p95=f"{beta_p95:.1f}", flag=beta_flag))
             if bal_mean is not None:
                 if bal_mean > 1.5:
-                    bal_diag = f"tendencia a SUBVIRAR  (+{bal_mean:.1f}°)"
+                    bal_diag = t("export_slip_balance_understeer", lang=lang, bm=f"{bal_mean:+.1f}")
                 elif bal_mean < -1.5:
-                    bal_diag = f"tendencia a SOBREVIRAJE  ({bal_mean:.1f}°)"
+                    bal_diag = t("export_slip_balance_oversteer", lang=lang, bm=f"{bal_mean:.1f}")
                 else:
-                    bal_diag = f"balance neutro  ({bal_mean:+.1f}°)"
-                lines.append(f"    Balance medio: {bal_diag}")
-            lines.append(f"    Distribución:  Subviraje {us_pct:.0f}%  |  "
-                         f"Neutral {neu_pct:.0f}%  |  Sobreviraje {os_pct:.0f}%")
+                    bal_diag = t("export_slip_balance_neutral", lang=lang, bm=f"{bal_mean:+.1f}")
+                lines.append("    " + t("export_slip_balance", lang=lang, diag=bal_diag))
+            lines.append("    " + t("export_slip_distribution", lang=lang, us=f"{us_pct:.0f}", neu=f"{neu_pct:.0f}", os=f"{os_pct:.0f}"))
 
-            # Diagnóstico automático
+            # Automatic diagnosis
             if us_pct > 30:
-                lines.append(f"    ↳ ⚠️  Subviraje crónico — revisar presión delantera o barra ant.")
+                lines.append("    " + t("export_slip_chronic_understeer", lang=lang))
             elif os_pct > 20:
-                lines.append(f"    ↳ ⚠️  Sobreviraje frecuente — revisar diff o temperatura trasera")
+                lines.append("    " + t("export_slip_frequent_oversteer", lang=lang))
             lines.append("")
 
-        # Comparación directa si ambas disponibles
+        # Direct comparison if both available
         sa = slip.get("summary_a", {})
         sb = slip.get("summary_b", {})
         if sa.get("beta_max") and sb.get("beta_max"):
             diff_beta = sb["beta_max"] - sa["beta_max"]
             if abs(diff_beta) > 1.0:
                 more_slide = label_b if diff_beta > 0 else label_a
-                lines.append(f"  → {more_slide} tiene {abs(diff_beta):.1f}° más de deslizamiento máximo")
+                lines.append("  " + t("export_slip_more_slide", lang=lang, more=more_slide, delta=f"{abs(diff_beta):.1f}"))
                 lines.append("")
 
-    # ── Análisis detallado por curva ──────────────────────────────────────────
-    lines.append("─── ANÁLISIS DETALLADO POR CURVA ───")
+    # ── Detailed corner analysis ──────────────────────────────────────────
+    lines.append("─── " + t("export_corner_detail", lang=lang) + " ───")
     lines.append("")
 
     for corner in corners:
         num = corner["corner_number"]
         tl  = corner.get("time_loss_seconds", 0)
         tl_icon = "⏱  +" if tl > 0.01 else ("⏱  −" if tl < -0.01 else "⏱  ")
-        lines.append(f"  ┌─ Curva {num} {'─'*47}")
+        lines.append("  ┌─ " + t("export_corner_header", lang=lang, num=num) + " " + "─" * 47)
         lines.append(f"  │")
 
-        # Braking point — detailed if basic format, delta-only if advanced format
+        # Braking point
         bd = corner.get("braking_delta_meters", 0)
         ref_brake = corner.get("ref_brake_distance")
         cmp_brake = corner.get("comp_brake_distance")
-        lines.append(f"  │  Punto de frenado:")
+        lines.append("  │  " + t("export_corner_braking", lang=lang))
         if ref_brake is not None and cmp_brake is not None:
             lines.append(f"  │    {label_a}: {ref_brake:.0f}m   {label_b}: {cmp_brake:.0f}m")
         if bd < -1:
-            lines.append(f"  │    → Frenó {abs(bd):.0f}m ANTES ❌  (deja tiempo sobre la mesa)")
+            lines.append("  │    " + t("export_corner_brake_early", lang=lang, delta=f"{abs(bd):.0f}"))
         elif bd > 1:
-            lines.append(f"  │    → Frenó {abs(bd):.0f}m DESPUÉS ✅  (frenada más tardía)")
+            lines.append("  │    " + t("export_corner_brake_late", lang=lang, delta=f"{abs(bd):.0f}"))
         else:
-            lines.append(f"  │    → Punto de frenado similar ─")
+            lines.append("  │    " + t("export_corner_brake_similar", lang=lang))
 
         lines.append(f"  │")
 
-        # Apex speed — detailed if basic format, delta-only if advanced format
+        # Apex speed
         asd = corner.get("apex_speed_delta_kmh", 0)
         ref_apex = corner.get("ref_apex_speed")
         cmp_apex = corner.get("comp_apex_speed")
-        lines.append(f"  │  Velocidad en Apex:")
+        lines.append("  │  " + t("export_corner_apex", lang=lang))
         if ref_apex is not None and cmp_apex is not None:
             lines.append(f"  │    {label_a}: {ref_apex:.1f} km/h   {label_b}: {cmp_apex:.1f} km/h")
         if asd < -0.5:
-            lines.append(f"  │    → {abs(asd):.1f} km/h MÁS LENTO en apex ❌  "
-                         f"(entrada más conservadora o subviraje)")
+            lines.append("  │    " + t("export_corner_apex_slower", lang=lang, delta=f"{abs(asd):.1f}"))
         elif asd > 0.5:
-            lines.append(f"  │    → {abs(asd):.1f} km/h MÁS RÁPIDO en apex ✅")
+            lines.append("  │    " + t("export_corner_apex_faster", lang=lang, delta=f"{abs(asd):.1f}"))
         else:
-            lines.append(f"  │    → Velocidad en apex similar ─")
+            lines.append("  │    " + t("export_corner_apex_similar", lang=lang))
 
         td = corner.get("throttle_delta_meters", 0)
         if abs(td) > 1:
             lines.append(f"  │")
-            lines.append(f"  │  Aceleración a fondo:")
+            lines.append("  │  Aceleración a fondo:")
             if td > 0:
-                lines.append(f"  │    → Aceleró {td:.0f}m DESPUÉS ❌  (salida más conservadora)")
+                lines.append("  │    " + t("export_corner_throttle_late", lang=lang, delta=f"{td:.0f}"))
             else:
-                lines.append(f"  │    → Aceleró {abs(td):.0f}m ANTES ✅  (salida más agresiva)")
+                lines.append("  │    " + t("export_corner_throttle_early", lang=lang, delta=f"{abs(td):.0f}"))
 
         # Advanced insight description (from insights module)
         desc = corner.get("description", "")
@@ -370,22 +378,22 @@ def export_report_text(comparison_result: dict, filepath: str = None) -> str:
             underst = diag.get("understeer_severity")
             overst  = diag.get("oversteer_severity")
             if underst and underst != "none":
-                lines.append(f"  │    ⚠️  Subviraje detectado ({underst})")
+                lines.append("  │    " + t("export_corner_understeer", lang=lang, sev=underst))
             if overst and overst != "none":
-                lines.append(f"  │    ⚠️  Sobreviraje detectado ({overst})")
+                lines.append("  │    " + t("export_corner_oversteer", lang=lang, sev=overst))
 
         lines.append(f"  │")
         if tl > 0.01:
-            lines.append(f"  │  {tl_icon}{tl:.3f}s  pérdida en sector")
+            lines.append("  │  " + t("export_corner_gain", lang=lang, time=f"{tl:.3f}"))
         elif tl < -0.01:
-            lines.append(f"  │  {tl_icon}{abs(tl):.3f}s  ganancia en sector")
+            lines.append("  │  " + t("export_corner_loss", lang=lang, time=f"{abs(tl):.3f}"))
         else:
-            lines.append(f"  │  {tl_icon}Sin diferencia significativa")
+            lines.append("  │  " + t("export_corner_neutral", lang=lang))
         lines.append(f"  └{'─'*53}")
         lines.append("")
 
     lines.append("=" * 70)
-    lines.append("  Fin del reporte")
+    lines.append("  " + t("export_footer", lang=lang))
     lines.append("=" * 70)
 
     report = "\n".join(lines)

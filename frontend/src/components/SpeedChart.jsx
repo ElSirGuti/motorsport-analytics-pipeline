@@ -4,10 +4,12 @@ import {
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { setCursorDistance } from '../api/cursorStore';
+import { useLanguage } from '../context/LanguageContext';
 
 const COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 
 const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
+  const { t } = useLanguage();
   const chartData = useMemo(() => {
     if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => {
@@ -27,7 +29,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-card">
         <div className="chart-empty">
           <span className="chart-empty__icon">◌</span>
-          Sin datos de velocidad
+          {t.speedNoData}
         </div>
       </div>
     );
@@ -41,7 +43,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-header">
         <div className="chart-title">
           <span>⚡</span>
-          Velocidad vs Distancia
+          {t.speedTitle}
         </div>
         {zoomDomain && (
           <span className="chart-zoom-badge">

@@ -4,34 +4,138 @@
 
 🌐 [Leer en Español](README.es.md)
 
-## Quick Start
+## Installation
 
-**Requirements:** Python 3.10+ and Node.js 18+
+### Prerequisites
 
-1. **Install backend dependencies:**
+| Tool | Minimum version | Download |
+|---|---|---|
+| Python | 3.10 | https://www.python.org/downloads/ |
+| Node.js | 18 LTS | https://nodejs.org/ |
+| Git | any | https://git-scm.com/ |
+
+### 1 — Clone the repository
+
 ```bash
+git clone https://github.com/your-user/motorsport-analytics-pipeline.git
+cd motorsport-analytics-pipeline
+```
+
+### 2 — Backend setup (Python)
+
+```bash
+# Create and activate a virtual environment (recommended)
+python -m venv .venv
+
+# Windows PowerShell
+.venv\Scripts\Activate.ps1
+# macOS / Linux
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-2. **Install frontend dependencies:**
+### 3 — Frontend setup (Node.js)
+
 ```bash
 cd frontend
 npm install
+cd ..
 ```
 
-3. **Start the backend API:**
+### 4 — Run the app
+
+Open **two separate terminals** from the project root:
+
+**Terminal 1 — Backend API:**
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 
-4. **Start the frontend (in a separate terminal):**
+**Terminal 2 — Frontend dev server:**
 ```bash
 cd frontend
 npm run dev
 ```
 
-5. **Open the app:**
-Navigate to `http://localhost:5173`, upload your ACTI-exported CSV files (e.g. `slow_lap.csv` and `fast_lap.csv`) and click **Analyze**.
+Open your browser at **http://localhost:5173**.
+
+---
+
+## Telemetry Export Guide
+
+### Assetto Corsa — ACTI plugin
+
+[ACTI (AC Telemetry Interface)](https://www.assettocorsa.net/forum/index.php?threads/acti-ac-telemetry-interface.50534/) records raw MoTeC-compatible CSV files directly from Assetto Corsa.
+
+**Setup:**
+1. Download and install the ACTI plugin into your Assetto Corsa `apps/python/` folder.
+2. Launch Assetto Corsa, go to **Options → General** and enable **Python apps**.
+3. In a session, enable the **ACTI** app from the in-car HUD apps bar.
+4. ACTI will record a `.ldx` / raw CSV file per lap automatically. By default files are saved to `Documents\Assetto Corsa\logs\`.
+5. To export a specific lap to CSV: open **MoTeC i2**, connect to the ACTI log file, then follow the MoTeC export steps below.
+
+### iRacing — Telemetry logging
+
+iRacing can write an `.ibt` telemetry file natively.
+
+**Enable in iRacing:**
+1. Open `Documents\iRacing\app.ini` in a text editor.
+2. Find (or add) `[Telemetry]` section and set:
+   ```
+   logToDisk=1
+   diskSamplingRate=60
+   ```
+3. Alternatively, check **Options → Telemetry → Log to disk** in the iRacing UI (if available in your version).
+4. Telemetry files (`.ibt`) are saved to `Documents\iRacing\telemetry\`.
+5. Use **MoTeC i2 Pro** (with the iRacing workspace) or third-party tools (e.g. *ibt2csv*) to convert `.ibt` → `.csv`.
+
+### MoTeC i2 — Export to CSV
+
+MoTeC i2 is the professional data analysis tool used to view and export telemetry from ACTI, iRacing, and other sources.
+
+**Per-lap export:**
+1. Open MoTeC i2 and load your log file (**File → Open**).
+2. Navigate to the desired lap using the **Laps** panel.
+3. Go to **File → Export → Export to Spreadsheet (CSV)**.
+4. In the export dialog: select the **time range** for that lap only, choose **All channels**, set the output rate (60 Hz recommended), and click **Export**.
+
+**Full stint export:**
+1. Select the entire session time range (from Lap 1 to the final lap) in the Laps panel.
+2. Follow the same **File → Export → Export to Spreadsheet (CSV)** steps.
+3. The exported CSV will contain all laps as a continuous channel dataset — the app will automatically segment individual laps by detecting speed-zero transitions.
+
+**Required channels for full analysis:**
+
+| Category | Typical channel names |
+|---|---|
+| Speed | `Speed`, `Ground Speed` |
+| Distance | `Lap Distance`, `Distance` |
+| Brake / Throttle | `Brake Pos`, `Throttle Pos` |
+| Lateral / Long G | `Lateral Acc`, `Longitudinal Acc` |
+| Yaw rate | `Yaw Rate` |
+| Steer angle | `Steer Angle` |
+| Tyre temps | `Tyre Temp FL`, `Tyre Temp FR`, `Tyre Temp RL`, `Tyre Temp RR` |
+| Suspension travel | `Susp Travel FL`, `Susp Travel FR`, `Susp Travel RL`, `Susp Travel RR` |
+
+Missing channels will simply disable the corresponding analysis panel — the app degrades gracefully.
+
+---
+
+## Quick Start
+
+```bash
+# 1. Backend
+python -m venv .venv && .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+
+# 2. Frontend (separate terminal)
+cd frontend && npm install && npm run dev
+```
+
+Open **http://localhost:5173**, upload a CSV exported from MoTeC i2 and click **Analyze Full Session**.
 
 ## Features
 

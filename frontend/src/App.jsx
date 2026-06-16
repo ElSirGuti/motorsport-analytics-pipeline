@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { useLanguage } from './context/LanguageContext';
 import SpeedChart from './components/SpeedChart';
 import BrakeThrottleChart from './components/BrakeThrottleChart';
 import TimeDeltaChart from './components/TimeDeltaChart';
@@ -18,6 +19,8 @@ import DriverInputsChart from './components/DriverInputsChart';
 import SuspensionChart from './components/SuspensionChart';
 import SlipAngleChart from './components/SlipAngleChart';
 import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps, downloadPdfReport } from './api/telemetry';
+import CornerAnalysisPanel from './components/CornerAnalysisPanel';
+import SetupRecommendations from './components/SetupRecommendations';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
@@ -40,6 +43,7 @@ function KpiCard({ label, value, sub, accent }) {
 }
 
 function SessionKPIs({ sessionResult, stintResult }) {
+  const { t } = useLanguage();
   const laps = sessionResult?.laps ?? [];
   const pitCount = laps.filter(l => l.is_pit_lap).length;
   const racingLaps = stintResult?.laps?.filter(l => !l.is_pit_lap) ?? [];
@@ -54,31 +58,31 @@ function SessionKPIs({ sessionResult, stintResult }) {
     <div className="card" style={{ marginBottom: 'var(--s4)' }}>
       <div className="card__title">
         <span className="card__title-icon">▦</span>
-        Resumen de Sesión
+        {t.sessionSummary}
       </div>
       <div className="stint-kpi-grid">
         <KpiCard
-          label="Vueltas Válidas"
+          label={t.validLaps}
           value={sessionResult.total_laps}
-          sub={pitCount > 0 ? `${pitCount} pit/outlier excluidas` : 'en carrera'}
+          sub={pitCount > 0 ? t.stintExcluded(pitCount) : t.inRace}
         />
         <KpiCard
-          label="Mejor Vuelta"
+          label={t.bestLap}
           value={sessionResult.fastest_lap ? `#${sessionResult.fastest_lap.lap_number}` : '—'}
           sub={fmtTime(bestTime)}
           accent="var(--cyan)"
         />
-        <KpiCard label="Tiempo Medio" value={fmtTime(meanTime)} />
+        <KpiCard label={t.avgTime} value={fmtTime(meanTime)} />
         <KpiCard
-          label="Vel. Máxima"
+          label={t.maxSpeed}
           value={maxSpeed ? `${maxSpeed.toFixed(0)} km/h` : '—'}
-          sub="en mejor vuelta"
+          sub={t.inBestLap}
         />
         {tasa != null && (
           <KpiCard
-            label="Degradación"
+            label={t.degradation}
             value={`${tasa > 0 ? '+' : ''}${tasa.toFixed(3)}s`}
-            sub="por vuelta"
+            sub={t.perLap}
             accent={tasa > 0.1 ? 'var(--red)' : tasa > 0 ? 'var(--amber)' : 'var(--green)'}
           />
         )}
@@ -88,6 +92,7 @@ function SessionKPIs({ sessionResult, stintResult }) {
 }
 
 function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, compareLoading, compareError }) {
+  const { t } = useLanguage();
   const [lapA, lapB] = selectedLaps;
   const canCompare = selectedLaps.length === 2 && !compareLoading;
 
@@ -95,7 +100,7 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
     <div className="card" style={{ marginBottom: 'var(--s4)' }}>
       <div className="card__title" style={{ flexWrap: 'wrap', gap: 8 }}>
         <span className="card__title-icon">▤</span>
-        Vueltas · Selecciona 2 para comparar
+        {t.lapTableTitle}
         {selectedLaps.length === 2 && (
           <button
             className="btn-analyze"
@@ -104,8 +109,8 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
             disabled={!canCompare}
           >
             {compareLoading
-              ? <><div className="spinner" style={{ width: 12, height: 12 }} /> Comparando...</>
-              : `⚡ Comparar V${lapA} vs V${lapB}`
+              ? <><div className="spinner" style={{ width: 12, height: 12 }} /> {t.compareLoading}</>
+              : `⚡ ${t.compareLaps(lapA, lapB)}`
             }
           </button>
         )}
@@ -124,7 +129,7 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
           padding: '4px 8px', marginBottom: 8,
           background: 'var(--cyan-dim)', borderRadius: 4, border: '1px solid var(--cyan-border)',
         }}>
-          V{lapA} seleccionada — elige una segunda vuelta para comparar
+          {t.sessionSelectLap(lapA)}
         </div>
       )}
 
@@ -132,12 +137,12 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
         <table className="session-lap-table">
           <thead>
             <tr>
-              <th style={{ width: 36, textAlign: 'center' }}>Sel.</th>
-              <th>Vuelta</th>
-              <th>Tiempo</th>
-              <th>Vel. Máx.</th>
-              <th>Distancia</th>
-              <th>Δ vs Mejor</th>
+              <th style={{ width: 36, textAlign: 'center' }}>{t.selCol}</th>
+              <th>{t.lapCol}</th>
+              <th>{t.timeCol}</th>
+              <th>{t.maxSpeedCol}</th>
+              <th>{t.distanceCol}</th>
+              <th>{t.deltaCol}</th>
             </tr>
           </thead>
           <tbody>
@@ -183,10 +188,10 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
                   <td className="td-lap-num">
                     {lap.lap_number}
                     {lap.is_fastest && (
-                      <span style={{ marginLeft: 6, color: 'var(--cyan)', fontSize: '0.7rem' }}>BEST</span>
+                      <span style={{ marginLeft: 6, color: 'var(--cyan)', fontSize: '0.7rem' }}>{t.lapBadgeBest}</span>
                     )}
                     {isPit && (
-                      <span style={{ marginLeft: 6, color: '#FF3D3D', fontSize: '0.65rem' }}>PIT</span>
+                      <span style={{ marginLeft: 6, color: '#FF3D3D', fontSize: '0.65rem' }}>{t.lapBadgePit}</span>
                     )}
                   </td>
                   <td className="td-time">{fmtTime(lap.lap_time)}</td>
@@ -211,10 +216,11 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
 }
 
 function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading }) {
+  const { t } = useLanguage();
   const meta = result?.metadata;
   const title = comparingLaps
-    ? `Vuelta ${comparingLaps[0]} vs Vuelta ${comparingLaps[1]}`
-    : meta ? `${meta.label_a ?? 'A'} vs ${meta.label_b ?? 'B'}` : 'Comparación de Telemetría';
+    ? t.compareSectionTitle(comparingLaps[0], comparingLaps[1])
+    : meta ? `${meta.label_a ?? 'A'} vs ${meta.label_b ?? 'B'}` : t.compareTitle;
 
   const lapLabels = useMemo(() => {
     if (!meta) return {};
@@ -222,10 +228,10 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
     const lb = meta.label_b ?? 'B';
     return {
       speed_a: la, speed_b: lb,
-      brake_a: `Freno — ${la}`, brake_b: `Freno — ${lb}`,
-      throttle_a: `Gas — ${la}`, throttle_b: `Gas — ${lb}`,
+      brake_a: `${t.brakeThrottleBrake} — ${la}`, brake_b: `${t.brakeThrottleBrake} — ${lb}`,
+      throttle_a: `${t.brakeThrottleThrottle} — ${la}`, throttle_b: `${t.brakeThrottleThrottle} — ${lb}`,
     };
-  }, [meta]);
+  }, [meta, t]);
 
   return (
     <div className="fade-up">
@@ -235,7 +241,7 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
         marginBottom: 'var(--s4)',
       }}>
         <div className="hero__eyebrow" style={{ marginBottom: 4 }}>
-          <span>⚡</span> Comparación de Telemetría
+          <span>⚡</span> {t.compareTitle}
         </div>
         <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-1)' }}>{title}</div>
         {meta?.venue && (
@@ -254,10 +260,8 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
           color: '#FF9040',
           lineHeight: 1.5,
         }}>
-          <strong>⚠ Advertencia de precisión:</strong> El canal <code>Distance</code> no estaba
-          en el CSV original y fue sintetizado desde velocidad.
-          Los deltas de punto de frenada pueden tener ±5–15 m de error.
-          El módulo de ángulo de deslizamiento (β) no está disponible.
+          <strong>{t.precisionWarning}</strong> {t.precisionDistance} <code>Distance</code> {t.precisionNotAvailable}
+          {' '}{t.precisionLine1} {t.precisionLine2} {t.precisionLine3}
         </div>
       )}
 
@@ -276,10 +280,10 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
       {zoomDomain && (
         <div className="zoom-bar">
           <span className="zoom-bar__label">
-            ⬡ Zoom: {zoomDomain[0].toFixed(0)}m – {zoomDomain[1].toFixed(0)}m
-            {activeCorner != null && ` · Curva ${activeCorner}`}
+            {t.zoomLap(zoomDomain[0], zoomDomain[1])}
+            {activeCorner != null && ` ${t.zoomCorner(activeCorner)}`}
           </span>
-          <button className="zoom-reset-btn" onClick={onResetZoom}>Vuelta completa ×</button>
+          <button className="zoom-reset-btn" onClick={onResetZoom}>{t.zoomReset}</button>
         </div>
       )}
 
@@ -312,14 +316,14 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
         <div className="card fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
           <div className="card__title">
             <span className="card__title-icon">⚠</span>
-            Eventos de Conducción — Subviraje y Sobreviraje
+            {t.eventsTitle}
             <span style={{
               marginLeft: 'auto', fontSize: '0.68rem', padding: '3px 8px',
               background: 'rgba(255,61,61,0.1)', color: 'var(--red)',
               border: '1px solid rgba(255,61,61,0.25)', borderRadius: 4,
               fontFamily: "'JetBrains Mono', monospace",
             }}>
-              {result.dynamic_events.length} evento{result.dynamic_events.length !== 1 ? 's' : ''}
+              {t.eventsCount(result.dynamic_events.length)}
             </span>
           </div>
           <div className="dynamic-events-list">
@@ -327,9 +331,9 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
               <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
                 <div className="dynamic-event__header">
                   <span className="dynamic-event__tipo">
-                    {ev.tipo === 'subviraje' ? 'SUB' : 'OVER'}
+                    {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
                   </span>
-                  <span className="dynamic-event__curva">Curva {ev.curva}</span>
+                  <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
                   <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
                   <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
                     {ev.severidad?.toUpperCase()}
@@ -414,24 +418,24 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
           <div className="report-header">
             <div className="report-title">
               <span>▤</span>
-              Reporte Técnico — Formato Ingeniero
+              {t.reportTitle}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 className={`copy-btn ${copied ? 'copy-btn--copied' : ''}`}
                 onClick={onCopyReport}
-                aria-label="Copiar reporte al portapapeles"
+                aria-label={t.reportCopyAria}
               >
-                {copied ? '✓ Copiado' : '⎘ Copiar'}
+                {copied ? `✓ ${t.copied}` : `⎘ ${t.copyReport}`}
               </button>
               <button
                 className="copy-btn"
                 onClick={onPdfDownload}
                 disabled={pdfLoading}
-                aria-label="Descargar reporte en PDF"
+                aria-label={t.reportDownloadAria}
                 style={{ opacity: pdfLoading ? 0.6 : 1 }}
               >
-                {pdfLoading ? '⏳' : '⬇ PDF'}
+                {pdfLoading ? '⏳' : `⬇ ${t.pdfDownload}`}
               </button>
             </div>
           </div>
@@ -443,6 +447,7 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
 }
 
 export default function App() {
+  const { t, lang, setLang } = useLanguage();
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
@@ -513,29 +518,28 @@ export default function App() {
     try {
       if (isSessionMode) {
         const [sessSettled, stintSettled] = await Promise.allSettled([
-          analyzeSession(files[0]),
-          analyzeStint([files[0]]),
+          analyzeSession(files[0], lang),
+          analyzeStint([files[0]], lang),
         ]);
         if (sessSettled.status === 'fulfilled') {
           setSessionResult(sessSettled.value);
         } else {
-          throw new Error(sessSettled.reason?.message || 'Error al analizar la sesión');
+          throw new Error(sessSettled.reason?.message || t.errorSession);
         }
         if (stintSettled.status === 'fulfilled') {
           setStintResult(stintSettled.value);
         }
       } else {
         const [basicSettled, advancedSettled] = await Promise.allSettled([
-          compareLaps(files[0], files[1]),
-          analyzeTelemetry(files[0], files[1]),
+          compareLaps(files[0], files[1], lang),
+          analyzeTelemetry(files[0], files[1], 5, lang),
         ]);
         if (basicSettled.status !== 'fulfilled') {
-          throw new Error(basicSettled.reason?.message || 'Error al comparar vueltas');
+          throw new Error(basicSettled.reason?.message || t.errorAnalyze);
         }
         const merged = {
           ...basicSettled.value,
           ...(advancedSettled.status === 'fulfilled' ? advancedSettled.value : {}),
-          // keep basic summary and chart series (advanced result may override corners with richer data)
           summary: basicSettled.value.summary,
           speed_comparison: basicSettled.value.speed_comparison,
           brake_comparison: basicSettled.value.brake_comparison,
@@ -547,7 +551,7 @@ export default function App() {
         setCompareResult(merged);
       }
     } catch (err) {
-      setError(err.message || 'Error desconocido al analizar.');
+      setError(err.message || t.errorUnknown);
     } finally {
       setLoading(false);
     }
@@ -576,10 +580,10 @@ export default function App() {
     setFixedDistance(null);
 
     try {
-      const data = await compareSessionLaps(files[0], lapA, lapB);
+      const data = await compareSessionLaps(files[0], lapA, lapB, lang);
       setCompareResult(data);
     } catch (err) {
-      setCompareError(err.message || 'Error al comparar las vueltas.');
+      setCompareError(err.message || t.errorCompare);
       setComparingLaps(null);
     } finally {
       setCompareLoading(false);
@@ -610,7 +614,7 @@ export default function App() {
     if (!compareResult || pdfLoading) return;
     setPdfLoading(true);
     try {
-      const blob = await downloadPdfReport(compareResult);
+      const blob = await downloadPdfReport(compareResult, lang);
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       const meta = compareResult.metadata || {};
@@ -621,7 +625,7 @@ export default function App() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Error descargando PDF:', err);
+      console.error('Error downloading PDF:', err);
     } finally {
       setPdfLoading(false);
     }
@@ -637,14 +641,14 @@ export default function App() {
     setActiveCorner(null);
     setFixedDistance(null);
     try {
-      const data = await compareSessionLaps(files[0], 0, 0);
+      const data = await compareSessionLaps(files[0], 0, 0, lang);
       const meta = data?.metadata || {};
       const lapA = parseInt(meta.label_a?.replace('V', '') || '0');
       const lapB = parseInt(meta.label_b?.replace('V', '') || '0');
       setComparingLaps([lapA, lapB]);
       setCompareResult(data);
     } catch (err) {
-      setCompareError(err.message || 'Error al comparar las vueltas.');
+      setCompareError(err.message || t.errorCompare);
     } finally {
       setCompareLoading(false);
     }
@@ -656,33 +660,50 @@ export default function App() {
       <div className="topbar">
         <div className="topbar__brand">
           <div className="topbar__logo">⚡</div>
-          <span className="topbar__name">Motorsport Analytics</span>
-          <span className="topbar__version">v2.0.0</span>
+          <span className="topbar__name">{t.appBrand}</span>
+          <span className="topbar__version">{t.appVersion}</span>
         </div>
         <div className="topbar__status">
           <div className="topbar__status-dot" />
-          Sistema Listo
+          {t.systemReady}
         </div>
+        <button
+          onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
+          style={{
+            background: 'rgba(0,212,255,0.08)',
+            border: '1px solid rgba(0,212,255,0.25)',
+            borderRadius: 6,
+            color: '#00D4FF',
+            cursor: 'pointer',
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: 1,
+            padding: '4px 12px',
+            transition: 'background 0.15s',
+          }}
+          title={t.langSwitchTo}
+        >
+          {t.langCurrent}
+        </button>
       </div>
 
       {/* Hero */}
       <div className="hero">
         <div className="hero__eyebrow">
           <span>◉</span>
-          Telemetría · Assetto Corsa ACTI
+          {t.telemetryEyebrow}
         </div>
-        <h1 className="hero__title">El Analista Automatizado</h1>
+        <h1 className="hero__title">{t.appName}</h1>
         <p className="hero__subtitle">
-          Sube un CSV de sesión para análisis completo y comparación de vueltas.
-          O arrastra múltiples vueltas para comparar directamente.
+          {t.appSubtitle}
         </p>
       </div>
 
       {/* ── Upload Zone ── */}
-      <section className="section card" aria-label="Cargar telemetría">
+      <section className="section card" aria-label={t.uploadAria}>
         <div className="card__title">
           <span className="card__title-icon">▤</span>
-          Cargar Telemetría
+          {t.uploadTitle}
           {files.length > 0 && (
             <span style={{
               marginLeft: 'auto', fontSize: '0.68rem', padding: '3px 9px',
@@ -691,7 +712,7 @@ export default function App() {
               border: `1px solid ${isSessionMode ? 'var(--cyan-border)' : 'rgba(0,230,118,0.2)'}`,
               borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
             }}>
-              {isSessionMode ? '◎ Modo Sesión' : `⚡ ${files.length} Vueltas`}
+              {isSessionMode ? `◎ ${t.modeSession}` : t.modeBadgeCount(files.length)}
             </span>
           )}
         </div>
@@ -710,9 +731,9 @@ export default function App() {
           }}
         >
           <div className="dropzone__icon">◎</div>
-          <div className="dropzone__label">Arrastra archivos CSV aquí</div>
+          <div className="dropzone__label">{t.dropzoneLabel}</div>
           <div className="dropzone__sub">
-            1 CSV → análisis de sesión + selección de vueltas · 2+ CSV → comparación directa
+            {t.dropzoneSub}
           </div>
         </div>
         <input
@@ -729,7 +750,7 @@ export default function App() {
             {files.map((f, i) => (
               <div key={i} className="stint-file-row">
                 <span className="stint-file-row__num" style={{ color: LAP_COLORS[i % LAP_COLORS.length] }}>
-                  {isSessionMode ? '◉' : `V${i + 1}`}
+                  {t.appFileRowNum(isSessionMode, i)}
                 </span>
                 <span className="stint-file-row__name" title={f.name}>{f.name}</span>
                 <span style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontFamily: "'JetBrains Mono', monospace" }}>
@@ -738,7 +759,7 @@ export default function App() {
                 <button
                   className="stint-file-row__remove"
                   onClick={e => { e.stopPropagation(); removeFile(i); }}
-                  aria-label={`Quitar ${f.name}`}
+                  aria-label={t.removeFile(f.name)}
                 >×</button>
               </div>
             ))}
@@ -749,7 +770,7 @@ export default function App() {
           <div className="error-banner" role="alert">
             <span className="error-banner__icon">✕</span>
             <div className="error-banner__text">
-              <div className="error-banner__title">Error de análisis</div>
+              <div className="error-banner__title">{t.errorTitle}</div>
               {error}
             </div>
           </div>
@@ -761,10 +782,10 @@ export default function App() {
           disabled={!files.length || loading}
         >
           {loading
-            ? <><div className="spinner" /> Procesando telemetría...</>
+            ? <><div className="spinner" /> {t.appAnalyzeProcessing}</>
             : isSessionMode
-              ? '◉ Analizar Sesión Completa'
-              : `⚡ Comparar ${files.length} Vuelta${files.length !== 1 ? 's' : ''}`
+              ? t.appAnalyzeSession
+              : t.appAnalyzeCompare(files.length)
           }
         </button>
       </section>
@@ -799,7 +820,7 @@ export default function App() {
                 disabled={compareLoading}
                 style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '0.8rem', padding: '6px 14px' }}
               >
-                {compareLoading ? '⏳ Comparando…' : '🏆 Comparar Mejor vs Peor'}
+                {compareLoading ? t.appComparing : t.appCompareBestWorst}
               </button>
             </div>
           </div>
@@ -814,6 +835,28 @@ export default function App() {
               {stintResult.combustible?.available && (
                 <div style={{ marginTop: 'var(--s4)' }}>
                   <PitWindowWidget combustible={stintResult.combustible} />
+                </div>
+              )}
+              {stintResult.curvas_sesion?.available && (
+                <div style={{ marginTop: 'var(--s4)' }}>
+                  <CornerAnalysisPanel
+                    result={{
+                      corners: stintResult.curvas_sesion.corners,
+                      setup_advisor: stintResult.setup_sesion,
+                    }}
+                    metadata={{
+                      label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
+                      label_b: `${t.avgTime} ${stintResult.curvas_sesion.n_laps_compared} ${t.timelineLap}`,
+                    }}
+                    sessionMode
+                    referenceLap={stintResult.curvas_sesion.reference_lap}
+                    nLaps={stintResult.curvas_sesion.n_laps_compared}
+                  />
+                </div>
+              )}
+              {stintResult.setup_sesion?.available && (
+                <div style={{ marginTop: 'var(--s4)' }}>
+                  <SetupRecommendations setup_advisor={stintResult.setup_sesion} />
                 </div>
               )}
             </div>

@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useLanguage } from '../context/LanguageContext';
 
-const MAX_SIZE = 100 * 1024 * 1024; // 100 MB
+const MAX_SIZE = 100 * 1024 * 1024;
 
 const FileUploader = ({ label, selectedFile, onFileSelect }) => {
+  const { t } = useLanguage();
   const onDrop = useCallback(
     (accepted) => {
       if (accepted.length > 0) onFileSelect(accepted[0]);
@@ -36,11 +38,11 @@ const FileUploader = ({ label, selectedFile, onFileSelect }) => {
         {selectedFile ? '✓' : isDragActive ? '⬇' : '▤'}
       </div>
       <div className="dropzone__label">
-        {selectedFile ? selectedFile.name : (isDragActive ? 'Suelta aquí' : label)}
+        {selectedFile ? selectedFile.name : (isDragActive ? t.fileDropHere : label)}
       </div>
       {!selectedFile && (
         <div className="dropzone__sub">
-          Arrastra o haz clic · Solo .csv · Máx {MAX_SIZE / 1024 / 1024} MB
+          {t.fileLabel.replace('{max}', MAX_SIZE / 1024 / 1024)}
         </div>
       )}
       {selectedFile && (
