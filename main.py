@@ -81,6 +81,8 @@ from src.analytics.slip_angle import analizar_slip_angle
 from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
 from src.analytics.session_corner_analysis import analizar_curvas_sesion
 from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
+from src.analytics.tyre_degradation import predecir_degradacion_neumatico
+from src.analytics.racing_line_rl import optimizar_trazada_rl
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -1128,7 +1130,7 @@ async def analyze_stint_endpoint(
         logger.info("Paso 4/4: Simulación Monte Carlo...")
         montecarlo = simular_tiempos_stint(df_laps, degradacion)
 
-        logger.info("Paso 5/5: Análisis de curvas y telemetría por sesión...")
+        logger.info("Paso 5/7: Análisis de curvas y telemetría por sesión...")
         curvas_sesion:     dict = {"available": False}
         telemetria_sesion: dict = {"available": False}
         setup_sesion:      dict = {"available": False}
@@ -1148,6 +1150,20 @@ async def analyze_stint_endpoint(
         except Exception as _exc:
             logger.warning("setup_sesion: %s", _exc)
 
+        logger.info("Paso 6/7: Predicción de degradación de neumáticos...")
+        degradacion_neumatico: dict = {"available": False}
+        try:
+            degradacion_neumatico = predecir_degradacion_neumatico(dfs, df_laps)
+        except Exception as _exc:
+            logger.warning("tyre_degradation: %s", _exc)
+
+        logger.info("Paso 7/7: Optimización de trazada por RL...")
+        racing_line_rl: dict = {"available": False}
+        try:
+            racing_line_rl = optimizar_trazada_rl(dfs, df_laps)
+        except Exception as _exc:
+            logger.warning("racing_line_rl: %s", _exc)
+
         laps_json = df_laps.where(df_laps.notna(), None).to_dict(orient="records")
 
         logger.info(
@@ -1163,9 +1179,11 @@ async def analyze_stint_endpoint(
             "degradacion":        degradacion,
             "combustible":        combustible,
             "montecarlo":         montecarlo,
-            "curvas_sesion":      curvas_sesion,
-            "telemetria_sesion":  telemetria_sesion,
-            "setup_sesion":       setup_sesion,
+            "curvas_sesion":        curvas_sesion,
+            "telemetria_sesion":    telemetria_sesion,
+            "setup_sesion":         setup_sesion,
+            "degradacion_neumatico": degradacion_neumatico,
+            "racing_line_rl":        racing_line_rl,
         }))
 
     except HTTPException:
