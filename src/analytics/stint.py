@@ -179,7 +179,9 @@ def extraer_metricas_por_vuelta(dfs):
         lat = _find_channel(df, ["LateralG", "Lateral G"])
         lon = _find_channel(df, ["LongitudinalG", "Longitudinal G"])
         if lat and lon:
-            g_sum = np.sqrt(df[lat]**2 + df[lon]**2)
+            g_lat = pd.to_numeric(df[lat], errors="coerce")
+            g_lon = pd.to_numeric(df[lon], errors="coerce")
+            g_sum = np.sqrt(g_lat**2 + g_lon**2)
             row["max_g_sum"]  = round(float(g_sum.max()),  3)
             row["mean_g_sum"] = round(float(g_sum.mean()), 3)
         else:
