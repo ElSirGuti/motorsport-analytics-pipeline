@@ -12,8 +12,10 @@ env/
 .venv/
 
 # Data (CSVs locales — no subir a git)
+*.csv
 data/raw/
 data/processed/
+tmp/
 
 # IDE
 .vscode/
