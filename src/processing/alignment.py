@@ -34,77 +34,87 @@ def align_by_distance(df: pd.DataFrame, distance_step: float = 1.0) -> pd.DataFr
         DataFrame con distancia uniforme como índice implícito.
     """
     logger.info(f"Alineando por distancia con paso de {distance_step}m")
-    
+
     # Validar que Distance existe y es monótonamente creciente
     if "Distance" not in df.columns:
         raise ValueError("El DataFrame no contiene la columna 'Distance'")
-    
+
     # Eliminar duplicados de distancia (mantener el primero)
     df = df.drop_duplicates(subset=["Distance"], keep="first").copy()
-    
+
     # Asegurar orden creciente
     df = df.sort_values("Distance").reset_index(drop=True)
-    
-    # Definir el nuevo vector de distancia uniforme
+
     d_min = np.ceil(df["Distance"].min())
     d_max = np.floor(df["Distance"].max())
-    new_distance = np.arange(d_min, d_max + distance_step, distance_step)
-    
+
     logger.info(f"  Rango original: [{df['Distance'].min():.1f}, {df['Distance'].max():.1f}]m "
                 f"({len(df)} muestras)")
+
+    # Si el segmento no tiene rango útil (ej. 1 sola fila o distancia = 0)
+    if d_max <= d_min or len(df) < 2:
+        logger.warning(f"  Segmento con rango de distancia insuficiente ({len(df)} fila(s)). "
+                       f"Devolviendo copia sin reinterpolación.")
+        return df.reset_index(drop=True)
+
+    new_distance = np.arange(d_min, d_max + distance_step, distance_step)
     logger.info(f"  Rango alineado: [{d_min:.1f}, {d_max:.1f}]m "
                 f"({len(new_distance)} muestras)")
-    
+
+    n_pts = len(df)
+
+    def _pick_method(channel: str) -> str:
+        if channel == "Gear":
+            return "nearest"
+        if n_pts >= 4:
+            return "cubic"
+        if n_pts >= 2:
+            return "linear"
+        return "nearest"
+
     # Interpolar cada canal
     result = {"Distance": new_distance}
-    
-    # Columnas a interpolar (todas excepto Distance)
     channels_to_interpolate = [col for col in df.columns if col != "Distance"]
-    
+
     for channel in channels_to_interpolate:
         if df[channel].dtype in [np.float64, np.float32, np.int64, np.int32, float, int]:
-            try:
-                # Usar interpolación cúbica para canales continuos
-                # Para 'Gear' usar interpolación nearest (es un valor discreto)
-                method = "nearest" if channel == "Gear" else "cubic"
-                
-                interpolator = interp1d(
-                    df["Distance"].values,
-                    df[channel].values,
-                    kind=method,
-                    bounds_error=False,
-                    fill_value="extrapolate"
-                )
-                result[channel] = interpolator(new_distance)
-                
-            except Exception as e:
-                logger.warning(f"  No se pudo interpolar el canal '{channel}': {e}")
-                # Fallback a interpolación lineal
-                interpolator = interp1d(
-                    df["Distance"].values,
-                    df[channel].values,
-                    kind="linear",
-                    bounds_error=False,
-                    fill_value="extrapolate"
-                )
-                result[channel] = interpolator(new_distance)
+            col_vals = df[channel].values
+
+            # Try primary method, fall back progressively: cubic → linear → nearest
+            for method in [_pick_method(channel), "linear", "nearest"]:
+                try:
+                    interpolator = interp1d(
+                        df["Distance"].values,
+                        col_vals,
+                        kind=method,
+                        bounds_error=False,
+                        fill_value="extrapolate",
+                    )
+                    result[channel] = interpolator(new_distance)
+                    break
+                except Exception as e:
+                    if method == "nearest":
+                        # Last resort: fill with the only available value
+                        result[channel] = np.full(len(new_distance), col_vals[0] if len(col_vals) else np.nan)
+                        break
+                    logger.debug(f"  método '{method}' falló en '{channel}': {e}. Probando siguiente.")
         else:
-            logger.warning(f"  Canal '{channel}' no es numérico, se omite en la interpolación.")
-    
+            logger.debug(f"  Canal '{channel}' no es numérico, se omite en la interpolación.")
+
     df_aligned = pd.DataFrame(result)
-    
+
     # Post-procesamiento: clipear valores que no deben ser negativos
     for col in ["Speed", "Brake", "Throttle", "RPM"]:
         if col in df_aligned.columns:
             df_aligned[col] = df_aligned[col].clip(lower=0)
-    
+
     # Clipear freno y acelerador a 100%
     for col in ["Brake", "Throttle"]:
         if col in df_aligned.columns:
             df_aligned[col] = df_aligned[col].clip(upper=100)
-    
+
     logger.info(f"  ✓ Alineación completada: {df_aligned.shape}")
-    
+
     return df_aligned
 
 

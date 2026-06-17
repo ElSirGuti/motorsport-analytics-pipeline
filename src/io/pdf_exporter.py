@@ -474,7 +474,7 @@ def _chart_corner_losses(result: dict, la: str, lb: str,
 
 # ── Section builders ──────────────────────────────────────────────────────────
 
-def _section_identity(result: dict, s: dict) -> list:
+def _section_identity(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
@@ -504,7 +504,7 @@ def _section_identity(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_summary(result: dict, s: dict) -> list:
+def _section_summary(result: dict, s: dict, lang: str = 'es') -> list:
     summary = result.get("summary", {})
     meta    = result.get("metadata", {})
     la = meta.get("label_a", "Vuelta A")
@@ -534,7 +534,7 @@ def _section_summary(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_speed_delta(result: dict, s: dict) -> list:
+def _section_speed_delta(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
@@ -567,7 +567,7 @@ def _section_speed_delta(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_brake_throttle(result: dict, s: dict) -> list:
+def _section_brake_throttle(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
@@ -585,7 +585,7 @@ def _section_brake_throttle(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_gg(result: dict, s: dict) -> list:
+def _section_gg(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
@@ -604,7 +604,7 @@ def _section_gg(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_tyres(result: dict, s: dict) -> list:
+def _section_tyres(result: dict, s: dict, lang: str = 'es') -> list:
     tyre = result.get("tyre_analysis", {})
     if not tyre.get("available"):
         return []
@@ -650,7 +650,7 @@ def _section_tyres(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_brakes(result: dict, s: dict) -> list:
+def _section_brakes(result: dict, s: dict, lang: str = 'es') -> list:
     brake = result.get("brake_analysis", {})
     if not brake.get("available"):
         return []
@@ -706,7 +706,7 @@ def _section_brakes(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_inputs(result: dict, s: dict) -> list:
+def _section_inputs(result: dict, s: dict, lang: str = 'es') -> list:
     inputs = result.get("driver_inputs", {})
     if not inputs.get("available"):
         return []
@@ -749,7 +749,7 @@ def _section_inputs(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_suspension(result: dict, s: dict) -> list:
+def _section_suspension(result: dict, s: dict, lang: str = 'es') -> list:
     susp = result.get("suspension", {})
     if not susp.get("available"):
         return []
@@ -806,7 +806,7 @@ def _section_suspension(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_slip(result: dict, s: dict) -> list:
+def _section_slip(result: dict, s: dict, lang: str = 'es') -> list:
     slip = result.get("slip_angle", {})
     if not slip.get("available"):
         return []
@@ -848,7 +848,7 @@ def _section_slip(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_corners(result: dict, s: dict) -> list:
+def _section_corners(result: dict, s: dict, lang: str = 'es') -> list:
     corners = result.get("corners", [])
     if not corners:
         return []
@@ -890,7 +890,7 @@ def _section_corners(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_corner_analysis(result: dict, s: dict) -> list:
+def _section_corner_analysis(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
     la   = meta.get("label_a", "A")
     lb   = meta.get("label_b", "B")
@@ -944,7 +944,7 @@ def _section_corner_analysis(result: dict, s: dict) -> list:
     return elems
 
 
-def _section_setup_advisor(result: dict, s: dict) -> list:
+def _section_setup_advisor(result: dict, s: dict, lang: str = 'es') -> list:
     advisor = result.get("setup_advisor") or {}
     if not advisor.get("available"):
         return []
@@ -1024,31 +1024,31 @@ def export_report_pdf(comparison_result: dict, filepath: Optional[str] = None, l
     s     = _styles()
     story: list = []
 
-    story += _section_identity(comparison_result, s)
+    story += _section_identity(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.4*cm))
-    story += _section_summary(comparison_result, s)
+    story += _section_summary(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.4*cm))
-    story += _section_speed_delta(comparison_result, s)
+    story += _section_speed_delta(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_brake_throttle(comparison_result, s)
+    story += _section_brake_throttle(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_gg(comparison_result, s)
+    story += _section_gg(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_tyres(comparison_result, s)
+    story += _section_tyres(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_brakes(comparison_result, s)
+    story += _section_brakes(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_inputs(comparison_result, s)
+    story += _section_inputs(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_suspension(comparison_result, s)
+    story += _section_suspension(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_slip(comparison_result, s)
+    story += _section_slip(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_corner_analysis(comparison_result, s)
+    story += _section_corner_analysis(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_setup_advisor(comparison_result, s)
+    story += _section_setup_advisor(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.3*cm))
-    story += _section_corners(comparison_result, s)
+    story += _section_corners(comparison_result, s, lang=lang)
 
     story.append(Spacer(1, 0.5*cm))
     story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#AAAACC")))

@@ -15,6 +15,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 
 from dotenv import load_dotenv
 
@@ -28,9 +29,8 @@ from fastapi.responses import JSONResponse, Response
 # ── Configuración desde entorno ──────────────────────────────────────────────
 CORS_ORIGINS = [o.strip() for o in os.getenv(
     "CORS_ORIGINS",
-    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000",
+    "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000"
 ).split(",") if o.strip()]
-
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
 # Directorio temporal: preferir variable de entorno, luego carpeta /tmp del proyecto
@@ -38,8 +38,7 @@ _project_tmp = os.getenv("TEMP_DIR", os.path.join(os.path.dirname(os.path.abspat
 os.makedirs(_project_tmp, exist_ok=True)
 tempfile.tempdir = _project_tmp
 
-# Límite de tamaño por archivo: default 100 MB
-MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "100")) * 1024 * 1024
+# Límite de tamaño por archivo eliminado
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -101,16 +100,12 @@ app.add_middleware(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
-async def _read_upload(upload: UploadFile) -> bytes:
-    """Lee un UploadFile y valida el límite de tamaño."""
-    content = await upload.read()
-    if len(content) > MAX_UPLOAD_BYTES:
-        max_mb = MAX_UPLOAD_BYTES // (1024 * 1024)
-        raise HTTPException(
-            status_code=413,
-            detail=f"El archivo '{upload.filename}' supera el límite de {max_mb} MB.",
-        )
-    return content
+import shutil
+
+async def _save_upload(upload: UploadFile, dest_path: str):
+    """Guarda un UploadFile directamente a disco usando chunks para no saturar la RAM."""
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(upload.file, buffer)
 
 
 import math
@@ -134,6 +129,10 @@ def _sanitize(obj):
     """Recursively replace NaN/Inf floats with None so the payload is JSON-safe."""
     if isinstance(obj, float):
         return None if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    if isinstance(obj, np.generic):
+        return obj.item()
     if isinstance(obj, dict):
         return {k: _sanitize(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -192,10 +191,9 @@ async def generate_pdf_report(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-        content = await _read_upload(session_file)
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_pdf_")
         path = os.path.join(tmp_dir, "session.csv")
-        Path(path).write_bytes(content)
+        await _save_upload(session_file, path)
 
         df = load_telemetry_data(path)
         df = apply_standard_filters(df)
@@ -317,15 +315,11 @@ async def compare_laps_endpoint(
     try:
         lang = _detect_lang(request)
 
-        content_a = await _read_upload(lap_a)
-        content_b = await _read_upload(lap_b)
-
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_")
         path_a = os.path.join(tmp_dir, "lap_a.csv")
         path_b = os.path.join(tmp_dir, "lap_b.csv")
-
-        Path(path_a).write_bytes(content_a)
-        Path(path_b).write_bytes(content_b)
+        await _save_upload(lap_a, path_a)
+        await _save_upload(lap_b, path_b)
 
         logger.info("Paso 1/4: Cargando datos...")
         df_a = load_telemetry_data(path_a)
@@ -525,11 +519,9 @@ async def analyze_session_endpoint(
     try:
         lang = _detect_lang(request)
 
-        content = await _read_upload(session_file)
-
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_session_")
         path = os.path.join(tmp_dir, "session.csv")
-        Path(path).write_bytes(content)
+        await _save_upload(session_file, path)
 
         logger.info("Paso 1/2: Cargando sesión completa...")
         df = load_telemetry_data(path)
@@ -598,10 +590,9 @@ async def compare_session_laps_endpoint(
     try:
         lang = _detect_lang(request)
 
-        content = await _read_upload(session_file)
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_csl_")
         path = os.path.join(tmp_dir, "session.csv")
-        Path(path).write_bytes(content)
+        await _save_upload(session_file, path)
 
         logger.info("Paso 1/3: Cargando sesión...")
         df = load_telemetry_data(path)
@@ -729,12 +720,24 @@ async def compare_session_laps_endpoint(
             result["suspension"]     = susp_data
             result["slip_angle"]     = slip_data
             logger.info(
-                "✓ Pipeline avanzado completado: %d apexes, %d eventos, "
-                "neumáticos=%s, frenado=%s, inputs=%s, suspensión=%s",
-                len(apexes), len(eventos),
-                tyre_data.get("available"), brake_data.get("available"),
-                inputs_data.get("available"), susp_data.get("available"),
+                "✓ Pipeline avanzado completado: %d apexes, %d eventos",
+                len(apexes), len(eventos)
             )
+            
+            # Log missing modules as requested by user
+            modules_status = {
+                "neumáticos": tyre_data.get("available"),
+                "frenado": brake_data.get("available"),
+                "inputs_piloto": inputs_data.get("available"),
+                "suspensión": susp_data.get("available"),
+                "slip_angle": slip_data.get("available")
+            }
+            loaded = [k for k, v in modules_status.items() if v]
+            not_loaded = [k for k, v in modules_status.items() if not v]
+            
+            logger.info(f"  Módulos cargados exitosamente: {', '.join(loaded) if loaded else 'Ninguno'}")
+            if not_loaded:
+                logger.warning(f"  Módulos NO cargados (faltan canales de telemetría): {', '.join(not_loaded)}")
 
         except Exception as exc:
             logger.warning("Pipeline avanzado parcialmente disponible: %s", exc, exc_info=False)
@@ -824,14 +827,11 @@ async def compare_telemetry_endpoint(
     try:
         lang = _detect_lang(request)
 
-        content_fast = await _read_upload(lap_fast)
-        content_slow = await _read_upload(lap_slow)
-
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_geo_")
         path_fast = os.path.join(tmp_dir, "lap_fast.csv")
         path_slow = os.path.join(tmp_dir, "lap_slow.csv")
-        Path(path_fast).write_bytes(content_fast)
-        Path(path_slow).write_bytes(content_slow)
+        await _save_upload(lap_fast, path_fast)
+        await _save_upload(lap_slow, path_slow)
 
         # 1. Carga y limpieza
         logger.info("Paso 1/4: Cargando datos...")
@@ -939,14 +939,11 @@ async def analyze_telemetry_endpoint(
     try:
         lang = _detect_lang(request)
 
-        content_fast = await _read_upload(lap_fast)
-        content_slow = await _read_upload(lap_slow)
-
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_dyn_")
         path_fast = os.path.join(tmp_dir, "lap_fast.csv")
         path_slow = os.path.join(tmp_dir, "lap_slow.csv")
-        Path(path_fast).write_bytes(content_fast)
-        Path(path_slow).write_bytes(content_slow)
+        await _save_upload(lap_fast, path_fast)
+        await _save_upload(lap_slow, path_slow)
 
         logger.info("Paso 1/7: Cargando datos...")
         df_fast_raw = load_telemetry_data(path_fast)
@@ -1091,9 +1088,8 @@ async def analyze_stint_endpoint(
 
         if len(laps) == 1:
             # Session CSV mode — auto-segment into individual laps
-            content = await _read_upload(laps[0])
             path = os.path.join(tmp_dir, "session.csv")
-            Path(path).write_bytes(content)
+            await _save_upload(laps[0], path)
             df_session = load_telemetry_data(path)
             logger.info(f"Modo sesión única: segmentando '{laps[0].filename}' ({len(df_session)} filas)...")
             try:
@@ -1107,9 +1103,8 @@ async def analyze_stint_endpoint(
                     detail="Se requieren mínimo 3 archivos CSV (uno por vuelta) o un único CSV de sesión.",
                 )
             for i, lap_file in enumerate(laps):
-                content = await _read_upload(lap_file)
                 path = os.path.join(tmp_dir, f"lap_{i+1:02d}.csv")
-                Path(path).write_bytes(content)
+                await _save_upload(lap_file, path)
                 dfs.append(load_telemetry_data(path))
 
         if len(dfs) < 3:

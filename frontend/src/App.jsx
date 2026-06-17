@@ -24,7 +24,6 @@ import SetupRecommendations from './components/SetupRecommendations';
 import TyreDegradationPanel from './components/TyreDegradationPanel';
 import RacingLinePanel from './components/RacingLinePanel';
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024;
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 
 function fmtTime(s) {
@@ -477,7 +476,7 @@ export default function App() {
 
   const addFiles = useCallback((incoming) => {
     const csvs = [...incoming].filter(f =>
-      f.name.toLowerCase().endsWith('.csv') && f.size <= MAX_FILE_SIZE
+      f.name.toLowerCase().endsWith('.csv')
     );
     setFiles(prev => {
       const seen = new Set(prev.map(f => f.name + f.size));
@@ -519,10 +518,18 @@ export default function App() {
 
     try {
       if (isSessionMode) {
-        const [sessSettled, stintSettled] = await Promise.allSettled([
-          analyzeSession(files[0], lang),
-          analyzeStint([files[0]], lang),
-        ]);
+        // Sequential to avoid V8 memory spike with 1GB files
+        let sessSettled, stintSettled;
+        try {
+          sessSettled = { status: 'fulfilled', value: await analyzeSession(files[0], lang) };
+        } catch (e) {
+          sessSettled = { status: 'rejected', reason: e };
+        }
+        try {
+          stintSettled = { status: 'fulfilled', value: await analyzeStint([files[0]], lang) };
+        } catch (e) {
+          stintSettled = { status: 'rejected', reason: e };
+        }
         if (sessSettled.status === 'fulfilled') {
           setSessionResult(sessSettled.value);
         } else {
