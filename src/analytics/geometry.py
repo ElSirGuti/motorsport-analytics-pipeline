@@ -33,11 +33,50 @@ SAVGOL_WINDOW  = 75   # metros — ventana macroscópica para Savitzky-Golay
 SAVGOL_ORDER   = 2    # grado del polinomio de suavizado
 RESAMPLE_STEP  = 1.0  # metros entre muestras del eje uniforme
 
-APEX_HEIGHT_MIN    = 0.008   # κ mínima (rectas por debajo quedan excluidas)
-APEX_PROM_FACTOR   = 0.15    # prominencia = 15 % del pico máximo del circuito
-APEX_DISTANCE_MIN  = 100     # metros mínimos entre dos Apex consecutivos
-APEX_THROTTLE_MAX  = 85.0    # % — en un Apex real no se pisa fondo a fondo
+APEX_HEIGHT_MIN    = 0.005   # κ mínima (rectas por debajo quedan excluidas); reducida para capturar curvas de baja curvatura
+APEX_PROM_FACTOR   = 0.10    # prominencia = 10 % del pico máximo (era 15 %) — captura más curvas lentas
+APEX_DISTANCE_MIN  = 80      # metros mínimos entre dos Apex consecutivos (era 100 m)
+APEX_THROTTLE_MAX  = 95.0    # % — en el apex real no se va al 100 %, pero sí se puede abrir un poco (era 85 %)
 
+
+def _synthesize_coordinates_dead_reckoning(df: pd.DataFrame) -> pd.DataFrame:
+    """Synthesize CarCoordX and CarCoordY using dead reckoning if they are missing."""
+    if 'CarCoordX' in df.columns and 'CarCoordY' in df.columns:
+        return df
+
+    if 'Speed' not in df.columns:
+        return df
+
+    speed_ms = pd.to_numeric(df['Speed'], errors='coerce').fillna(0) / 3.6
+    time_col = next((c for c in ['LR Sample Clock', 'HR Sample Clock', 'MR Sample Clock', 'SessionTime', 'Session Time', 'Time', 'time'] if c in df.columns), None)
+    
+    if time_col:
+        t = pd.to_numeric(df[time_col], errors='coerce').ffill().bfill()
+        dt = t.diff().fillna(0).clip(lower=0, upper=0.5)
+    else:
+        dt = pd.Series(1.0 / 60.0, index=df.index)
+
+    heading_rate = None
+    if 'YawRate' in df.columns:
+        yr = pd.to_numeric(df['YawRate'], errors='coerce').fillna(0)
+        if yr.abs().max() > 5.0:
+            yr = np.deg2rad(yr)
+        heading_rate = yr
+    elif 'SteerAngle' in df.columns:
+        steer_deg = pd.to_numeric(df['SteerAngle'], errors='coerce').fillna(0)
+        heading_rate = steer_deg * 0.003
+
+    if heading_rate is None:
+        return df
+
+    heading = np.cumsum((heading_rate * dt).fillna(0).values)
+    dx = (speed_ms * np.cos(heading) * dt).fillna(0)
+    dy = (speed_ms * np.sin(heading) * dt).fillna(0)
+    
+    df_new = df.copy()
+    df_new['CarCoordX'] = np.cumsum(dx.values)
+    df_new['CarCoordY'] = np.cumsum(dy.values)
+    return df_new
 
 def procesar_geometria_pista_perfecta(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -58,6 +97,17 @@ def procesar_geometria_pista_perfecta(df: pd.DataFrame) -> pd.DataFrame:
         interpolados al mismo eje.
     """
     logger.info("🧼 Iniciando purga de ruido y alineación geométrica real...")
+
+    df = _synthesize_coordinates_dead_reckoning(df)
+    
+    if "CarCoordX" not in df.columns or "CarCoordY" not in df.columns:
+        logger.warning("No se pudo sintetizar coordenadas. Fallback a curvatura 0.")
+        dist_max = df["Distance"].max() if not df.empty else 1000.0
+        dist_uniforme = np.arange(0, dist_max, RESAMPLE_STEP)
+        return pd.DataFrame({
+            "Distance": dist_uniforme,
+            "Curvature": np.zeros_like(dist_uniforme)
+        })
 
     # 1. Eliminar duplicados y garantizar orden creciente de distancia
     df = (
@@ -92,6 +142,9 @@ def procesar_geometria_pista_perfecta(df: pd.DataFrame) -> pd.DataFrame:
     numerador    = np.abs(dx * ddy - dy * ddx)
     denominador  = (dx**2 + dy**2) ** 1.5
     curvatura    = np.where(denominador > 1e-6, numerador / denominador, 0.0)
+    
+    # Clip extreme curvature spikes (noise) to a reasonable maximum (R_min = 2m -> k_max = 0.5)
+    curvatura = np.clip(curvatura, 0, 0.5)
 
     df_geo = pd.DataFrame({
         "Distance":  dist_uniforme,

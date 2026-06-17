@@ -20,11 +20,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ── Constantes de detección ───────────────────────────────────────────────────
-BRAKE_THRESHOLD_PCT = 5.0       # % mínimo de freno para considerar frenada activa
+BRAKE_THRESHOLD_PCT = 3.0       # % mínimo de freno para considerar frenada activa (bajado de 5 → 3 para detectar frenadas suaves)
 BRAKE_RELEASE_FACTOR = 0.5      # Factor para determinar fin de frenada (threshold * factor)
-APEX_WINDOW_SAMPLES = 25        # Muestras a cada lado para detectar mínimo local
-APEX_SPEED_FACTOR = 0.85        # El apex debe estar por debajo de este factor de la velocidad media
-APEX_MIN_DISTANCE_M = 100.0     # Distancia mínima (m) entre apex consecutivos
+APEX_WINDOW_SAMPLES = 20        # Muestras a cada lado para detectar mínimo local
+APEX_SPEED_FACTOR = 0.98        # El apex debe estar por debajo de este factor de la velocidad media (era 0.85, se sube para atrapar curvas rápidas)
+APEX_MIN_DISTANCE_M = 50.0      # Distancia mínima entre dos vértices (era 100m, bajado para chicanes)
 FULL_THROTTLE_THRESHOLD_PCT = 98.0  # % mínimo de gas para considerar "fondo"
 FULL_THROTTLE_RESET_PCT = 50.0  # % debajo del cual se resetea el estado de full throttle
 
@@ -36,6 +36,9 @@ def detect_braking_points(df: pd.DataFrame, threshold: float = BRAKE_THRESHOLD_P
     Un punto de frenado se define como el momento donde la presión de freno
     pasa de 0 (o < threshold) a ≥ threshold. En la industria esto se llama
     "brake application point".
+
+    Detecta automáticamente si la escala del freno es 0-1 (iRacing) o 0-100
+    (Assetto Corsa / MoTeC) y normaliza antes de comparar.
     
     Args:
         df: DataFrame alineado por distancia con columnas 'Distance' y 'Brake'.
@@ -45,8 +48,16 @@ def detect_braking_points(df: pd.DataFrame, threshold: float = BRAKE_THRESHOLD_P
         Lista de diccionarios con información de cada punto de frenado:
         [{"distance": float, "index": int, "brake_pressure": float}, ...]
     """
-    brake = df["Brake"].values
-    distance = df["Distance"].values
+    raw_brake = df["Brake"].values
+    distance  = df["Distance"].values
+
+    # Auto-detect scale: iRacing uses 0-1, ACTI/MoTeC uses 0-100
+    brake_max = float(np.nanmax(raw_brake)) if len(raw_brake) > 0 else 0.0
+    if brake_max <= 1.05:
+        brake = raw_brake * 100.0
+        logger.debug("  Freno en escala 0-1 detectado — escalado a 0-100")
+    else:
+        brake = raw_brake
     
     braking_points = []
     is_braking = False

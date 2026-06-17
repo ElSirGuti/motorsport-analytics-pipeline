@@ -4,7 +4,7 @@ import axios from 'axios';
 
 const apiClient = axios.create({
   baseURL: API_URL,
-  timeout: 90000,
+  timeout: 600000, // 10 minutes to allow 1GB+ files
 });
 
 function extractErrorMessage(error) {
@@ -95,7 +95,6 @@ export const compareSessionLaps = async (sessionFile, lapA, lapB, lang = 'en') =
   try {
     const response = await apiClient.post('/compare-session-laps', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 120000,
       params: { lang },
     });
     return response.data;
@@ -120,7 +119,6 @@ export const analyzeStint = async (lapFiles, lang = 'en') => {
   try {
     const response = await apiClient.post('/stint/analyze', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 120000,
       params: { lang },
     });
     return response.data;

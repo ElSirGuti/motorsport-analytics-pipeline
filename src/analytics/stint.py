@@ -53,23 +53,28 @@ def segmentar_vueltas_desde_csv(df: pd.DataFrame) -> list:
         """Resets the Distance column so each lap segment starts at 0."""
         seg = seg.copy()
         if "Distance" in seg.columns:
-            reset = seg["Distance"] - seg["Distance"].iloc[0]
-            if reset.max() > 10.0:
+            reset = pd.to_numeric(seg["Distance"], errors="coerce") - pd.to_numeric(seg["Distance"], errors="coerce").iloc[0]
+            if float(reset.max()) > 10.0:
                 seg["Distance"] = reset
                 return seg
-        # Distance absent or flat (all-zero CSV column) — synthesize from Speed×time
+        # Distance absent or flat — synthesize from Speed × time
         time_ch = next(
-            (c for c in ["LR Sample Clock", "HR Sample Clock", "MR Sample Clock"]
+            (c for c in ["LR Sample Clock", "HR Sample Clock", "MR Sample Clock",
+                          "SessionTime", "Session Time", "Time", "time"]
              if c in seg.columns),
             None,
         )
-        if "Speed" in seg.columns and time_ch:
+        if "Speed" in seg.columns:
             spd = pd.to_numeric(seg["Speed"], errors="coerce").fillna(0) / 3.6
-            t = pd.to_numeric(seg[time_ch], errors="coerce").ffill().bfill()
-            dt = t.diff().fillna(0).clip(lower=0, upper=2.0)
+            if time_ch:
+                t = pd.to_numeric(seg[time_ch], errors="coerce").ffill().bfill()
+                dt = t.diff().fillna(0).clip(lower=0, upper=2.0)
+            else:
+                # No time channel — use 100 Hz fixed interval as fallback
+                dt = pd.Series(1.0 / 100.0, index=seg.index)
             seg["Distance"] = (spd * dt).cumsum()
         elif "Distance" in seg.columns:
-            seg["Distance"] = seg["Distance"] - seg["Distance"].iloc[0]
+            seg["Distance"] = pd.to_numeric(seg["Distance"], errors="coerce") - pd.to_numeric(seg["Distance"], errors="coerce").iloc[0]
         return seg
 
     lap_col = _find_channel(df, _LAP_CHANNELS)
@@ -154,7 +159,7 @@ def extraer_metricas_por_vuelta(dfs):
         # LR/HR Sample Clock = absolute session clock (diff = lap duration)
         # Time / LapTime after alias resolution may be either
         lap_time_s = float("nan")
-        t_col = _find_channel(df, ["LapTime", "Time", "LR Sample Clock", "HR Sample Clock", "MR Sample Clock"])
+        t_col = _find_channel(df, ["LapTime", "Time", "SessionTime", "Session Time", "LR Sample Clock", "HR Sample Clock", "MR Sample Clock"])
         if t_col:
             t = pd.to_numeric(df[t_col], errors="coerce")
             t_start, t_end = float(t.iloc[0]), float(t.iloc[-1])

@@ -14,17 +14,37 @@ def _clean(val):
 
 
 def _auto_select_map_axes(df):
-    """Pick the two coordinate columns with the largest range — horizontal plane."""
+    """Pick the two coordinate columns with the largest range — horizontal plane.
+
+    Checks canonical ACTI names first, then iRacing GPS-style columns.
+    Returns (x_col, y_col) or (None, None) if no suitable pair found.
+    """
+    # ACTI / Assetto Corsa coordinates
     candidates = {}
     for col in ["CarCoordX", "CarCoordY", "CarCoordZ"]:
         if col in df.columns:
             vals = pd.to_numeric(df[col], errors="coerce").dropna()
             if len(vals) > 10:
                 candidates[col] = float(vals.max() - vals.min())
-    if len(candidates) < 2:
-        return None, None
-    ordered = sorted(candidates, key=candidates.get, reverse=True)
-    return ordered[0], ordered[1]
+    if len(candidates) >= 2:
+        ordered = sorted(candidates, key=candidates.get, reverse=True)
+        return ordered[0], ordered[1]
+
+    # iRacing GPS-style columns (lat/lon in decimal degrees or similar)
+    iracing_pairs = [
+        ("Lat", "Lon"),
+        ("GPSlat", "GPSlon"),
+        ("GPS Lat", "GPS Lon"),
+        ("gps_lat", "gps_lon"),
+    ]
+    for x_cand, y_cand in iracing_pairs:
+        if x_cand in df.columns and y_cand in df.columns:
+            vx = pd.to_numeric(df[x_cand], errors="coerce").dropna()
+            vy = pd.to_numeric(df[y_cand], errors="coerce").dropna()
+            if len(vx) > 10 and len(vy) > 10:
+                return x_cand, y_cand
+
+    return None, None
 
 
 def _lap_distance(lap_df, lap_time):
@@ -57,6 +77,74 @@ def _lap_distance(lap_df, lap_time):
     return round(float(spd_ms.mean()) * lap_time, 1)
 
 
+def _dead_reckoning_map(lap_df: pd.DataFrame, n_points: int = 500) -> list:
+    """Reconstruct the circuit shape using dead-reckoning when no GPS/coord columns exist.
+
+    Uses Speed (km/h) and one of:
+      - YawRate (rad/s or deg/s) — most accurate
+      - SteerAngle (deg) as a proxy heading rate
+
+    Integrates to build (x, y) positions in metres.
+    Returns a list of {x, y, distance} dicts (max n_points), or [] if insufficient data.
+    """
+    if "Speed" not in lap_df.columns:
+        return []
+
+    # ── Time step ────────────────────────────────────────────────────────────
+    time_candidates = [
+        "LR Sample Clock", "HR Sample Clock", "MR Sample Clock",
+        "SessionTime", "Session Time", "Time", "time",
+    ]
+    time_col = next((c for c in time_candidates if c in lap_df.columns), None)
+
+    speed_ms = pd.to_numeric(lap_df["Speed"], errors="coerce").fillna(0) / 3.6  # km/h → m/s
+
+    if time_col:
+        t = pd.to_numeric(lap_df[time_col], errors="coerce").ffill().bfill()
+        dt = t.diff().fillna(0).clip(lower=0, upper=0.5)
+    else:
+        # Assume ~60 Hz iRacing default sample rate
+        dt = pd.Series(1.0 / 60.0, index=lap_df.index)
+
+    # ── Heading rate ─────────────────────────────────────────────────────────
+    heading_rate = None  # rad/s
+
+    if "YawRate" in lap_df.columns:
+        yr = pd.to_numeric(lap_df["YawRate"], errors="coerce").fillna(0)
+        # Detect if unit is deg/s (typical range > 5) or rad/s (typical range < 2)
+        if yr.abs().max() > 5.0:
+            yr = np.deg2rad(yr)
+        heading_rate = yr
+
+    elif "SteerAngle" in lap_df.columns:
+        # Rough proxy: treat steer angle (deg) as proportional to yaw rate
+        # Scale factor calibrated empirically (~0.003 rad·s⁻¹ per deg at circuit speeds)
+        steer_deg = pd.to_numeric(lap_df["SteerAngle"], errors="coerce").fillna(0)
+        heading_rate = steer_deg * 0.003
+
+    if heading_rate is None:
+        logger.debug("Dead-reckoning: sin YawRate ni SteerAngle — mapa no disponible")
+        return []
+
+    # ── Integrate heading and position ───────────────────────────────────────
+    heading = np.cumsum((heading_rate * dt).fillna(0).values)  # radians
+    dx = (speed_ms * np.cos(heading) * dt).fillna(0)
+    dy = (speed_ms * np.sin(heading) * dt).fillna(0)
+    x_pos = np.cumsum(dx.values)
+    y_pos = np.cumsum(dy.values)
+    dist  = (speed_ms * dt).cumsum().fillna(0).values
+
+    # ── Downsample to n_points ───────────────────────────────────────────────
+    n = len(x_pos)
+    step = max(1, n // n_points)
+    indices = range(0, n, step)
+
+    return [
+        {"x": float(x_pos[i]), "y": float(y_pos[i]), "distance": float(dist[i])}
+        for i in indices
+    ]
+
+
 def analyze_session(df: pd.DataFrame) -> dict:
     """
     Analiza un DataFrame de telemetría de sesión completa.
@@ -73,7 +161,7 @@ def analyze_session(df: pd.DataFrame) -> dict:
     for i, lap_df in enumerate(lap_dfs, start=1):
         # Lap time — use LapTime (current-lap timer, last value) or session clock diff
         lap_time = None
-        for tc in ["LapTime", "LR Sample Clock", "HR Sample Clock", "MR Sample Clock"]:
+        for tc in ["LapTime", "Time", "SessionTime", "Session Time", "LR Sample Clock", "HR Sample Clock", "MR Sample Clock"]:
             if tc not in lap_df.columns:
                 continue
             t = pd.to_numeric(lap_df[tc], errors="coerce")
@@ -141,10 +229,23 @@ def analyze_session(df: pd.DataFrame) -> dict:
         x_col, y_col = _auto_select_map_axes(fl_df)
         if x_col and y_col:
             step = max(1, len(fl_df) // 500)
-            xs = fl_df[x_col].iloc[::step].fillna(0).tolist()
-            ys = fl_df[y_col].iloc[::step].fillna(0).tolist()
-            track_map = [{"x": float(x), "y": float(y)} for x, y in zip(xs, ys)]
+            xs    = fl_df[x_col].iloc[::step].fillna(0).tolist()
+            ys    = fl_df[y_col].iloc[::step].fillna(0).tolist()
+            dists = (
+                fl_df["Distance"].iloc[::step].fillna(0).tolist()
+                if "Distance" in fl_df.columns else [0.0] * len(xs)
+            )
+            track_map = [
+                {"x": float(x), "y": float(y), "distance": float(d)}
+                for x, y, d in zip(xs, ys, dists)
+            ]
             logger.info("Mapa del circuito: ejes '%s' vs '%s'", x_col, y_col)
+        else:
+            # Dead-reckoning fallback for iRacing (no absolute coords)
+            # Integrate velocity and heading angle to reconstruct path
+            track_map = _dead_reckoning_map(fl_df)
+            if track_map:
+                logger.info("Mapa del circuito: dead-reckoning (sin coordenadas absolutas)")
 
     logger.info("Sesión analizada: %d vueltas válidas de %d segmentos", len(laps_data), len(lap_dfs))
     return {

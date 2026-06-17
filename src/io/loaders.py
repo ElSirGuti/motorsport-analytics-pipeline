@@ -30,7 +30,7 @@ COLUMN_ALIASES = {
     "Speed":    ["Speed", "speed", "SPEED", "SpeedKmh", "speed_kmh", "Velocity", "Ground Speed", "Chassis Velocity X"],
     "Brake":    ["Brake", "brake", "BRAKE", "BrakePressure", "brake_pressure", "BrakeInput", "Brake Pos"],
     "Throttle": ["Throttle", "throttle", "THROTTLE", "Gas", "gas", "ThrottleInput", "Accel", "Throttle Pos"],
-    "Distance": ["Distance", "distance", "DISTANCE", "Dist", "dist", "LapDistance", "lap_distance"],
+    "Distance": ["Distance", "distance", "DISTANCE", "Dist", "dist", "LapDistance", "lap_distance", "Lap Distance"],
     "Gear":     ["Gear", "gear", "GEAR", "GearNumber"],
     "RPM":      ["RPM", "rpm", "Rpm", "EngineRPM", "engine_rpm"],
     "SteerAngle":     ["SteerAngle", "steer_angle", "Steer", "SteeringAngle", "Steering Angle"],
@@ -112,6 +112,7 @@ ESSENTIAL_CHANNELS = ["Speed", "Brake", "Throttle"]
 # Canales de tiempo a intentar en orden para sintetizar Distance
 _TIME_CANDIDATES = [
     "LR Sample Clock", "HR Sample Clock", "MR Sample Clock",
+    "SessionTime", "Session Time",
     "Time", "time", "Lap Time",
 ]
 
@@ -300,14 +301,7 @@ def load_telemetry_data(filepath: str,
     # 2. Resolver alias de columnas
     df = _resolve_column_names(df)
 
-    # 2b. Sintetizar Distance desde Speed+tiempo si no está disponible o si el
-    # canal presente tiene todos los valores en cero (frecuente en CSVs de MoTeC
-    # donde la columna "Distance" existe pero no se registra en sesión completa).
-    dist_max = pd.to_numeric(df["Distance"], errors="coerce").abs().max() if "Distance" in df.columns else 0.0
-    if "Distance" not in df.columns or not (dist_max > 10.0):
-        df = _synthesize_distance(df)
-
-    # 3. Verificación de canales esenciales
+    # 3. Verificación de canales esenciales inicial (sin Distance que puede sintetizarse luego)
     missing = [ch for ch in ESSENTIAL_CHANNELS if ch not in df.columns]
     if missing:
         available = list(df.columns)
@@ -330,13 +324,45 @@ def load_telemetry_data(filepath: str,
             except Exception:
                 pass
 
+    # 5. Si detectamos formato de iRacing (velocidad en m/s), la convertimos a km/h
+    # Ahora que ya se reemplazaron comas por puntos, to_numeric evaluará correctamente
+    is_iracing = (
+        "SessionTime" in df.columns or
+        "Session Time" in df.columns or
+        "SessionLapCount" in df.columns
+    )
+    if "Speed" in df.columns and is_iracing:
+        speed_max = pd.to_numeric(df["Speed"], errors="coerce").max()
+        if speed_max < 120.0:  # 120 m/s = 432 km/h, muy poco probable en km/h para autos de pista
+            logger.info("  Telemetría tipo iRacing detectada (Speed en m/s) -> convirtiendo a km/h")
+            df["Speed"] = pd.to_numeric(df["Speed"], errors="coerce") * 3.6
+
+    # 5b. Normalizar Brake y Throttle de escala 0-1 (iRacing) a 0-100 (canónico)
+    # iRacing normaliza pedales a [0, 1]; ACTI/MoTeC usan [0, 100].
+    # Si el máximo es ≤ 1.05 → multiplicamos por 100 para compatibilidad universal.
+    for pedal_ch in ("Brake", "Throttle"):
+        if pedal_ch in df.columns:
+            pedal_vals = pd.to_numeric(df[pedal_ch], errors="coerce")
+            pedal_max = float(pedal_vals.max()) if not pedal_vals.isnull().all() else 0.0
+            if 0 < pedal_max <= 1.05:
+                logger.info("  Canal '%s' en escala 0-1 → escalado a 0-100 %%", pedal_ch)
+                df[pedal_ch] = pedal_vals * 100.0
+
+
+    # 6. Sintetizar Distance desde Speed+tiempo si no está disponible o si el
+    # canal presente tiene todos los valores en cero (frecuente en CSVs de MoTeC
+    # donde la columna "Distance" existe pero no se registra en sesión completa).
+    dist_max = pd.to_numeric(df["Distance"], errors="coerce").abs().max() if "Distance" in df.columns else 0.0
+    if "Distance" not in df.columns or not (dist_max > 10.0):
+        df = _synthesize_distance(df)
+
     # Asegurar que los canales base sean numéricos (forzando coerción)
     base_channels = ESSENTIAL_CHANNELS + ["Distance"]
     for ch in base_channels:
         if ch in df.columns:
             df[ch] = pd.to_numeric(df[ch], errors="coerce")
 
-    # 5. Interpolar NaN en canales base
+    # 7. Interpolar NaN en canales base
     present_base = [ch for ch in base_channels if ch in df.columns]
     if df[present_base].isnull().any().any():
         logger.warning("Valores NaN detectados en canales base. Interpolando...")
