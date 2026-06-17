@@ -71,17 +71,18 @@ from src.analytics.ml_laptime import (calcular_tiempo_potencial,
                                        enriquecer_corners_con_historial)
 from src.analytics.stint import (extraer_metricas_por_vuelta, analizar_degradacion_stint,
                                   calcular_estrategia_combustible, simular_tiempos_stint,
-                                  segmentar_vueltas_desde_csv)
+                                  segmentar_vueltas_desde_csv, calcular_evolucion_pista)
 from src.analytics.thermodynamics import analizar_neumaticos_comparativo
 from src.analytics.brake_fade import analizar_eficiencia_frenado
 from src.analytics.driver_inputs import analizar_inputs_piloto
 from src.analytics.suspension import analizar_suspension
 from src.analytics.slip_angle import analizar_slip_angle
 from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
-from src.analytics.session_corner_analysis import analizar_curvas_sesion
+from src.analytics.session_corner_analysis import analizar_curvas_sesion, get_corner_observations
 from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 from src.analytics.tyre_degradation import predecir_degradacion_neumatico
 from src.analytics.racing_line_rl import optimizar_trazada_rl
+from src.analytics.thermal_management import analizar_termica, analizar_termica_comparativa
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -141,6 +142,21 @@ def _sanitize(obj):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+def _build_health_summary(result: dict) -> dict:
+    thermal_ok = result.get("thermal_analysis", {}).get("available", False)
+    modules = {
+        "thermal": "ok" if thermal_ok else "unavailable",
+        "setup": "ok" if result.get("setup_sesion") else "unavailable",
+        "tyre_degradation": "ok" if result.get("tyre_degradation", {}).get("available") else "unavailable",
+        "racing_line": "ok" if result.get("racing_line", {}).get("available") else "unavailable",
+        "slip": "ok" if result.get("slip_analysis", {}).get("available") else "unavailable",
+        "corners": "ok" if result.get("corner_analysis") else "unavailable",
+    }
+    unavail = sum(1 for v in modules.values() if v == "unavailable")
+    overall = "critical" if unavail >= 3 else "warning" if unavail >= 1 else "ok"
+    return {**modules, "overall": overall}
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "service": "motorsport-analytics-api", "version": "1.2.0"}
@@ -663,6 +679,23 @@ async def compare_session_laps_endpoint(
             df_geo = procesar_geometria_pista_perfecta(df_a)
             apexes = detectar_apexes_perfectos(df_geo)
 
+            # Fallback: GPS/heading synthesis fails for iRacing (no real GPS track map).
+            # metrics.py already found corners correctly via braking/throttle signals.
+            _apex_source = "geometry"
+            if len(apexes) < 3 and basic_corners:
+                _apex_rows = [
+                    {"Distance": c["ref_apex_distance"], "Speed": c["ref_apex_speed"], "Curvature": 0.02}
+                    for c in basic_corners
+                    if "ref_apex_distance" in c
+                ]
+                if _apex_rows:
+                    apexes = pd.DataFrame(_apex_rows).sort_values("Distance").reset_index(drop=True)
+                    _apex_source = "telemetry"
+                    logger.info(
+                        "Apexes: fallback telemetría — %d curvas (geometría detectó < 3)",
+                        len(apexes),
+                    )
+
             logger.info("Paso avanzado 2/5: Alineación avanzada con Delta_Time...")
             canales_extra = [
                 "LateralG", "LongitudinalG", "SteerAngle", "Brake", "Throttle",
@@ -676,6 +709,10 @@ async def compare_session_laps_endpoint(
                 # brake thermals + yaw
                 "BrakeTempFL", "BrakeTempFR", "BrakeTempRL", "BrakeTempRR",
                 "YawRate",
+                # thermal management
+                "WaterTemp", "OilTemp", "BrakeBias",
+                "TyrePressFL", "TyrePressFR", "TyrePressRL", "TyrePressRR",
+                "TyrePressColdFL", "TyrePressColdFR", "TyrePressColdRL", "TyrePressColdRR",
             ]
             df_adv = alinear_vueltas_y_calcular_delta(
                 df_a, df_b, paso_metros=1.0, canales_extra=canales_extra
@@ -700,9 +737,26 @@ async def compare_session_laps_endpoint(
             inputs_data  = analizar_inputs_piloto(df_adv)
             susp_data    = analizar_suspension(df_adv)
             slip_data    = analizar_slip_angle(df_adv)
+            termica_data = analizar_termica(laps, pd.DataFrame())
 
-            step_c = 1
-            df_curv = df_geo.iloc[::step_c].copy()
+            if _apex_source == "telemetry" and "LateralG_Fast" in df_adv.columns:
+                # GPS curvature unreliable for iRacing — use |LateralG| as curvature proxy
+                _lat = df_adv["LateralG_Fast"].abs()
+                _lat_sm = _lat.rolling(window=75, center=True, min_periods=1).mean()
+                _lat_max = float(_lat_sm.max())
+                _lat_norm = (_lat_sm / _lat_max * 0.08) if _lat_max > 0 else _lat_sm
+                df_curv = pd.DataFrame({
+                    "Distance": df_adv["Distance"],
+                    "Curvature": _lat_norm,
+                }).iloc[::5]
+                # Update apex Curvature so chart dots appear at the actual LateralG peak height
+                if _lat_max > 0:
+                    for _ia in apexes.index:
+                        _d_a = apexes.at[_ia, "Distance"]
+                        _idx_a = (df_adv["Distance"] - _d_a).abs().idxmin()
+                        apexes.at[_ia, "Curvature"] = float(_lat_sm.loc[_idx_a]) / _lat_max * 0.08
+            else:
+                df_curv = df_geo.iloc[::1].copy()
             result["curvatura"]      = df_curv[["Distance", "Curvature"]].where(
                 df_curv[["Distance", "Curvature"]].notna(), None
             ).to_dict(orient="records")
@@ -719,18 +773,20 @@ async def compare_session_laps_endpoint(
             result["driver_inputs"]  = inputs_data
             result["suspension"]     = susp_data
             result["slip_angle"]     = slip_data
+            result["thermal_analysis"] = termica_data
             logger.info(
                 "✓ Pipeline avanzado completado: %d apexes, %d eventos",
                 len(apexes), len(eventos)
             )
-            
+
             # Log missing modules as requested by user
             modules_status = {
                 "neumáticos": tyre_data.get("available"),
                 "frenado": brake_data.get("available"),
                 "inputs_piloto": inputs_data.get("available"),
                 "suspensión": susp_data.get("available"),
-                "slip_angle": slip_data.get("available")
+                "slip_angle": slip_data.get("available"),
+                "thermal": termica_data.get("available"),
             }
             loaded = [k for k, v in modules_status.items() if v]
             not_loaded = [k for k, v in modules_status.items() if not v]
@@ -786,6 +842,7 @@ async def compare_session_laps_endpoint(
             logger.warning("setup_advisor (compare-session-laps): %s", _e)
             result["setup_advisor"] = {"available": False}
         result["text_report"] = export_report_text(result, lang=lang)
+        result["health_summary"] = _build_health_summary(result)
         logger.info("✓ Comparación de vueltas de sesión completada")
         return JSONResponse(content=_sanitize(result))
 
@@ -1120,7 +1177,7 @@ async def analyze_stint_endpoint(
         degradacion = analizar_degradacion_stint(df_laps)
 
         logger.info("Paso 3/4: Calculando estrategia de combustible...")
-        combustible = calcular_estrategia_combustible(df_laps)
+        combustible = calcular_estrategia_combustible(df_laps, dfs=dfs)
 
         logger.info("Paso 4/4: Simulación Monte Carlo...")
         montecarlo = simular_tiempos_stint(df_laps, degradacion)
@@ -1129,8 +1186,10 @@ async def analyze_stint_endpoint(
         curvas_sesion:     dict = {"available": False}
         telemetria_sesion: dict = {"available": False}
         setup_sesion:      dict = {"available": False}
+        _corner_obs: dict = {}   # shared observations — computed once, reused by RL
         try:
-            curvas_sesion = analizar_curvas_sesion(dfs, df_laps, lang=lang)
+            _corner_obs   = get_corner_observations(dfs, df_laps)
+            curvas_sesion = analizar_curvas_sesion(dfs, df_laps, lang=lang, precomputed_obs=_corner_obs)
         except Exception as _exc:
             logger.warning("session_corner_analysis: %s", _exc)
         try:
@@ -1145,6 +1204,12 @@ async def analyze_stint_endpoint(
         except Exception as _exc:
             logger.warning("setup_sesion: %s", _exc)
 
+        termica_sesion: dict = {"available": False}
+        try:
+            termica_sesion = analizar_termica(dfs, df_laps)
+        except Exception as _exc:
+            logger.warning("thermal_management: %s", _exc)
+
         logger.info("Paso 6/7: Predicción de degradación de neumáticos...")
         degradacion_neumatico: dict = {"available": False}
         try:
@@ -1155,9 +1220,17 @@ async def analyze_stint_endpoint(
         logger.info("Paso 7/7: Optimización de trazada por RL...")
         racing_line_rl: dict = {"available": False}
         try:
-            racing_line_rl = optimizar_trazada_rl(dfs, df_laps)
+            racing_line_rl = optimizar_trazada_rl(
+                dfs, df_laps, precomputed_obs=_corner_obs or None
+            )
         except Exception as _exc:
             logger.warning("racing_line_rl: %s", _exc)
+
+        track_evolution: dict = {"available": False}
+        try:
+            track_evolution = calcular_evolucion_pista(df_laps)
+        except Exception as _exc:
+            logger.warning("track_evolution: %s", _exc)
 
         laps_json = df_laps.where(df_laps.notna(), None).to_dict(orient="records")
 
@@ -1167,7 +1240,7 @@ async def analyze_stint_endpoint(
             f"curvas={'sí' if curvas_sesion.get('available') else 'no'}, "
             f"combustible={'sí' if combustible.get('available') else 'no'}"
         )
-        return JSONResponse(content=_sanitize({
+        stint_result = {
             "status":             "success",
             "n_laps":             len(dfs),
             "laps":               laps_json,
@@ -1177,9 +1250,13 @@ async def analyze_stint_endpoint(
             "curvas_sesion":        curvas_sesion,
             "telemetria_sesion":    telemetria_sesion,
             "setup_sesion":         setup_sesion,
+            "thermal_analysis":     termica_sesion,
             "degradacion_neumatico": degradacion_neumatico,
             "racing_line_rl":        racing_line_rl,
-        }))
+            "track_evolution":       track_evolution,
+        }
+        stint_result["health_summary"] = _build_health_summary(stint_result)
+        return JSONResponse(content=_sanitize(stint_result))
 
     except HTTPException:
         raise

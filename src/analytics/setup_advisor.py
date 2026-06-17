@@ -16,9 +16,45 @@ _PRIORITY_RANK = {"alta": 0, "media": 1, "baja": 2}
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+_PILOT_NOTE_MAP: dict[str, str] = {
+    # Understeer
+    "setup_problem_understeer":              "Car is pushing wide — try a later apex and smoother steering inputs",
+    "setup_problem_mild_understeer":         "Car is pushing wide — try a later apex and smoother steering inputs",
+    "setup_problem_understeer_session":      "Car is pushing wide — try a later apex and smoother steering inputs",
+    "setup_problem_mild_understeer_session": "Car is pushing wide — try a later apex and smoother steering inputs",
+    # Oversteer
+    "setup_problem_oversteer":         "Car is rotating early — be patient on throttle application",
+    "setup_problem_oversteer_session": "Car is rotating early — be patient on throttle application",
+    # Brake bias / thermal — front heavy
+    "setup_problem_thermal_front":  "Brakes feel heavy upfront — bias adjustment will improve feel",
+    "setup_problem_front_hotter":   "Brakes feel heavy upfront — bias adjustment will improve feel",
+    "setup_problem_fade":           "Brakes feel heavy upfront — bias adjustment will improve feel",
+    "setup_problem_brake_fade":     "Brakes feel heavy upfront — bias adjustment will improve feel",
+    "setup_problem_fade_zones":     "Brakes feel heavy upfront — bias adjustment will improve feel",
+    # Brake bias / thermal — rear heavy
+    "setup_problem_thermal_rear": "Rear locking under braking — bias adjustment coming",
+    "setup_problem_rear_hotter":  "Rear locking under braking — bias adjustment coming",
+    # Pressure / temperature in-window (when a pressure issue IS flagged the note explains it)
+    "setup_problem_overheat":      "Tyre feel should be neutral — no pressure adjustment needed",
+    "setup_problem_cold":          "Tyre feel should be neutral — no pressure adjustment needed",
+    "setup_problem_temp_overheat": "Tyre feel should be neutral — no pressure adjustment needed",
+    "setup_problem_temp_cold":     "Tyre feel should be neutral — no pressure adjustment needed",
+    # Ride height / bottoming
+    "setup_problem_bottoming":         "Setup change incoming — expect different kerb response next lap",
+    "setup_problem_bottoming_session": "Setup change incoming — expect different kerb response next lap",
+}
+
+_PILOT_NOTE_DEFAULT = "Setup adjustment noted — check feel in next sector"
+
+
+def _pilot_note_for(problem_key: str) -> str:
+    return _PILOT_NOTE_MAP.get(problem_key, _PILOT_NOTE_DEFAULT)
+
+
 def _rec(category: str, problem: str, root_cause: str, recommendation: str,
          gain_lo: float, gain_hi: float, priority: str,
-         detail: str = "", solves: str = "") -> dict:
+         detail: str = "", solves: str = "",
+         _problem_key: str = "") -> dict:
     return {
         "category":      category,
         "problem":       problem,
@@ -30,6 +66,7 @@ def _rec(category: str, problem: str, root_cause: str, recommendation: str,
         "gain_lo":       gain_lo,
         "gain_hi":       gain_hi,
         "priority":      priority,
+        "pilot_note":    _pilot_note_for(_problem_key),
     }
 
 
@@ -47,6 +84,7 @@ def _rec_t(t_cat, t_prob, t_rc, t_rec, t_det, t_sol,
         detail=_tr(t_det, lang=lang, **t_fmt) if t_det else "",
         solves=_tr(t_sol, lang=lang, **t_fmt) if t_sol else "",
         gain_lo=gain_lo, gain_hi=gain_hi, priority=priority,
+        _problem_key=t_prob,
     )
 
 
@@ -476,18 +514,61 @@ def _corner_priority(result: dict, top_n: int = 8, lang: str = "es") -> list:
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
+_DOMAIN_LABELS = {
+    "tyres":      "Neumáticos",
+    "brakes":     "Frenos",
+    "suspension": "Suspensión",
+    "aero":       "Aerodinámica / Balance",
+    "inputs":     "Técnica de Pilotaje",
+    "corners":    "Análisis por Curvas",
+}
+
+
 def analizar_setup(result: dict, lang: str = "es") -> dict:
     """
     Analyse all available telemetry sections and return structured setup
     recommendations with priority ordering and estimated time gains.
+    Always returns areas_status for every analyzed domain (nominal when no issues found).
     """
+    domain_recs = {
+        "tyres":      _analyse_tyres(result, lang=lang),
+        "brakes":     _analyse_brakes(result, lang=lang),
+        "suspension": _analyse_suspension(result, lang=lang),
+        "aero":       _analyse_slip(result, lang=lang),
+        "inputs":     _analyse_inputs(result, lang=lang),
+        "corners":    _analyse_corners(result, lang=lang),
+    }
+
+    domains_avail = {
+        "tyres":      bool((result.get("tyre_analysis") or {}).get("available")),
+        "brakes":     bool((result.get("brake_analysis") or {}).get("available")),
+        "suspension": bool((result.get("suspension") or {}).get("available")),
+        "aero":       bool((result.get("slip_angle") or {}).get("available")),
+        "inputs":     bool((result.get("driver_inputs") or {}).get("available")),
+        "corners":    bool(result.get("corners")),
+    }
+
+    areas_status = []
     recs = []
-    recs += _analyse_tyres(result, lang=lang)
-    recs += _analyse_brakes(result, lang=lang)
-    recs += _analyse_suspension(result, lang=lang)
-    recs += _analyse_slip(result, lang=lang)
-    recs += _analyse_inputs(result, lang=lang)
-    recs += _analyse_corners(result, lang=lang)
+    for domain, domain_list in domain_recs.items():
+        recs += domain_list
+        if not domains_avail[domain]:
+            continue
+        if domain_list:
+            worst = min(domain_list, key=lambda r: _PRIORITY_RANK.get(r["priority"], 9))
+            areas_status.append({
+                "domain":   domain,
+                "label":    _DOMAIN_LABELS[domain],
+                "status":   worst["priority"],
+                "n_issues": len(domain_list),
+            })
+        else:
+            areas_status.append({
+                "domain":   domain,
+                "label":    _DOMAIN_LABELS[domain],
+                "status":   "nominal",
+                "n_issues": 0,
+            })
 
     # De-duplicate by (category + problem) and keep highest-priority version
     seen: dict = {}
@@ -505,11 +586,12 @@ def analizar_setup(result: dict, lang: str = "es") -> dict:
         len(recs), gain_lo, gain_hi
     )
     return {
-        "available":       bool(recs),
-        "recommendations": recs,
-        "corner_priority": _corner_priority(result, lang=lang),
-        "total_gain_lo":   gain_lo,
-        "total_gain_hi":   gain_hi,
+        "available":        bool(recs or areas_status),
+        "recommendations":  recs,
+        "areas_status":     areas_status,
+        "corner_priority":  _corner_priority(result, lang=lang),
+        "total_gain_lo":    gain_lo,
+        "total_gain_hi":    gain_hi,
         "total_gain_range": f"{gain_lo:.2f}–{gain_hi:.2f}",
     }
 

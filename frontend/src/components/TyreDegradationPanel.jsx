@@ -42,7 +42,7 @@ function WearGauge({ pct }) {
         </text>
       </svg>
       <div style={{ fontSize: 10, color: '#506080', letterSpacing: 1, textTransform: 'uppercase' }}>
-        Desgaste actual
+        Current wear
       </div>
     </div>
   );
@@ -75,7 +75,7 @@ function CustomTooltip({ active, payload, label }) {
       border: '1px solid rgba(0,212,255,0.2)',
       borderRadius: 8, padding: '8px 12px', fontSize: 11,
     }}>
-      <div style={{ color: '#00D4FF', marginBottom: 4, fontWeight: 700 }}>Vuelta {label}</div>
+      <div style={{ color: '#00D4FF', marginBottom: 4, fontWeight: 700 }}>Lap {label}</div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color }}>
           {p.name}: <strong>{p.value != null ? `${p.value > 0 ? '+' : ''}${p.value.toFixed(3)}s` : '—'}</strong>
@@ -106,7 +106,7 @@ export default function TyreDegradationPanel({ data }) {
 
   const rateSign = degradation_rate_s_per_lap > 0 ? '+' : '';
   const remainingLabel = typeof remaining_laps === 'number'
-    ? `${remaining_laps} vueltas`
+    ? `${remaining_laps} laps`
     : remaining_laps;
 
   return (
@@ -121,10 +121,10 @@ export default function TyreDegradationPanel({ data }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 14, color: '#00D4FF', textTransform: 'uppercase', letterSpacing: 1 }}>
-            Predicción de Degradación de Neumáticos
+            Tyre Degradation Prediction
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#506080' }}>
-            Regresión polinomial Ridge · {n_laps_analyzed} vueltas analizadas
+            Ridge polynomial regression · {n_laps_analyzed} laps analyzed
           </p>
         </div>
         <div style={{ fontSize: 10, color: '#344050', fontFamily: 'monospace' }}>
@@ -137,17 +137,17 @@ export default function TyreDegradationPanel({ data }) {
         <WearGauge pct={wear_pct} />
         <div style={{ display: 'flex', gap: 10, flex: 1, flexWrap: 'wrap' }}>
           <StatChip
-            label="Δ Actual vs mejor"
+            label="Δ Current vs best"
             value={`${current_delta_s > 0 ? '+' : ''}${current_delta_s.toFixed(3)}s`}
             color={current_delta_s > 0.5 ? '#FF4444' : current_delta_s > 0.15 ? '#FFB800' : '#00CC66'}
           />
           <StatChip
-            label="Tasa degradación"
-            value={`${rateSign}${degradation_rate_s_per_lap.toFixed(4)}s/v`}
+            label="Degradation rate"
+            value={`${rateSign}${degradation_rate_s_per_lap.toFixed(4)}s/lap`}
             color={degradation_rate_s_per_lap > 0.04 ? '#FF4444' : degradation_rate_s_per_lap > 0.015 ? '#FFB800' : '#00CC66'}
           />
           <StatChip
-            label="Vueltas restantes"
+            label="Remaining laps"
             value={remainingLabel}
             color={
               typeof remaining_laps === 'number'
@@ -173,7 +173,7 @@ export default function TyreDegradationPanel({ data }) {
               tick={{ fill: '#506080', fontSize: 10 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.1)' }}
               tickLine={false}
-              label={{ value: 'Vuelta', position: 'insideBottom', offset: -2, fill: '#506080', fontSize: 10 }}
+              label={{ value: 'Lap', position: 'insideBottom', offset: -2, fill: '#506080', fontSize: 10 }}
             />
             <YAxis
               tick={{ fill: '#506080', fontSize: 10 }}
@@ -187,7 +187,7 @@ export default function TyreDegradationPanel({ data }) {
             <Tooltip content={<CustomTooltip />} />
             <Line
               dataKey="actual"
-              name="Δ real"
+              name="Δ actual"
               stroke={wearColor}
               strokeWidth={2}
               dot={{ r: 3, fill: wearColor }}
@@ -195,7 +195,7 @@ export default function TyreDegradationPanel({ data }) {
             />
             <Line
               dataKey="trend"
-              name="Tendencia"
+              name="Trend"
               stroke="rgba(0,212,255,0.5)"
               strokeWidth={1.5}
               strokeDasharray="4 3"
@@ -204,7 +204,7 @@ export default function TyreDegradationPanel({ data }) {
             />
             <Line
               dataKey="projected"
-              name="Proyección"
+              name="Projection"
               stroke="rgba(255,184,0,0.6)"
               strokeWidth={1.5}
               strokeDasharray="2 3"
@@ -228,14 +228,14 @@ export default function TyreDegradationPanel({ data }) {
               border: '1px solid rgba(255,255,255,0.07)',
               borderRadius: 8, padding: '8px 12px',
             }}>
-              <div style={{ fontSize: 10, color: '#506080', marginBottom: 2 }}>EJE DELANTERO</div>
+              <div style={{ fontSize: 10, color: '#506080', marginBottom: 2 }}>FRONT AXLE</div>
               <div style={{
                 fontSize: 14, fontWeight: 700, fontFamily: 'monospace',
                 color: Math.abs(front_temp_trend_c_per_lap) > 1.5 ? '#FFB800' : '#C0C8E0',
               }}>
-                {front_temp_trend_c_per_lap > 0 ? '+' : ''}{front_temp_trend_c_per_lap.toFixed(2)}°C/v
+                {front_temp_trend_c_per_lap > 0 ? '+' : ''}{front_temp_trend_c_per_lap.toFixed(2)}°C/lap
               </div>
-              <div style={{ fontSize: 9, color: '#344050' }}>tendencia térmica</div>
+              <div style={{ fontSize: 9, color: '#344050' }}>thermal trend</div>
             </div>
           )}
           {rear_temp_trend_c_per_lap != null && (
@@ -244,14 +244,14 @@ export default function TyreDegradationPanel({ data }) {
               border: '1px solid rgba(255,255,255,0.07)',
               borderRadius: 8, padding: '8px 12px',
             }}>
-              <div style={{ fontSize: 10, color: '#506080', marginBottom: 2 }}>EJE TRASERO</div>
+              <div style={{ fontSize: 10, color: '#506080', marginBottom: 2 }}>REAR AXLE</div>
               <div style={{
                 fontSize: 14, fontWeight: 700, fontFamily: 'monospace',
                 color: Math.abs(rear_temp_trend_c_per_lap) > 1.5 ? '#FFB800' : '#C0C8E0',
               }}>
-                {rear_temp_trend_c_per_lap > 0 ? '+' : ''}{rear_temp_trend_c_per_lap.toFixed(2)}°C/v
+                {rear_temp_trend_c_per_lap > 0 ? '+' : ''}{rear_temp_trend_c_per_lap.toFixed(2)}°C/lap
               </div>
-              <div style={{ fontSize: 9, color: '#344050' }}>tendencia térmica</div>
+              <div style={{ fontSize: 9, color: '#344050' }}>thermal trend</div>
             </div>
           )}
           {left_mean_temp != null && right_mean_temp != null && (
@@ -260,7 +260,7 @@ export default function TyreDegradationPanel({ data }) {
               border: '1px solid rgba(255,255,255,0.07)',
               borderRadius: 8, padding: '8px 12px',
             }}>
-              <div style={{ fontSize: 10, color: '#506080', marginBottom: 2 }}>ASIMETRÍA L/R</div>
+              <div style={{ fontSize: 10, color: '#506080', marginBottom: 2 }}>L/R ASYMMETRY</div>
               <div style={{
                 fontSize: 14, fontWeight: 700, fontFamily: 'monospace',
                 color: Math.abs(left_mean_temp - right_mean_temp) > 8 ? '#FFB800' : '#C0C8E0',
@@ -284,19 +284,19 @@ export default function TyreDegradationPanel({ data }) {
             borderTop: '1px solid rgba(255,255,255,0.06)',
             paddingTop: 12,
           }}>
-            Factores de desgaste (correlación con degradación)
+            Wear factors (correlation with degradation)
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
             {top_wear_factors.map((f, i) => {
               const FACTOR_LABELS = {
-                lap_number:    'Número de vuelta',
-                mean_lat_g:    'G lateral media',
-                mean_brake_g:  'G frenada media',
-                mean_speed:    'Velocidad media',
+                lap_number:    'Lap number',
+                mean_lat_g:    'Mean lateral G',
+                mean_brake_g:  'Mean braking G',
+                mean_speed:    'Mean speed',
                 temp_fl: 'Temp. FL', temp_fr: 'Temp. FR',
                 temp_rl: 'Temp. RL', temp_rr: 'Temp. RR',
-                stress_fl: 'Estrés térmico FL', stress_fr: 'Estrés térmico FR',
-                stress_rl: 'Estrés térmico RL', stress_rr: 'Estrés térmico RR',
+                stress_fl: 'Thermal stress FL', stress_fr: 'Thermal stress FR',
+                stress_rl: 'Thermal stress RL', stress_rr: 'Thermal stress RR',
               };
               const label = FACTOR_LABELS[f.factor] || f.factor;
               const barPct = Math.min(100, f.correlation * 100);
@@ -321,7 +321,7 @@ export default function TyreDegradationPanel({ data }) {
       )}
 
       <p style={{ margin: '12px 0 0', fontSize: 10, color: '#344050', lineHeight: 1.5 }}>
-        * Predicción basada en regresión polinomial sobre datos de la sesión actual. La precisión mejora con más vueltas. El umbral de "cliff" es una estimación conservadora; los resultados reales dependen de factores externos (temperatura de pista, compuesto, presiones).
+        * Prediction based on polynomial regression over current session data. Accuracy improves with more laps. The "cliff" threshold is a conservative estimate; actual results depend on external factors (track temperature, compound, pressures).
       </p>
     </section>
   );

@@ -21,8 +21,12 @@ import SlipAngleChart from './components/SlipAngleChart';
 import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps, downloadPdfReport } from './api/telemetry';
 import CornerAnalysisPanel from './components/CornerAnalysisPanel';
 import SetupRecommendations from './components/SetupRecommendations';
+import InfoButton from './components/InfoButton';
 import TyreDegradationPanel from './components/TyreDegradationPanel';
 import RacingLinePanel from './components/RacingLinePanel';
+import ThermalManagementPanel from './components/ThermalManagementPanel';
+import HealthDashboard from "./components/HealthDashboard";
+import PilotEngineerToggle, { usePilotMode } from "./components/PilotEngineerToggle";
 
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 
@@ -216,7 +220,18 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
   );
 }
 
-function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading }) {
+function ModuleWithHelp({ children, title, helpContent }) {
+  return (
+    <div style={{ position: 'relative' }}>
+      {children}
+      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+        <InfoButton title={title} content={helpContent} />
+      </div>
+    </div>
+  );
+}
+
+function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode }) {
   const { t } = useLanguage();
   const meta = result?.metadata;
   const title = comparingLaps
@@ -265,6 +280,8 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
           {' '}{t.precisionLine1} {t.precisionLine2} {t.precisionLine3}
         </div>
       )}
+
+      {result && result.health_summary && <HealthDashboard health_summary={result.health_summary} />}
 
       <SummaryCard summary={result.summary} metadata={result.metadata} />
 
@@ -347,9 +364,14 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
         </div>
       )}
 
-      {result.curvatura?.length > 0 && (
+      {!isPilotMode && result.curvatura?.length > 0 && (
         <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-          <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
+          <ModuleWithHelp
+            title="Circuit Curvature Signature"
+            helpContent={"Shows lateral G intensity (|LateralG|) across the lap. Peaks correspond to corners — numbered dots mark the apex positions. A higher peak means a tighter or faster corner. Compare the profile shape between fast and slow laps to identify where the reference lap carries more or less lateral load."}
+          >
+            <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
+          </ModuleWithHelp>
         </div>
       )}
 
@@ -362,45 +384,75 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
         </div>
       )}
 
-      {(result.gg_diagram || result.g_limit) && (
+      {!isPilotMode && (result.gg_diagram || result.g_limit) && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
+          <ModuleWithHelp
+            title="GG Diagram — Grip Utilization"
+            helpContent={"Plots lateral G vs longitudinal G for every telemetry sample. Points near the outer edge of the circle = using the car's full grip. Sparse center = under-driving. The efficiency % shows how each sample compares to the car's grip limit. A well-driven lap fills the outer ring evenly."}
+          >
+            <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
+          </ModuleWithHelp>
         </div>
       )}
 
-      {result.anomaly && (
+      {!isPilotMode && result.anomaly && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
           <AnomalyReport anomaly={result.anomaly} />
         </div>
       )}
 
-      {result.tyre_analysis?.available && (
+      {!isPilotMode && result.tyre_analysis?.available && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
+          <ModuleWithHelp
+            title="Tyre Temperature Analysis"
+            helpContent={"Shows inner / middle / outer tyre temperature per corner. Optimal window: 80–100 °C. Inner hotter than outer → too much negative camber. Outer hotter → too little. Even distribution → camber is well set. Front much hotter than rear → understeer bias or need more rear downforce."}
+          >
+            <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
+          </ModuleWithHelp>
         </div>
       )}
 
-      {result.brake_analysis?.available && (
+      {!isPilotMode && result.brake_analysis?.available && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
+          <ModuleWithHelp
+            title="Brake Efficiency — Fade Analysis"
+            helpContent={"Ratio of generated deceleration to applied brake pressure. Baseline = 1.0. A progressive drop means thermal fade — the pads/discs are overheating. Highlighted zones fell >15% below baseline. Fix: more brake duct opening, harder compound, or reduce brake bias slightly."}
+          >
+            <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
+          </ModuleWithHelp>
         </div>
       )}
 
-      {result.driver_inputs?.available && (
+      {!isPilotMode && result.driver_inputs?.available && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
+          <ModuleWithHelp
+            title="Driver Inputs — Smoothness Analysis"
+            helpContent={"Nervousness index measures steering micro-corrections via FFT. High-frequency spikes (>5 Hz) → damper rebound too stiff. Mid-frequency (2–5 Hz) → spring rate issue. Brake-throttle overlap target: 8–18% for proper trail braking. Low overlap → driver lifting brake too early before apex."}
+          >
+            <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
+          </ModuleWithHelp>
         </div>
       )}
 
-      {result.suspension?.available && (
+      {!isPilotMode && result.suspension?.available && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <SuspensionChart suspension={result.suspension} metadata={meta} />
+          <ModuleWithHelp
+            title="Suspension Analysis — Pitch & Roll"
+            helpContent={"Shows suspension travel in mm. Roll = left/right difference (load transfer in corners). Pitch = front/rear difference (load under braking/acceleration). Bottoming events = damper at full compression — consider raising ride height or increasing bump stiffness. High roll ratio F/R → ARB imbalance."}
+          >
+            <SuspensionChart suspension={result.suspension} metadata={meta} />
+          </ModuleWithHelp>
         </div>
       )}
 
-      {result.slip_angle?.available && (
+      {!isPilotMode && result.slip_angle?.available && (
         <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
+          <ModuleWithHelp
+            title="Slip Angle — Chassis Sideslip"
+            helpContent={"Body sideslip angle β: difference between car heading and velocity direction. High β = sliding. US% = time spent understeering (front slides more). OS% = oversteering (rear slides more). Balance mean > 0 → understeer tendency; < 0 → oversteer. Target: <10% combined US+OS in fast corners."}
+          >
+            <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
+          </ModuleWithHelp>
         </div>
       )}
 
@@ -410,6 +462,22 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
             tiempoPotencial={result.tiempo_potencial}
             xgboostPred={result.xgboost_pred}
             historySamples={result.metadata?.history_samples}
+          />
+        </div>
+      )}
+
+      {result.thermal_analysis?.available && (
+        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <ThermalManagementPanel thermal_analysis={result.thermal_analysis} />
+        </div>
+      )}
+
+      {result.setup_advisor?.available && (
+        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <SetupRecommendations
+            setup_advisor={result.setup_advisor}
+            source="compare"
+            isPilotMode={isPilotMode}
           />
         </div>
       )}
@@ -471,6 +539,8 @@ export default function App() {
   const [fixedDistance, setFixedDistance] = useState(null);
   const [copied, setCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+
+  const [isPilotMode, togglePilotMode] = usePilotMode();
 
   const isSessionMode = files.length === 1;
 
@@ -694,6 +764,7 @@ export default function App() {
         >
           {t.langCurrent}
         </button>
+        <PilotEngineerToggle isPilotMode={isPilotMode} onToggle={togglePilotMode} />
       </div>
 
       {/* Hero */}
@@ -836,6 +907,10 @@ export default function App() {
 
           {stintResult && (
             <div className="section fade-up fade-up--d3">
+              {stintResult && stintResult.health_summary && <HealthDashboard health_summary={stintResult.health_summary} />}
+              {stintResult && stintResult.track_evolution && stintResult.track_evolution.available && (
+                <div style={{color:"#9CA3AF",fontSize:"0.8rem",marginBottom:"8px",padding:"4px 8px"}}>Track evolution: {stintResult.track_evolution.note}</div>
+              )}
               <LapTimelineChart
                 degradacion={stintResult.degradacion}
                 montecarlo={stintResult.montecarlo}
@@ -863,9 +938,14 @@ export default function App() {
                   />
                 </div>
               )}
+              {stintResult.thermal_analysis?.available && (
+                <div style={{ marginTop: 'var(--s4)' }}>
+                  <ThermalManagementPanel thermal_analysis={stintResult.thermal_analysis} />
+                </div>
+              )}
               {stintResult.setup_sesion?.available && (
                 <div style={{ marginTop: 'var(--s4)' }}>
-                  <SetupRecommendations setup_advisor={stintResult.setup_sesion} />
+                  <SetupRecommendations setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
                 </div>
               )}
               {stintResult.degradacion_neumatico?.available && (
@@ -900,6 +980,7 @@ export default function App() {
             onCopyReport={handleCopyReport}
             onPdfDownload={handlePdfDownload}
             pdfLoading={pdfLoading}
+            isPilotMode={isPilotMode}
           />
         </div>
       )}

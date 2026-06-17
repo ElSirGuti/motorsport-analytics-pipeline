@@ -30,21 +30,18 @@ const renderTooltip = ({ active, payload, t }) => {
 const GGDiagramChart = ({ ggData, gLimit }) => {
   const { t } = useLanguage();
 
+  // Backend returns {fast: [{lat,lon,eff},...], slow: [...]}
   const fastPoints = useMemo(() => {
-    if (!ggData?.length) return [];
-    return ggData
-      .filter((d) => d._lap === 'fast')
-      .map((d) => ({ lat: d.lat, lon: d.lon, eff: d.eff, _lap: d._lap }));
+    const src = ggData?.fast ?? (Array.isArray(ggData) ? ggData.filter(d => d._lap === 'fast') : []);
+    return src.map((d) => ({ lat: d.lat, lon: d.lon, eff: d.eff ?? 0, _lap: 'fast' }));
   }, [ggData]);
 
   const slowPoints = useMemo(() => {
-    if (!ggData?.length) return [];
-    return ggData
-      .filter((d) => d._lap === 'slow')
-      .map((d) => ({ lat: d.lat, lon: d.lon, eff: d.eff, _lap: d._lap }));
+    const src = ggData?.slow ?? (Array.isArray(ggData) ? ggData.filter(d => d._lap === 'slow') : []);
+    return src.map((d) => ({ lat: d.lat, lon: d.lon, eff: d.eff ?? 0, _lap: 'slow' }));
   }, [ggData]);
 
-  if (!ggData?.length && !gLimit) return null;
+  if (!fastPoints.length && !slowPoints.length && !gLimit) return null;
 
   const limit = gLimit || 1.3;
 

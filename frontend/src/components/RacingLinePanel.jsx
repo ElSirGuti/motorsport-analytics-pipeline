@@ -13,9 +13,9 @@ const BIN_ICON = {
 };
 
 const BIN_LABEL = {
-  brake: { early: 'Frenada temprana', similar: 'Frenada OK', late: 'Frenada tardía' },
-  apex:  { slow: 'Apex lento', similar: 'Apex OK', fast: 'Apex rápido' },
-  exit:  { late: 'Gas tardío', similar: 'Gas OK', early: 'Gas temprano' },
+  brake: { early: 'Early braking', similar: 'Braking OK', late: 'Late braking' },
+  apex:  { slow: 'Slow apex', similar: 'Apex OK', fast: 'Fast apex' },
+  exit:  { late: 'Late throttle', similar: 'Throttle OK', early: 'Early throttle' },
 };
 
 function PhaseTag({ phase, value, optimal }) {
@@ -38,11 +38,11 @@ function PhaseTag({ phase, value, optimal }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: isOpt ? 0 : 4 }}>
         <span style={{ color, fontFamily: 'monospace', fontSize: 12 }}>{icon}</span>
         <span style={{ color: '#9AAABB' }}>{label}</span>
-        {isOpt && <span style={{ marginLeft: 'auto', fontSize: 9, color: '#00CC66' }}>✓ ÓPT.</span>}
+        {isOpt && <span style={{ marginLeft: 'auto', fontSize: 9, color: '#00CC66' }}>✓ OPT.</span>}
       </div>
       {!isOpt && (
         <div style={{ fontSize: 10, color: '#506080' }}>
-          → objetivo: <span style={{ color: optColor, fontWeight: 600 }}>{optLabel}</span>
+          → target: <span style={{ color: optColor, fontWeight: 600 }}>{optLabel}</span>
         </div>
       )}
     </div>
@@ -68,15 +68,15 @@ function CornerCard({ corner }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: 13, color: '#C0C8E0', fontWeight: 600 }}>Curva {corner_number}</div>
-          <div style={{ fontSize: 10, color: '#506080' }}>{n_laps} vueltas · pérdida media {mean_time_loss_s > 0 ? '+' : ''}{mean_time_loss_s.toFixed(3)}s</div>
+          <div style={{ fontSize: 13, color: '#C0C8E0', fontWeight: 600 }}>Corner {corner_number}</div>
+          <div style={{ fontSize: 10, color: '#506080' }}>{n_laps} laps · avg loss {mean_time_loss_s > 0 ? '+' : ''}{mean_time_loss_s.toFixed(3)}s</div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 15, fontFamily: 'monospace', fontWeight: 700, color: gainColor }}>
             {already_optimal ? '✓' : `+${potential_gain_s.toFixed(3)}s`}
           </div>
           <div style={{ fontSize: 9, color: '#506080' }}>
-            {already_optimal ? 'ya óptimo' : 'ganancia potencial'}
+            {already_optimal ? 'already optimal' : 'potential gain'}
           </div>
         </div>
       </div>
@@ -126,7 +126,7 @@ function QHeatmap({ heatmap, current, optimal }) {
   return (
     <div style={{ marginBottom: 8 }}>
       <div style={{ fontSize: 9, color: '#344050', marginBottom: 4, letterSpacing: 0.5 }}>
-        Q-TABLE · FRENADA × APEX
+        Q-TABLE · BRAKING × APEX
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '40px 1fr 1fr 1fr', gap: 2, fontSize: 9 }}>
         {/* Header row */}
@@ -184,8 +184,8 @@ function QHeatmap({ heatmap, current, optimal }) {
         ))}
       </div>
       <div style={{ display: 'flex', gap: 12, marginTop: 4, fontSize: 9, color: '#344050' }}>
-        <span><span style={{ color: '#00CC66' }}>★</span> Óptimo</span>
-        <span><span style={{ color: '#FFB800' }}>■</span> Actual</span>
+        <span><span style={{ color: '#00CC66' }}>★</span> Optimal</span>
+        <span><span style={{ color: '#FFB800' }}>■</span> Current</span>
       </div>
     </div>
   );
@@ -211,10 +211,10 @@ export default function RacingLinePanel({ data }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h3 style={{ margin: 0, fontSize: 14, color: '#00D4FF', textTransform: 'uppercase', letterSpacing: 1 }}>
-            Optimización de Trazada — Aprendizaje por Refuerzo
+            Racing Line Optimization — Reinforcement Learning
           </h3>
           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#506080' }}>
-            Q-learning tabular · {n_corners} curvas · {optimal} ya óptimas
+            Tabular Q-learning · {n_corners} corners · {optimal} already optimal
           </p>
         </div>
         <div style={{
@@ -222,19 +222,19 @@ export default function RacingLinePanel({ data }) {
           border: '1px solid rgba(0,204,102,0.25)',
           borderRadius: 8, padding: '8px 16px', textAlign: 'center',
         }}>
-          <div style={{ fontSize: 10, color: '#506080', letterSpacing: 1 }}>GANANCIA POTENCIAL TOTAL</div>
+          <div style={{ fontSize: 10, color: '#506080', letterSpacing: 1 }}>TOTAL POTENTIAL GAIN</div>
           <div style={{ fontSize: 20, color: '#00CC66', fontWeight: 700, fontFamily: 'monospace' }}>
             +{total_potential_gain_s.toFixed(3)}s
           </div>
-          <div style={{ fontSize: 9, color: '#406070' }}>si se aplica la trazada óptima</div>
+          <div style={{ fontSize: 9, color: '#406070' }}>if optimal line is applied</div>
         </div>
       </div>
 
       {/* Legend */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 14, fontSize: 10, color: '#506080', flexWrap: 'wrap' }}>
-        <span><span style={{ color: '#00CC66' }}>■</span> Ya óptimo</span>
-        <span><span style={{ color: '#00CC66' }}>▲</span> Apex rápido &nbsp;<span style={{ color: '#FF4444' }}>▼</span> Apex lento</span>
-        <span><span style={{ color: '#FF4444' }}>▶▶</span> Frenada tardía &nbsp;<span style={{ color: '#00CC66' }}>◀◀</span> Frenada temprana</span>
+        <span><span style={{ color: '#00CC66' }}>■</span> Already optimal</span>
+        <span><span style={{ color: '#00CC66' }}>▲</span> Fast apex &nbsp;<span style={{ color: '#FF4444' }}>▼</span> Slow apex</span>
+        <span><span style={{ color: '#FF4444' }}>▶▶</span> Late braking &nbsp;<span style={{ color: '#00CC66' }}>◀◀</span> Early braking</span>
       </div>
 
       {/* Corner cards sorted by potential gain */}
@@ -245,7 +245,7 @@ export default function RacingLinePanel({ data }) {
       </div>
 
       <p style={{ margin: '12px 0 0', fontSize: 10, color: '#344050', lineHeight: 1.5 }}>
-        * Q-learning offline entrenado sobre datos de telemetría histórica de la sesión. El agente aprende qué combinación de frenada/apex/gas produjo menor pérdida de tiempo en vueltas pasadas. Las recomendaciones reflejan patrones estadísticos — validar en pista antes de aplicar cambios drásticos.
+        * Offline Q-learning trained on session historical telemetry data. The agent learns which braking/apex/throttle combination produced the least time loss in past laps. Recommendations reflect statistical patterns — validate on track before applying drastic changes.
       </p>
     </section>
   );

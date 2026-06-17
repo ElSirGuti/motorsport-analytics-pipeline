@@ -23,16 +23,47 @@ const CATEGORY_ICON = {
   'Aplicación de Gas':       '▶',
 };
 
-function RecCard({ rec, index }) {
+function RecCard({ rec, index, isPilotMode }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const PRIORITY_META = {
-    alta:  { label: t.priorityHigh, color: '#FF4444', bg: 'rgba(255,68,68,0.12)'  },
-    media: { label: t.priorityMed,  color: '#FFB800', bg: 'rgba(255,184,0,0.12)'  },
-    baja:  { label: t.priorityLow,  color: '#00CC66', bg: 'rgba(0,204,102,0.10)'  },
+    alta:    { label: t.priorityHigh, color: '#FF4444', bg: 'rgba(255,68,68,0.12)'    },
+    media:   { label: t.priorityMed,  color: '#FFB800', bg: 'rgba(255,184,0,0.12)'    },
+    baja:    { label: t.priorityLow,  color: '#00CC66', bg: 'rgba(0,204,102,0.10)'    },
+    nominal: { label: 'NOMINAL',      color: '#3A5F8A', bg: 'rgba(58,95,138,0.12)'    },
   };
   const pm  = PRIORITY_META[rec.priority] || PRIORITY_META.baja;
   const icon = CATEGORY_ICON[rec.category] || '•';
+
+  if (isPilotMode) {
+    return (
+      <div style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: `1px solid ${pm.color}33`,
+        borderLeft: `3px solid ${pm.color}`,
+        borderRadius: 8,
+        marginBottom: 8,
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+      }}>
+        <span style={{ fontSize: 22, minWidth: 28, textAlign: 'center' }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: pm.color, letterSpacing: 1, marginBottom: 4 }}>
+            {pm.label}
+          </div>
+          <p style={{ margin: 0, fontSize: 13, color: '#E0E8F0', fontWeight: 500, lineHeight: 1.4 }}>
+            {rec.pilot_note || rec.problem}
+          </p>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{ fontSize: 12, color: '#00D4FF', fontWeight: 700 }}>{rec.expected_gain}</div>
+          <div style={{ fontSize: 9, color: '#506080' }}>potential</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -119,12 +150,12 @@ function RecCard({ rec, index }) {
   );
 }
 
-export default function SetupRecommendations({ setup_advisor }) {
+export default function SetupRecommendations({ setup_advisor, source, isPilotMode }) {
   const { t } = useLanguage();
   const [filter, setFilter] = useState('all');
 
-  if (!setup_advisor?.available) return null;
-  const { recommendations = [], total_gain_range, total_gain_lo, total_gain_hi } = setup_advisor;
+  if (!setup_advisor?.available && !setup_advisor?.areas_status?.length) return null;
+  const { recommendations = [], areas_status = [], total_gain_range, total_gain_lo, total_gain_hi } = setup_advisor;
 
   const counts = {
     all:   recommendations.length,
@@ -144,6 +175,17 @@ export default function SetupRecommendations({ setup_advisor }) {
       padding: 20,
       marginTop: 20,
     }}>
+      {source === 'compare' && (
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          background: 'rgba(0,212,255,0.08)', border: '1px solid rgba(0,212,255,0.2)',
+          borderRadius: 20, padding: '3px 10px', marginBottom: 12, fontSize: 10,
+          color: '#00D4FF', letterSpacing: 0.5,
+        }}>
+          <span>⚡</span> Post-lap comparison analysis
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -155,45 +197,83 @@ export default function SetupRecommendations({ setup_advisor }) {
           </p>
         </div>
         {/* Total gain badge */}
-        <div style={{
-          background: 'rgba(0,212,255,0.08)',
-          border: '1px solid rgba(0,212,255,0.25)',
-          borderRadius: 8,
-          padding: '8px 16px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 10, color: '#506080', letterSpacing: 1 }}>{t.setupGainLabel}</div>
-          <div style={{ fontSize: 20, color: '#00D4FF', fontWeight: 700, fontFamily: 'monospace' }}>
-            {total_gain_range}s
+        {recommendations.length > 0 && total_gain_range && (
+          <div style={{
+            background: 'rgba(0,212,255,0.08)',
+            border: '1px solid rgba(0,212,255,0.25)',
+            borderRadius: 8,
+            padding: '8px 16px',
+            textAlign: 'center',
+          }}>
+            <div style={{ fontSize: 10, color: '#506080', letterSpacing: 1 }}>{t.setupGainLabel}</div>
+            <div style={{ fontSize: 20, color: '#00D4FF', fontWeight: 700, fontFamily: 'monospace' }}>
+              {total_gain_range}s
+            </div>
+            <div style={{ fontSize: 9, color: '#406070' }}>{t.setupGainSub}</div>
           </div>
-          <div style={{ fontSize: 9, color: '#406070' }}>{t.setupGainSub}</div>
-        </div>
+        )}
       </div>
 
+      {/* Area Health grid — engineer only */}
+      {!isPilotMode && areas_status?.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 10, color: '#506080', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+            Area Health
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {areas_status.map(area => {
+              const STATUS_COLOR = {
+                alta:    { text: '#FF4444', bg: 'rgba(255,68,68,0.12)',   border: 'rgba(255,68,68,0.3)' },
+                media:   { text: '#FFB800', bg: 'rgba(255,184,0,0.12)',   border: 'rgba(255,184,0,0.3)' },
+                baja:    { text: '#00CC66', bg: 'rgba(0,204,102,0.10)',   border: 'rgba(0,204,102,0.25)' },
+                nominal: { text: '#4A7AB5', bg: 'rgba(58,95,138,0.10)',   border: 'rgba(58,95,138,0.25)' },
+              };
+              const sc = STATUS_COLOR[area.status] || STATUS_COLOR.nominal;
+              return (
+                <div key={area.domain} style={{
+                  background: sc.bg, border: `1px solid ${sc.border}`,
+                  borderRadius: 6, padding: '5px 10px', minWidth: 90,
+                }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: sc.text, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                    {area.status === 'nominal' ? 'OK' : area.status === 'alta' ? 'HIGH' : area.status === 'media' ? 'MED' : 'LOW'}
+                  </div>
+                  <div style={{ fontSize: 10, color: '#C0C8E0', marginTop: 2 }}>{area.label}</div>
+                  {area.n_issues > 0 && (
+                    <div style={{ fontSize: 9, color: '#7080A0', marginTop: 1 }}>{area.n_issues} issue{area.n_issues > 1 ? 's' : ''}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Priority filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-        {[
-          { key: 'all',   label: t.setupFilterAll(counts.all),    color: '#C0C8E0' },
-          { key: 'alta',  label: t.setupFilterHigh(counts.alta),  color: '#FF4444' },
-          { key: 'media', label: t.setupFilterMed(counts.media),  color: '#FFB800' },
-          { key: 'baja',  label: t.setupFilterLow(counts.baja),   color: '#00CC66' },
-        ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)} style={{
-            padding: '4px 12px', borderRadius: 20, fontSize: 11,
-            border: `1px solid ${filter === f.key ? f.color : 'rgba(255,255,255,0.1)'}`,
-            background: filter === f.key ? `${f.color}22` : 'transparent',
-            color: filter === f.key ? f.color : '#506080',
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {recommendations.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          {[
+            { key: 'all',   label: t.setupFilterAll(counts.all),    color: '#C0C8E0' },
+            { key: 'alta',  label: t.setupFilterHigh(counts.alta),  color: '#FF4444' },
+            { key: 'media', label: t.setupFilterMed(counts.media),  color: '#FFB800' },
+            { key: 'baja',  label: t.setupFilterLow(counts.baja),   color: '#00CC66' },
+          ].map(f => (
+            <button key={f.key} onClick={() => setFilter(f.key)} style={{
+              padding: '4px 12px', borderRadius: 20, fontSize: 11,
+              border: `1px solid ${filter === f.key ? f.color : 'rgba(255,255,255,0.1)'}`,
+              background: filter === f.key ? `${f.color}22` : 'transparent',
+              color: filter === f.key ? f.color : '#506080',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Recommendation cards */}
       <div>
         {visible.map((rec, i) => (
-          <RecCard key={i} rec={rec} index={i} />
+          <RecCard key={i} rec={rec} index={i} isPilotMode={isPilotMode} />
         ))}
         {visible.length === 0 && (
           <p style={{ color: '#506080', fontSize: 12, textAlign: 'center', padding: 20 }}>

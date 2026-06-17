@@ -472,6 +472,111 @@ def _chart_corner_losses(result: dict, la: str, lb: str,
         return None
 
 
+# ── Key findings helper ───────────────────────────────────────────────────────
+
+def _build_key_findings(result: dict) -> list:
+    """
+    Return up to 5 bullet strings summarising the most important findings.
+    All bullets are plain strings; callers are responsible for rendering.
+    """
+    findings = []
+
+    # 1. Best lap time
+    best_lap = result.get("best_lap")
+    if best_lap is None:
+        # Fallback: minimum lap time from laps list
+        laps = result.get("laps") or []
+        times = [lap.get("lap_time") for lap in laps if lap.get("lap_time") is not None]
+        if times:
+            best_lap = min(times)
+    if best_lap is not None:
+        try:
+            findings.append(f"Best lap: {float(best_lap):.3f}s")
+        except (TypeError, ValueError):
+            findings.append(f"Best lap: {best_lap}")
+
+    # 2. Biggest time loss corner
+    corners = result.get("corners") or []
+    if corners:
+        worst = max(corners, key=lambda c: c.get("time_loss_seconds") or 0, default=None)
+        if worst:
+            tl = worst.get("time_loss_seconds") or 0
+            cn = worst.get("corner_number", "?")
+            if abs(tl) >= 0.01:
+                findings.append(f"Biggest time loss: corner #{cn} ({tl:+.3f}s)")
+
+    # 3. Tyre degradation
+    tyre_deg = result.get("tyre_degradation") or {}
+    deg = tyre_deg.get("deg_per_lap_s") or tyre_deg.get("degradation_rate_s_per_lap")
+    if deg is not None:
+        try:
+            findings.append(f"Tyre deg: {float(deg):.3f}s/lap")
+        except (TypeError, ValueError):
+            pass
+    else:
+        if not findings or len(findings) < 5:
+            findings.append("No tyre data")
+
+    # 4. Setup note (first high-priority recommendation)
+    setup = result.get("setup_sesion") or result.get("setup_advisor") or {}
+    recs = setup.get("recommendations") or []
+    if recs:
+        first = recs[0]
+        problem = first.get("problem") or first.get("recommendation") or ""
+        category = first.get("category", "")
+        if problem:
+            note = f"{category}: {problem}" if category else problem
+            if len(note) > 80:
+                note = note[:77] + "..."
+            findings.append(f"Setup note: {note}")
+    else:
+        findings.append("No setup data")
+
+    # 5. Track evolution (omit entirely if unavailable)
+    track_evo = result.get("track_evolution") or {}
+    note = track_evo.get("note")
+    if note:
+        findings.append(f"Track evolution: {note}")
+
+    return findings[:5]
+
+
+def _section_key_findings(result: dict, s: dict) -> list:
+    """
+    Renders the KEY FINDINGS executive summary block at the top of the PDF body.
+    Returns an empty list when no findings are available.
+    """
+    findings = _build_key_findings(result)
+    if not findings:
+        return []
+
+    heading_style = ParagraphStyle(
+        "rp_kf_heading",
+        parent=s["h2"],
+        fontSize=12,
+        leading=15,
+        spaceBefore=6,
+        spaceAfter=6,
+        textColor=_DARK,
+        fontName="Helvetica-Bold",
+    )
+    bullet_style = ParagraphStyle(
+        "rp_kf_bullet",
+        parent=s["body"],
+        fontSize=9,
+        leading=14,
+        leftIndent=12,
+        spaceAfter=2,
+    )
+
+    elems = []
+    elems.append(Paragraph("KEY FINDINGS", heading_style))
+    for finding in findings:
+        elems.append(Paragraph(f"•  {finding}", bullet_style))
+    elems.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#CCCCDD"), spaceAfter=6))
+    return elems
+
+
 # ── Section builders ──────────────────────────────────────────────────────────
 
 def _section_identity(result: dict, s: dict, lang: str = 'es') -> list:
@@ -1026,6 +1131,8 @@ def export_report_pdf(comparison_result: dict, filepath: Optional[str] = None, l
 
     story += _section_identity(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.4*cm))
+    story += _section_key_findings(comparison_result, s)
+    story.append(Spacer(1, 0.2*cm))
     story += _section_summary(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.4*cm))
     story += _section_speed_delta(comparison_result, s, lang=lang)

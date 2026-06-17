@@ -37,15 +37,15 @@ US_THRESHOLD   = 2.0     # deg: αF − αR > US_THRESHOLD → subviraje
 
 def _yaw_to_rad(yaw: pd.Series) -> pd.Series:
     """
-    MoTeC exporta el Chassis Yaw Rate en °/s.
-    Detectamos la unidad por el rango observado: si el máximo absoluto
-    supera 6.3 rad/s (≈ una vuelta completa/s) asumimos ya está en rad/s;
-    de lo contrario convertimos de °/s.
+    Detect unit from observed range.
+    A car's yaw rate never exceeds ~3 rad/s in any corner.
+    If abs_max <= 6.3 → values are in rad/s (iRacing native).
+    If abs_max  > 6.3 → values are in deg/s (MoTeC export) → convert.
     """
     abs_max = float(yaw.abs().max())
-    if abs_max > 6.3:
-        return yaw  # ya en rad/s
-    return np.deg2rad(yaw)
+    if abs_max <= 6.3:
+        return yaw  # already in rad/s
+    return np.deg2rad(yaw)  # deg/s → rad/s
 
 
 def _integrate_slip(speed_kmh: pd.Series,

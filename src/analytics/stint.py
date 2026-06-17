@@ -12,7 +12,8 @@ from sklearn.linear_model import LinearRegression
 
 logger = logging.getLogger(__name__)
 
-FUEL_CHANNELS = ["Fuel", "FuelLevel", "Fuel Level", "fuel_level", "FuelMass", "Fuel Mass"]
+FUEL_CHANNELS     = ["Fuel", "FuelLevel", "Fuel Level", "fuel_level", "FuelMass", "Fuel Mass"]
+MAX_FUEL_CHANNELS = ["Max Fuel", "MaxFuel", "max_fuel", "FuelCapacity", "Fuel Capacity"]
 TYRE_CHANNELS = {
     "FL": ["TyreTemp_FL", "Tyre Temp FL", "TyreTempFL"],
     "FR": ["TyreTemp_FR", "Tyre Temp FR", "TyreTempFR"],
@@ -288,9 +289,11 @@ def analizar_degradacion_stint(df_laps):
     return result
 
 
-def calcular_estrategia_combustible(df_laps):
+def calcular_estrategia_combustible(df_laps, dfs: list | None = None):
     """
     Computes per-lap consumption, std, and safe pit window (95th percentile).
+    If dfs (raw per-lap DataFrames) is provided, also reads Max Fuel for
+    tank-relative metrics.
     """
     valid = df_laps[_racing_laps_mask(df_laps)].dropna(subset=["fuel_burned"])
     if valid.empty or valid["fuel_burned"].abs().sum() < 0.01:
@@ -299,6 +302,7 @@ def calcular_estrategia_combustible(df_laps):
     consumo_medio = float(valid["fuel_burned"].mean())
     consumo_std   = float(valid["fuel_burned"].std()) if len(valid) > 1 else 0.0
     combustible_actual = float(df_laps["fuel_end"].dropna().iloc[-1]) if not df_laps["fuel_end"].isna().all() else 0.0
+    combustible_inicio = float(df_laps["fuel_start"].dropna().iloc[0]) if not df_laps["fuel_start"].isna().all() else 0.0
 
     consumo_conservador = consumo_medio + FUEL_SIGMA_SCALE * consumo_std if len(valid) > 3 else consumo_medio
     consumo_optimista   = max(0.01, consumo_medio - consumo_std * 0.5)
@@ -307,16 +311,42 @@ def calcular_estrategia_combustible(df_laps):
     vueltas_max = int(combustible_actual // consumo_optimista)   if consumo_optimista   > 0 else 0
     vuelta_actual = int(df_laps["lap_number"].max())
 
-    return {
+    # Per-lap trend: positive slope = consumption increasing (fuel weight effect or tyre/track changes)
+    trend = None
+    if len(valid) >= 4:
+        x = np.arange(len(valid), dtype=float)
+        slope = float(np.polyfit(x, valid["fuel_burned"].values, 1)[0])
+        trend = round(slope, 4)   # L per lap change
+
+    result = {
         "available":             True,
         "consumo_medio_l":       round(consumo_medio, 3),
         "consumo_std_l":         round(consumo_std, 3),
+        "combustible_inicio_l":  round(combustible_inicio, 2),
         "combustible_actual_l":  round(combustible_actual, 2),
+        "combustible_usado_l":   round(combustible_inicio - combustible_actual, 2),
         "vueltas_restantes_min": vueltas_min,
         "vueltas_restantes_max": vueltas_max,
         "pit_window":            [max(0, vuelta_actual + vueltas_min - 1), vuelta_actual + vueltas_max],
         "fuel_per_lap":          valid[["lap_number", "fuel_burned"]].to_dict(orient="records"),
+        "trend_l_per_lap":       trend,
     }
+
+    # Tank capacity from Max Fuel channel (AC only)
+    if dfs:
+        for df in dfs:
+            tank_ch = _find_channel(df, MAX_FUEL_CHANNELS)
+            if tank_ch:
+                tank_vals = pd.to_numeric(df[tank_ch], errors="coerce").dropna()
+                if not tank_vals.empty:
+                    tank_cap = round(float(tank_vals.max()), 1)
+                    result["tank_capacity_l"]     = tank_cap
+                    result["laps_on_full_tank"]   = int(tank_cap // consumo_conservador) if consumo_conservador > 0 else None
+                    result["pct_used"]            = round((combustible_inicio - combustible_actual) / tank_cap * 100, 1) if tank_cap > 0 else None
+                    result["pct_remaining"]       = round(combustible_actual / tank_cap * 100, 1) if tank_cap > 0 else None
+                    break
+
+    return result
 
 
 def simular_tiempos_stint(df_laps, degradacion, seed=42):
@@ -354,4 +384,35 @@ def simular_tiempos_stint(df_laps, degradacion, seed=42):
         "p50":  [round(float(v), 3) for v in np.percentile(sims, 50,  axis=0)],
         "p75":  [round(float(v), 3) for v in np.percentile(sims, 75,  axis=0)],
         "p90":  [round(float(v), 3) for v in np.percentile(sims, 90,  axis=0)],
+    }
+
+
+def calcular_evolucion_pista(df_laps: pd.DataFrame) -> dict:
+    if df_laps is None or df_laps.empty:
+        return {"available": False}
+    time_col = next((c for c in ["LapTime", "Lap Time", "lap_time", "Time"] if c in df_laps.columns), None)
+    if time_col is None:
+        return {"available": False}
+    times = df_laps[time_col].dropna()
+    if len(times) < 4:
+        return {"available": False}
+    window = min(3, len(times))
+    rolling_min = times.rolling(window, min_periods=1).min()
+    x = np.arange(len(rolling_min))
+    slope, _ = np.polyfit(x, rolling_min.values, 1)
+    total_gain = slope * (len(rolling_min) - 1)
+    direction = "improving" if slope < -0.05 else "degrading" if slope > 0.05 else "stable"
+    note = (
+        ("Track gaining grip: " + str(round(abs(total_gain), 2)) + "s over session") if direction == "improving"
+        else ("Track losing grip: " + str(round(abs(total_gain), 2)) + "s over session") if direction == "degrading"
+        else "Track conditions stable throughout session"
+    )
+    per_lap = [{"lap": int(i + 1), "rolling_min_s": round(float(v), 3)} for i, v in enumerate(rolling_min)]
+    return {
+        "available": True,
+        "direction": direction,
+        "trend_s_per_lap": round(float(slope), 4),
+        "total_gain_s": round(float(total_gain), 3),
+        "note": note,
+        "per_lap": per_lap,
     }

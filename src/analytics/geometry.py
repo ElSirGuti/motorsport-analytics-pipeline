@@ -39,22 +39,83 @@ APEX_DISTANCE_MIN  = 80      # metros mínimos entre dos Apex consecutivos (era 
 APEX_THROTTLE_MAX  = 95.0    # % — en el apex real no se va al 100 %, pero sí se puede abrir un poco (era 85 %)
 
 
+_GPS_PAIRS = [
+    ("Lat", "Lon"),
+    ("GPSlat", "GPSlon"),
+    ("GPS Lat", "GPS Lon"),
+    ("gps_lat", "gps_lon"),
+]
+_METERS_PER_DEG = 111_319.9
+
+
 def _synthesize_coordinates_dead_reckoning(df: pd.DataFrame) -> pd.DataFrame:
-    """Synthesize CarCoordX and CarCoordY using dead reckoning if they are missing."""
+    """
+    Populate CarCoordX/CarCoordY from the best available source:
+      1. Already present (ACTI/direct coordinates) → return unchanged.
+      2. iRacing VelocityX/VelocityY (world-frame, 360 Hz) → integrate for exact position.
+      3. GPS lat/lon → equirectangular projection to metres (1 Hz, lower resolution).
+      4. Dead reckoning from YawRate + Speed → last resort.
+    """
     if 'CarCoordX' in df.columns and 'CarCoordY' in df.columns:
         return df
+
+    # ── iRacing: absolute yaw angle + Speed (no heading drift) ──────────────
+    # YawNorth = yaw relative to North in radians (iRacing native channel).
+    # Using the absolute heading avoids the integration-drift problem of YawRate.
+    # Speed is in km/h (loader converts from m/s); divide by 3.6 to get m/s.
+    yaw_col = next((c for c in ('YawNorth', 'Gyro Yaw Angle', 'Yaw') if c in df.columns), None)
+    if yaw_col and 'Speed' in df.columns:
+        yaw    = pd.to_numeric(df[yaw_col], errors='coerce').ffill().bfill().fillna(0)
+        spd_ms = pd.to_numeric(df['Speed'],  errors='coerce').fillna(0) / 3.6
+        if 'Distance' in df.columns:
+            dist_v = pd.to_numeric(df['Distance'], errors='coerce').ffill().bfill()
+            ds_v   = dist_v.diff().fillna(0).clip(lower=0, upper=20.0)
+            dt_y   = (ds_v / spd_ms.clip(lower=0.5)).clip(lower=0, upper=0.5)
+        else:
+            dt_y = pd.Series(1.0 / 360.0, index=df.index)
+        df_new = df.copy()
+        df_new['CarCoordX'] = np.cumsum((spd_ms * np.cos(yaw) * dt_y).fillna(0).values)
+        df_new['CarCoordY'] = np.cumsum((spd_ms * np.sin(yaw) * dt_y).fillna(0).values)
+        logger.info("Coordenadas sintetizadas desde %s + Speed (yaw absoluto)", yaw_col)
+        return df_new
+
+    # ── iRacing GPS: convert lat/lon → local X/Y in metres ───────────────────
+    for lat_col, lon_col in _GPS_PAIRS:
+        if lat_col in df.columns and lon_col in df.columns:
+            lat = pd.to_numeric(df[lat_col], errors='coerce')
+            lon = pd.to_numeric(df[lon_col], errors='coerce')
+            if lat.notna().sum() > 10 and lon.notna().sum() > 10:
+                lat0 = float(lat.dropna().iloc[0])
+                lon0 = float(lon.dropna().iloc[0])
+                cos_lat = np.cos(np.deg2rad(lat0))
+                df_new = df.copy()
+                df_new['CarCoordX'] = (lon - lon0) * cos_lat * _METERS_PER_DEG
+                df_new['CarCoordY'] = (lat - lat0) * _METERS_PER_DEG
+                return df_new
 
     if 'Speed' not in df.columns:
         return df
 
     speed_ms = pd.to_numeric(df['Speed'], errors='coerce').fillna(0) / 3.6
-    time_col = next((c for c in ['LR Sample Clock', 'HR Sample Clock', 'MR Sample Clock', 'SessionTime', 'Session Time', 'Time', 'time'] if c in df.columns), None)
-    
-    if time_col:
-        t = pd.to_numeric(df[time_col], errors='coerce').ffill().bfill()
-        dt = t.diff().fillna(0).clip(lower=0, upper=0.5)
+
+    # Prefer computing dt from Distance/Speed so we don't depend on time channel
+    # naming (the loader renames 'Time'→'LapTime', breaking time-based lookups).
+    # ds/v gives the correct time step at any sample rate without configuration.
+    if 'Distance' in df.columns:
+        dist = pd.to_numeric(df['Distance'], errors='coerce').ffill().bfill()
+        ds   = dist.diff().fillna(0).clip(lower=0, upper=20.0)    # max 20m/step
+        safe_speed = speed_ms.clip(lower=0.5)
+        dt = (ds / safe_speed).clip(lower=0, upper=0.5)
     else:
-        dt = pd.Series(1.0 / 60.0, index=df.index)
+        time_col = next((c for c in [
+            'LR Sample Clock', 'HR Sample Clock', 'MR Sample Clock',
+            'SessionTime', 'Session Time', 'LapTime', 'Time', 'time',
+        ] if c in df.columns), None)
+        if time_col:
+            t  = pd.to_numeric(df[time_col], errors='coerce').ffill().bfill()
+            dt = t.diff().fillna(0).clip(lower=0, upper=0.5)
+        else:
+            dt = pd.Series(1.0 / 60.0, index=df.index)
 
     heading_rate = None
     if 'YawRate' in df.columns:
@@ -62,8 +123,9 @@ def _synthesize_coordinates_dead_reckoning(df: pd.DataFrame) -> pd.DataFrame:
         if yr.abs().max() > 5.0:
             yr = np.deg2rad(yr)
         heading_rate = yr
-    elif 'SteerAngle' in df.columns:
-        steer_deg = pd.to_numeric(df['SteerAngle'], errors='coerce').fillna(0)
+    elif 'SteerAngle' in df.columns or 'SteeringWheelAngle' in df.columns:
+        col = 'SteerAngle' if 'SteerAngle' in df.columns else 'SteeringWheelAngle'
+        steer_deg = pd.to_numeric(df[col], errors='coerce').fillna(0)
         heading_rate = steer_deg * 0.003
 
     if heading_rate is None:
@@ -120,8 +182,17 @@ def procesar_geometria_pista_perfecta(df: pd.DataFrame) -> pd.DataFrame:
     dist_uniforme = np.arange(0, dist_max, RESAMPLE_STEP)
 
     # 2. Remuestreo lineal de las coordenadas horizontales al eje uniforme
-    x_interp = np.interp(dist_uniforme, df["Distance"], df["CarCoordX"])
-    y_interp = np.interp(dist_uniforme, df["Distance"], df["CarCoordY"])
+    # GPS channels may be sparse (e.g. 1 Hz vs 360 Hz telemetry) — use only
+    # non-NaN rows so np.interp doesn't produce NaN-contaminated output.
+    coord_mask = df["CarCoordX"].notna() & df["CarCoordY"].notna()
+    if coord_mask.sum() < 10:
+        logger.warning("Coordenadas insuficientes (%d pts) — fallback curvatura 0.", coord_mask.sum())
+        return pd.DataFrame({"Distance": dist_uniforme, "Curvature": np.zeros_like(dist_uniforme)})
+    dist_c = df.loc[coord_mask, "Distance"].values
+    x_c    = df.loc[coord_mask, "CarCoordX"].values
+    y_c    = df.loc[coord_mask, "CarCoordY"].values
+    x_interp = np.interp(dist_uniforme, dist_c, x_c)
+    y_interp = np.interp(dist_uniforme, dist_c, y_c)
 
     # 3. Filtro Savitzky-Golay macroscópico
     #    Ventana de 75 m y grado 2: elimina el jitter del motor de física sin

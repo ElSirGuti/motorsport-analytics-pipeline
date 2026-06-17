@@ -36,6 +36,10 @@ Scientific documentation for all analysis modules. Each section covers the mathe
 | 11 | [Driver Inputs](./11_driver_inputs.md) | Welch PSD on SteerAngle, nervousness index, brake-throttle overlap |
 | 12 | [Suspension](./12_suspension.md) | Pitch and roll from SuspTravel FL/FR/RL/RR, bottoming detection |
 | 13 | [Slip Angle](./13_slip_angle.md) | Kinematic sideslip β, αF/αR bicycle model, track balance |
+| 14 | [Thermal Management](./14_thermal_management.md) | Thermal window, heat dissipation, tire/brake temperature optimization |
+| 15 | [Tyre Degradation](./15_tyre_degradation.md) | Tire compound degradation model, grip loss prediction, pit strategy |
+| 16 | [Racing Line Optimization (RL)](./16_racing_line_rl.md) | Reinforcement learning trajectory optimization, apex trade-offs, cornering efficiency |
+| 17 | [Vehicle Setup Advisor](./17_setup_advisor.md) | Aero balance, suspension geometry, fuel load optimization recommendations |
 
 ---
 

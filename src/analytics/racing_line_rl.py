@@ -112,15 +112,24 @@ def _get_per_lap_observations(dfs: list, df_laps):
     return dict(obs)
 
 
-def optimizar_trazada_rl(dfs: list, df_laps) -> dict:
+def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None) -> dict:
     """
     Train a Q-learning agent per corner using historical lap observations.
+
+    Args:
+        dfs:              Per-lap DataFrames.
+        df_laps:          Lap metrics DataFrame.
+        precomputed_obs:  If provided (from get_corner_observations), skip re-aligning.
 
     Returns per-corner optimal execution recommendations and the potential
     time gain if the driver executes closer to the learned optimal.
     """
-    logger.info("racing_line_rl: extracting per-lap corner observations…")
-    obs = _get_per_lap_observations(dfs, df_laps)
+    if precomputed_obs is not None:
+        logger.info("racing_line_rl: using pre-computed observations (%d corners)", len(precomputed_obs))
+        obs = precomputed_obs
+    else:
+        logger.info("racing_line_rl: extracting per-lap corner observations…")
+        obs = _get_per_lap_observations(dfs, df_laps)
 
     if not obs:
         return {"available": False, "reason": "no corner observations extracted"}

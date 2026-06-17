@@ -316,6 +316,108 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
                 lines.append("  " + t("export_slip_more_slide", lang=lang, more=more_slide, delta=f"{abs(diff_beta):.1f}"))
                 lines.append("")
 
+    # ── Thermal Management ────────────────────────────────────────────────
+    thermal = comparison_result.get("thermal_analysis", {})
+    if thermal.get("available"):
+        lines.append("─── THERMAL MANAGEMENT ───")
+        lines.append("")
+
+        for fluid_key, fluid_label in [("water_temp", "Water Temp"), ("oil_temp", "Oil Temp")]:
+            fluid = thermal.get(fluid_key, {})
+            if fluid.get("available"):
+                status_str = fluid.get("status", "normal").upper()
+                trend = fluid.get("trend_c_per_lap")
+                trend_str = f"  trend {trend:+.2f}°C/lap" if trend is not None else ""
+                lines.append(f"  {fluid_label}: {fluid.get('mean_c')}°C mean / {fluid.get('max_c')}°C peak  [{status_str}]{trend_str}")
+                if fluid.get("alert"):
+                    lines.append(f"    ⚠  {fluid['alert']}")
+        lines.append("")
+
+        brake = thermal.get("brake_temps", {})
+        if brake.get("available"):
+            lines.append("  Brake Temperatures:")
+            STATUS_ICON = {"too_cold": "🔵", "suboptimal": "🟡", "optimal": "🟢", "hot": "🟠", "critical": "🔴"}
+            for corner, s in brake.get("corners", {}).items():
+                icon = STATUS_ICON.get(s.get("status", "optimal"), "  ")
+                lines.append(f"    {icon} {corner}: {s.get('mean_c')}°C mean / {s.get('max_c')}°C peak  [{s.get('status','').upper()}]")
+            if brake.get("duct_recs"):
+                lines.append("")
+                lines.append("  Duct Recommendations:")
+                for rec in brake["duct_recs"]:
+                    prio = {"alta": "HIGH", "media": "MED"}.get(rec.get("priority", ""), "")
+                    lines.append(f"    [{prio}] {rec.get('corner')} — {rec.get('reason')}")
+            lines.append("")
+
+        pres = thermal.get("tyre_pressure", {})
+        if pres.get("available"):
+            lines.append("  Tyre Pressures (bar / PSI):")
+            for corner, s in pres.get("corners", {}).items():
+                hot  = s.get("hot",  {})
+                cold = s.get("cold", {})
+                dlt  = s.get("delta", {})
+                cold_str  = f"  cold {cold.get('bar')} bar / {cold.get('psi')} PSI" if cold else ""
+                delta_str = f"  Δ {dlt.get('bar')} bar / {dlt.get('psi')} PSI" if dlt else ""
+                lines.append(f"    {corner}: hot {hot.get('bar')} bar / {hot.get('psi')} PSI{cold_str}{delta_str}")
+            if pres.get("recommendations"):
+                lines.append("")
+                lines.append("  Pressure Recommendations:")
+                for rec in pres["recommendations"]:
+                    tc = rec.get("target_cold", {})
+                    lines.append(
+                        f"    {rec.get('corner')} — {rec.get('direction','').upper()} cold pressure to "
+                        f"{tc.get('bar')} bar / {tc.get('psi')} PSI  "
+                        f"(Δ {rec.get('delta_bar')} bar / {rec.get('delta_psi')} PSI)"
+                    )
+                    lines.append(f"      {rec.get('reason','')}")
+            lines.append("")
+
+        bias = thermal.get("brake_bias", {})
+        if bias.get("available"):
+            lines.append(f"  Brake Bias: {bias.get('current_pct')}% front")
+            if bias.get("out_of_range"):
+                lines.append(f"    ⚠  {bias['out_of_range']}")
+            if bias.get("recommendation"):
+                rec = bias["recommendation"]
+                lines.append(f"    → Suggest {rec.get('suggested_pct')}% front: {rec.get('reason','')}")
+            lines.append("")
+
+    # ── Setup Recommendations ─────────────────────────────────────────────
+    setup = comparison_result.get("setup_advisor", {})
+    if setup.get("available"):
+        lines.append("─── SETUP RECOMMENDATIONS ───")
+        lines.append("")
+
+        areas = setup.get("areas_status", [])
+        if areas:
+            lines.append("  Area Health Summary:")
+            PRIO_ICON = {"alta": "🔴", "media": "🟡", "baja": "🟢", "nominal": "✅"}
+            for area in areas:
+                icon    = PRIO_ICON.get(area.get("status", "nominal"), "  ")
+                status  = area.get("status", "nominal").upper()
+                label   = area.get("label", "")
+                n       = area.get("n_issues", 0)
+                n_str   = f"  ({n} issue{'s' if n > 1 else ''})" if n > 0 else ""
+                lines.append(f"    {icon}  [{status:8s}]  {label}{n_str}")
+            lines.append("")
+
+        recs = setup.get("recommendations", [])
+        if recs:
+            gain = setup.get("total_gain_range", "")
+            lines.append(f"  {len(recs)} recommendations — estimated gain: {gain}s/v")
+            lines.append("")
+            for i, r in enumerate(recs, 1):
+                prio_str = {"alta": "HIGH", "media": "MED", "baja": "LOW"}.get(r.get("priority", ""), r.get("priority", ""))
+                lines.append(f"  {i:2d}. [{prio_str}] {r.get('category', '')} — {r.get('problem', '')}")
+                lines.append(f"      Root cause:  {r.get('root_cause', '')}")
+                lines.append(f"      Action:      {r.get('recommendation', '')}")
+                if r.get("detail"):
+                    lines.append(f"      Data:        {r.get('detail', '')}")
+                if r.get("solves"):
+                    lines.append(f"      Solves:      {r.get('solves', '')}")
+                lines.append(f"      Est. gain:   {r.get('expected_gain', '')}")
+                lines.append("")
+        lines.append("")
+
     # ── Detailed corner analysis ──────────────────────────────────────────
     lines.append("─── " + t("export_corner_detail", lang=lang) + " ───")
     lines.append("")
