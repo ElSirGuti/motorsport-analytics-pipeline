@@ -1,6 +1,6 @@
 # Motorsport Analytics Pipeline
 
-> Automated lap telemetry comparison and analysis for Assetto Corsa / MoTeC compatible simulators.
+> Automated lap telemetry comparison and analysis for Assetto Corsa, iRacing / MoTeC compatible data.
 
 🌐 [Leer en Español](README.es.md)
 
