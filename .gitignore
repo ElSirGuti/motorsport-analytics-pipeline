@@ -11,8 +11,11 @@ venv/
 env/
 .venv/
 
+# Local reference files
+estructura_ac.txt
+estructura_iracing.txt
+
 # Data (CSVs locales — no subir a git)
-*.csv
 data/raw/
 data/processed/
 tmp/
