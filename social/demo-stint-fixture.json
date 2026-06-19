@@ -1,0 +1,1158 @@
+{
+  "status": "success",
+  "n_laps": 3,
+  "laps": [
+    {
+      "lap_number": 1,
+      "lap_time_s": 82.871,
+      "lap_time_str": "1:22.871",
+      "mean_speed_kmh": 169.7,
+      "max_speed_kmh": 221.2,
+      "max_g_sum": 3.623,
+      "mean_g_sum": 0.657,
+      "fuel_start": null,
+      "fuel_end": null,
+      "fuel_burned": null,
+      "tyre_temp_avg": null,
+      "is_pit_lap": false,
+      "is_outlier": false
+    },
+    {
+      "lap_number": 2,
+      "lap_time_s": 86.742,
+      "lap_time_str": "1:26.742",
+      "mean_speed_kmh": 165.0,
+      "max_speed_kmh": 220.8,
+      "max_g_sum": 3.099,
+      "mean_g_sum": 0.662,
+      "fuel_start": null,
+      "fuel_end": null,
+      "fuel_burned": null,
+      "tyre_temp_avg": null,
+      "is_pit_lap": false,
+      "is_outlier": false
+    },
+    {
+      "lap_number": 3,
+      "lap_time_s": 82.871,
+      "lap_time_str": "1:22.871",
+      "mean_speed_kmh": 169.7,
+      "max_speed_kmh": 221.2,
+      "max_g_sum": 3.623,
+      "mean_g_sum": 0.657,
+      "fuel_start": null,
+      "fuel_end": null,
+      "fuel_burned": null,
+      "tyre_temp_avg": null,
+      "is_pit_lap": false,
+      "is_outlier": false
+    }
+  ],
+  "degradacion": {
+    "available": true,
+    "tasa_s_per_lap": -0.0,
+    "r_squared": 0.0,
+    "actual_laps": [
+      1,
+      2,
+      3
+    ],
+    "actual_times": [
+      82.871,
+      86.742,
+      82.871
+    ],
+    "trend_laps": [
+      1,
+      2,
+      3
+    ],
+    "trend_times": [
+      84.161,
+      84.161,
+      84.161
+    ],
+    "projected_laps": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "projected_times": [
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161,
+      84.161
+    ],
+    "grip_tasa_per_lap": 0.0,
+    "grip_trend": [
+      3.448,
+      3.448,
+      3.448
+    ],
+    "grip_projected": [
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448,
+      3.448
+    ],
+    "grip_actual_laps": [
+      1,
+      2,
+      3
+    ],
+    "grip_actual": [
+      3.623,
+      3.099,
+      3.623
+    ]
+  },
+  "combustible": {
+    "available": false
+  },
+  "montecarlo": {
+    "available": true,
+    "future_laps": [
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "sigma_real_s": 2.235,
+    "p10": [
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754
+    ],
+    "p25": [
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754,
+      81.754
+    ],
+    "p50": [
+      82.916,
+      82.981,
+      82.878,
+      82.89,
+      82.856,
+      83.078,
+      82.894,
+      82.726,
+      82.788,
+      82.784,
+      82.942,
+      82.812
+    ],
+    "p75": [
+      84.219,
+      84.201,
+      84.214,
+      84.543,
+      84.219,
+      84.546,
+      84.353,
+      84.236,
+      84.321,
+      84.559,
+      84.389,
+      84.164
+    ],
+    "p90": [
+      85.56,
+      85.662,
+      85.725,
+      85.941,
+      85.671,
+      85.864,
+      85.42,
+      85.79,
+      85.53,
+      85.799,
+      85.621,
+      85.735
+    ]
+  },
+  "curvas_sesion": {
+    "available": true,
+    "corners": [
+      {
+        "corner_number": 1,
+        "time_loss_seconds": 0.223,
+        "std_loss_seconds": 0.223,
+        "braking_delta_meters": -7.5,
+        "apex_speed_delta_kmh": -2.8,
+        "throttle_delta_meters": 6.0,
+        "n_laps": 2,
+        "consistency": "inconsistente",
+        "description": "Curva 1: t\u00e9cnica inconsistente \u03c3=0.223s"
+      },
+      {
+        "corner_number": 2,
+        "time_loss_seconds": 0.001,
+        "std_loss_seconds": 0.001,
+        "braking_delta_meters": 0.0,
+        "apex_speed_delta_kmh": -0.1,
+        "throttle_delta_meters": 0.5,
+        "n_laps": 2,
+        "consistency": "consistente",
+        "description": "Curva 2: rendimiento similar a la referencia"
+      },
+      {
+        "corner_number": 3,
+        "time_loss_seconds": 0.565,
+        "std_loss_seconds": 0.565,
+        "braking_delta_meters": -12.5,
+        "apex_speed_delta_kmh": -4.1,
+        "throttle_delta_meters": 8.5,
+        "n_laps": 2,
+        "consistency": "inconsistente",
+        "description": "Curva 3: frenada temprana (-12 m vs referencia), apex lento (-4.1 km/h), gas tarde (+8 m), t\u00e9cnica inconsistente \u03c3=0.565s"
+      },
+      {
+        "corner_number": 4,
+        "time_loss_seconds": 0.097,
+        "std_loss_seconds": 0.097,
+        "braking_delta_meters": -5.0,
+        "apex_speed_delta_kmh": -1.6,
+        "throttle_delta_meters": 4.0,
+        "n_laps": 2,
+        "consistency": "inconsistente",
+        "description": "Curva 4: t\u00e9cnica inconsistente \u03c3=0.097s"
+      },
+      {
+        "corner_number": 5,
+        "time_loss_seconds": 0.317,
+        "std_loss_seconds": 0.317,
+        "braking_delta_meters": -10.0,
+        "apex_speed_delta_kmh": -3.0,
+        "throttle_delta_meters": 8.0,
+        "n_laps": 2,
+        "consistency": "inconsistente",
+        "description": "Curva 5: frenada temprana (-10 m vs referencia), t\u00e9cnica inconsistente \u03c3=0.317s"
+      },
+      {
+        "corner_number": 6,
+        "time_loss_seconds": -0.0,
+        "std_loss_seconds": 0.0,
+        "braking_delta_meters": 0.0,
+        "apex_speed_delta_kmh": 0.1,
+        "throttle_delta_meters": 0.0,
+        "n_laps": 2,
+        "consistency": "consistente",
+        "description": "Curva 6: rendimiento similar a la referencia"
+      },
+      {
+        "corner_number": 7,
+        "time_loss_seconds": 0.155,
+        "std_loss_seconds": 0.155,
+        "braking_delta_meters": -6.0,
+        "apex_speed_delta_kmh": -1.7,
+        "throttle_delta_meters": 4.5,
+        "n_laps": 2,
+        "consistency": "inconsistente",
+        "description": "Curva 7: t\u00e9cnica inconsistente \u03c3=0.155s"
+      }
+    ],
+    "total_loss": 1.358,
+    "reference_lap": 1,
+    "n_laps_compared": 2
+  },
+  "telemetria_sesion": {
+    "available": true,
+    "n_laps": 3,
+    "brake": {
+      "mean_efficiency": 2.73,
+      "min_efficiency": 2.536,
+      "mean_fade_severity": 0.0,
+      "mean_fade_pct": 24.5,
+      "n_laps": 3
+    },
+    "inputs": {
+      "n_laps": 3,
+      "mean_nervousness": 0.73,
+      "max_nervousness": 0.733,
+      "mean_fft_high": 0.004,
+      "mean_fft_mid": 0.009,
+      "mean_overlap_pct": 0.0
+    },
+    "balance": {
+      "n_laps": 3,
+      "steer_rms": 18.7
+    }
+  },
+  "setup_sesion": {
+    "available": true,
+    "recommendations": [
+      {
+        "category": "T\u00e9cnica de Pilotaje",
+        "problem": "4 curvas con alta variabilidad vuelta a vuelta (\u03c3>0.32s)",
+        "root_cause": "El piloto no repite la misma referencia en esas curvas \u2014 puede ser coche nervioso o falta de punto de referencia visual claro.",
+        "recommendation": "Fijar hito visual para el punto de frenado en cada curva inconsistente. Si el coche es el causante: revisar amortiguadores (rebound excesivo genera rebote impredecible) y verificar que la suspensi\u00f3n no toque en esas zonas.",
+        "detail": "Curvas m\u00e1s inconsistentes: [3, 5, 1]  |  \u03c3 promedio: 0.32s",
+        "solves": "Mayor predictibilidad por vuelta, ritmo m\u00e1s estable, menor variaci\u00f3n de tiempos",
+        "expected_gain": "0.20\u20130.60s/v",
+        "gain_lo": 0.2,
+        "gain_hi": 0.6,
+        "priority": "media",
+        "pilot_note": "Setup adjustment noted \u2014 check feel in next sector"
+      },
+      {
+        "category": "T\u00e9cnica de Pilotaje",
+        "problem": "Solapamiento freno-gas muy bajo: 0.0% del tiempo (objetivo 8\u201318%)",
+        "root_cause": "El piloto no usa solapamiento freno-gas en las transiciones \u2014 puede perder rotaci\u00f3n de entrada a curva al levantar el freno demasiado pronto.",
+        "recommendation": "setup_rec_low_overlap_session",
+        "detail": "Solapamiento medio: 0.0%  |  Referencia: 8\u201318% en pilotos GT/sport",
+        "solves": "Mejor rotaci\u00f3n de entrada, mayor velocidad de apex, menos tiempo en la zona de transici\u00f3n",
+        "expected_gain": "0.04\u20130.12s/v",
+        "gain_lo": 0.04,
+        "gain_hi": 0.12,
+        "priority": "baja",
+        "pilot_note": "Setup adjustment noted \u2014 check feel in next sector"
+      }
+    ],
+    "corner_priority": [
+      {
+        "corner_number": 3,
+        "time_loss_seconds": 0.565,
+        "braking_delta_meters": -12.5,
+        "apex_speed_delta_kmh": -4.1,
+        "throttle_delta_meters": 8.5,
+        "dominant_phase": "frenada",
+        "focus": "Mejorar punto de frenada",
+        "description": "Curva 3: frenada temprana (-12 m vs referencia), apex lento (-4.1 km/h), gas tarde (+8 m), t\u00e9cnica inconsistente \u03c3=0.565s"
+      },
+      {
+        "corner_number": 5,
+        "time_loss_seconds": 0.317,
+        "braking_delta_meters": -10.0,
+        "apex_speed_delta_kmh": -3.0,
+        "throttle_delta_meters": 8.0,
+        "dominant_phase": "frenada",
+        "focus": "Mejorar punto de frenada",
+        "description": "Curva 5: frenada temprana (-10 m vs referencia), t\u00e9cnica inconsistente \u03c3=0.317s"
+      },
+      {
+        "corner_number": 1,
+        "time_loss_seconds": 0.223,
+        "braking_delta_meters": -7.5,
+        "apex_speed_delta_kmh": -2.8,
+        "throttle_delta_meters": 6.0,
+        "dominant_phase": "frenada",
+        "focus": "Mejorar punto de frenada",
+        "description": "Curva 1: t\u00e9cnica inconsistente \u03c3=0.223s"
+      },
+      {
+        "corner_number": 7,
+        "time_loss_seconds": 0.155,
+        "braking_delta_meters": -6.0,
+        "apex_speed_delta_kmh": -1.7,
+        "throttle_delta_meters": 4.5,
+        "dominant_phase": "frenada",
+        "focus": "Mejorar punto de frenada",
+        "description": "Curva 7: t\u00e9cnica inconsistente \u03c3=0.155s"
+      },
+      {
+        "corner_number": 4,
+        "time_loss_seconds": 0.097,
+        "braking_delta_meters": -5.0,
+        "apex_speed_delta_kmh": -1.6,
+        "throttle_delta_meters": 4.0,
+        "dominant_phase": "frenada",
+        "focus": "Mejorar punto de frenada",
+        "description": "Curva 4: t\u00e9cnica inconsistente \u03c3=0.097s"
+      }
+    ],
+    "total_gain_lo": 0.24,
+    "total_gain_hi": 0.72,
+    "total_gain_range": "0.24\u20130.72"
+  },
+  "thermal_analysis": {
+    "available": false
+  },
+  "degradacion_neumatico": {
+    "available": true,
+    "wear_pct": 0.0,
+    "remaining_laps": ">40",
+    "current_delta_s": 0.0,
+    "cliff_threshold_s": 1.5,
+    "degradation_rate_s_per_lap": -0.0,
+    "n_laps_analyzed": 3,
+    "top_wear_factors": [
+      {
+        "factor": "mean_lat_g",
+        "correlation": 1.0
+      },
+      {
+        "factor": "mean_speed",
+        "correlation": 1.0
+      },
+      {
+        "factor": "mean_brake_g",
+        "correlation": 1.0
+      },
+      {
+        "factor": "lap_number",
+        "correlation": 0.0
+      }
+    ],
+    "lap_data": [
+      {
+        "lap": 1,
+        "delta": 0.0,
+        "trend": 1.29
+      },
+      {
+        "lap": 2,
+        "delta": 3.871,
+        "trend": 1.29
+      },
+      {
+        "lap": 3,
+        "delta": 0.0,
+        "trend": 1.29
+      }
+    ],
+    "projection": [
+      {
+        "lap": 4,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 5,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 6,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 7,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 8,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 9,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 10,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 11,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 12,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 13,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 14,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 15,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 16,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 17,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 18,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 19,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 20,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 21,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 22,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 23,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 24,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 25,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 26,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 27,
+        "projected": 1.29,
+        "cliff": 1.5
+      },
+      {
+        "lap": 28,
+        "projected": 1.29,
+        "cliff": 1.5
+      }
+    ],
+    "front_temp_trend_c_per_lap": null,
+    "rear_temp_trend_c_per_lap": null,
+    "left_mean_temp": null,
+    "right_mean_temp": null,
+    "tyre_temps_available": false
+  },
+  "racing_line_rl": {
+    "available": true,
+    "corners": [
+      {
+        "corner_number": 3,
+        "n_laps": 2,
+        "mean_time_loss_s": 0.565,
+        "potential_gain_s": 1.13,
+        "current_execution": {
+          "brake": "early",
+          "apex": "slow",
+          "exit": "early"
+        },
+        "optimal_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "already_optimal": false,
+        "recommendations": [
+          "Brake later",
+          "Carry more apex speed",
+          "Apply throttle later"
+        ],
+        "q_heatmap": [
+          {
+            "brake": "early",
+            "apex": "slow",
+            "q": -1.1303,
+            "count": 30
+          },
+          {
+            "brake": "early",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "similar",
+            "q": 0.0,
+            "count": 30
+          },
+          {
+            "brake": "similar",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          }
+        ]
+      },
+      {
+        "corner_number": 5,
+        "n_laps": 2,
+        "mean_time_loss_s": 0.317,
+        "potential_gain_s": 0.635,
+        "current_execution": {
+          "brake": "early",
+          "apex": "slow",
+          "exit": "early"
+        },
+        "optimal_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "already_optimal": false,
+        "recommendations": [
+          "Brake later",
+          "Carry more apex speed",
+          "Apply throttle later"
+        ],
+        "q_heatmap": [
+          {
+            "brake": "early",
+            "apex": "slow",
+            "q": -0.6348,
+            "count": 30
+          },
+          {
+            "brake": "early",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "similar",
+            "q": 0.0,
+            "count": 30
+          },
+          {
+            "brake": "similar",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          }
+        ]
+      },
+      {
+        "corner_number": 1,
+        "n_laps": 2,
+        "mean_time_loss_s": 0.223,
+        "potential_gain_s": 0.446,
+        "current_execution": {
+          "brake": "early",
+          "apex": "slow",
+          "exit": "early"
+        },
+        "optimal_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "already_optimal": false,
+        "recommendations": [
+          "Brake later",
+          "Carry more apex speed",
+          "Apply throttle later"
+        ],
+        "q_heatmap": [
+          {
+            "brake": "early",
+            "apex": "slow",
+            "q": -0.4461,
+            "count": 30
+          },
+          {
+            "brake": "early",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "similar",
+            "q": 0.0,
+            "count": 30
+          },
+          {
+            "brake": "similar",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          }
+        ]
+      },
+      {
+        "corner_number": 7,
+        "n_laps": 2,
+        "mean_time_loss_s": 0.155,
+        "potential_gain_s": 0.311,
+        "current_execution": {
+          "brake": "early",
+          "apex": "slow",
+          "exit": "early"
+        },
+        "optimal_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "already_optimal": false,
+        "recommendations": [
+          "Brake later",
+          "Carry more apex speed",
+          "Apply throttle later"
+        ],
+        "q_heatmap": [
+          {
+            "brake": "early",
+            "apex": "slow",
+            "q": -0.3107,
+            "count": 30
+          },
+          {
+            "brake": "early",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "similar",
+            "q": 0.0,
+            "count": 30
+          },
+          {
+            "brake": "similar",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          }
+        ]
+      },
+      {
+        "corner_number": 4,
+        "n_laps": 2,
+        "mean_time_loss_s": 0.097,
+        "potential_gain_s": 0.194,
+        "current_execution": {
+          "brake": "similar",
+          "apex": "slow",
+          "exit": "early"
+        },
+        "optimal_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "already_optimal": false,
+        "recommendations": [
+          "Carry more apex speed",
+          "Apply throttle later"
+        ],
+        "q_heatmap": [
+          {
+            "brake": "early",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "slow",
+            "q": -0.1939,
+            "count": 30
+          },
+          {
+            "brake": "similar",
+            "apex": "similar",
+            "q": 0.0,
+            "count": 30
+          },
+          {
+            "brake": "similar",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          }
+        ]
+      },
+      {
+        "corner_number": 2,
+        "n_laps": 2,
+        "mean_time_loss_s": 0.001,
+        "potential_gain_s": 0.0,
+        "current_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "optimal_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "already_optimal": true,
+        "recommendations": [
+          "Execution already near optimal"
+        ],
+        "q_heatmap": [
+          {
+            "brake": "early",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "similar",
+            "q": -0.0009,
+            "count": 60
+          },
+          {
+            "brake": "similar",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          }
+        ]
+      },
+      {
+        "corner_number": 6,
+        "n_laps": 2,
+        "mean_time_loss_s": -0.0,
+        "potential_gain_s": 0.0,
+        "current_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "optimal_execution": {
+          "brake": "similar",
+          "apex": "similar",
+          "exit": "similar"
+        },
+        "already_optimal": true,
+        "recommendations": [
+          "Execution already near optimal"
+        ],
+        "q_heatmap": [
+          {
+            "brake": "early",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "early",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "similar",
+            "apex": "similar",
+            "q": 0.0002,
+            "count": 60
+          },
+          {
+            "brake": "similar",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "slow",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "similar",
+            "q": null,
+            "count": 0
+          },
+          {
+            "brake": "late",
+            "apex": "fast",
+            "q": null,
+            "count": 0
+          }
+        ]
+      }
+    ],
+    "total_potential_gain_s": 2.716,
+    "n_corners": 7
+  },
+  "track_evolution": {
+    "available": false
+  },
+  "health_summary": {
+    "thermal": "unavailable",
+    "setup": "ok",
+    "tyre_degradation": "unavailable",
+    "racing_line": "unavailable",
+    "slip": "unavailable",
+    "corners": "unavailable",
+    "overall": "critical"
+  }
+}

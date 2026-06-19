@@ -112,7 +112,7 @@ def _analyse_tyres(result: dict, lang: str = "es") -> list:
             outer  = c.get("outer")
             status = c.get("window_status", "optima")
             surf   = c.get("surface_mean") or 0
-            axle   = "Delantero" if pos in ("FL", "FR") else "Trasero"
+            axle   = "Front" if pos in ("FL", "FR") else "Rear"
 
             # Camber diagnosis (inner vs outer gradient)
             if inner is not None and outer is not None:
@@ -515,12 +515,12 @@ def _corner_priority(result: dict, top_n: int = 8, lang: str = "es") -> list:
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 _DOMAIN_LABELS = {
-    "tyres":      "Neumáticos",
-    "brakes":     "Frenos",
-    "suspension": "Suspensión",
-    "aero":       "Aerodinámica / Balance",
-    "inputs":     "Técnica de Pilotaje",
-    "corners":    "Análisis por Curvas",
+    "tyres":      "Tyres",
+    "brakes":     "Brakes",
+    "suspension": "Suspension",
+    "aero":       "Aero / Balance",
+    "inputs":     "Driving Technique",
+    "corners":    "Corner Analysis",
 }
 
 

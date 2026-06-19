@@ -364,18 +364,22 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
         </div>
       )}
 
-      {!isPilotMode && result.curvatura?.length > 0 && (
-        <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-          <ModuleWithHelp
-            title="Circuit Curvature Signature"
-            helpContent={"Shows lateral G intensity (|LateralG|) across the lap. Peaks correspond to corners — numbered dots mark the apex positions. A higher peak means a tighter or faster corner. Compare the profile shape between fast and slow laps to identify where the reference lap carries more or less lateral load."}
-          >
-            <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
-          </ModuleWithHelp>
-        </div>
+      {!isPilotMode && (
+        result.curvatura?.length > 0
+          ? (
+            <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
+              <ModuleWithHelp
+                title="Circuit Curvature Signature"
+                helpContent={"Shows lateral G intensity (|LateralG|) across the lap. Peaks correspond to corners — numbered dots mark the apex positions. A higher peak means a tighter or faster corner. Compare the profile shape between fast and slow laps to identify where the reference lap carries more or less lateral load."}
+              >
+                <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
+              </ModuleWithHelp>
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
-      {result.sectores?.length > 0 && (
+      {!isPilotMode && result.sectores?.length > 0 && (
         <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
           <SectorTable
             sectores={result.sectores}
@@ -384,76 +388,104 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
         </div>
       )}
 
-      {!isPilotMode && (result.gg_diagram || result.g_limit) && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <ModuleWithHelp
-            title="GG Diagram — Grip Utilization"
-            helpContent={"Plots lateral G vs longitudinal G for every telemetry sample. Points near the outer edge of the circle = using the car's full grip. Sparse center = under-driving. The efficiency % shows how each sample compares to the car's grip limit. A well-driven lap fills the outer ring evenly."}
-          >
-            <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
-          </ModuleWithHelp>
-        </div>
+      {!isPilotMode && (
+        (result.gg_diagram || result.g_limit)
+          ? (
+            <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+              <ModuleWithHelp
+                title="GG Diagram — Grip Utilization"
+                helpContent={"Plots lateral G vs longitudinal G for every telemetry sample. Points near the outer edge of the circle = using the car's full grip. Sparse center = under-driving. The efficiency % shows how each sample compares to the car's grip limit. A well-driven lap fills the outer ring evenly."}
+              >
+                <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
+              </ModuleWithHelp>
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
-      {!isPilotMode && result.anomaly && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <AnomalyReport anomaly={result.anomaly} />
-        </div>
+      {!isPilotMode && (
+        result.anomaly
+          ? (
+            <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
+              <AnomalyReport anomaly={result.anomaly} />
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
-      {!isPilotMode && result.tyre_analysis?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <ModuleWithHelp
-            title="Tyre Temperature Analysis"
-            helpContent={"Shows inner / middle / outer tyre temperature per corner. Optimal window: 80–100 °C. Inner hotter than outer → too much negative camber. Outer hotter → too little. Even distribution → camber is well set. Front much hotter than rear → understeer bias or need more rear downforce."}
-          >
-            <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
-          </ModuleWithHelp>
-        </div>
+      {!isPilotMode && (
+        result.tyre_analysis?.available
+          ? (
+            <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
+              <ModuleWithHelp
+                title="Tyre Temperature Analysis"
+                helpContent={"Shows inner / middle / outer tyre temperature per corner. Optimal window: 80–100 °C. Inner hotter than outer → too much negative camber. Outer hotter → too little. Even distribution → camber is well set. Front much hotter than rear → understeer bias or need more rear downforce."}
+              >
+                <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
+              </ModuleWithHelp>
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
-      {!isPilotMode && result.brake_analysis?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <ModuleWithHelp
-            title="Brake Efficiency — Fade Analysis"
-            helpContent={"Ratio of generated deceleration to applied brake pressure. Baseline = 1.0. A progressive drop means thermal fade — the pads/discs are overheating. Highlighted zones fell >15% below baseline. Fix: more brake duct opening, harder compound, or reduce brake bias slightly."}
-          >
-            <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
-          </ModuleWithHelp>
-        </div>
+      {!isPilotMode && (
+        result.brake_analysis?.available
+          ? (
+            <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
+              <ModuleWithHelp
+                title="Brake Efficiency — Fade Analysis"
+                helpContent={"Ratio of generated deceleration to applied brake pressure. Baseline = 1.0. A progressive drop means thermal fade — the pads/discs are overheating. Highlighted zones fell >15% below baseline. Fix: more brake duct opening, harder compound, or reduce brake bias slightly."}
+              >
+                <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
+              </ModuleWithHelp>
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
-      {!isPilotMode && result.driver_inputs?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <ModuleWithHelp
-            title="Driver Inputs — Smoothness Analysis"
-            helpContent={"Nervousness index measures steering micro-corrections via FFT. High-frequency spikes (>5 Hz) → damper rebound too stiff. Mid-frequency (2–5 Hz) → spring rate issue. Brake-throttle overlap target: 8–18% for proper trail braking. Low overlap → driver lifting brake too early before apex."}
-          >
-            <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
-          </ModuleWithHelp>
-        </div>
+      {!isPilotMode && (
+        result.driver_inputs?.available
+          ? (
+            <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
+              <ModuleWithHelp
+                title="Driver Inputs — Smoothness Analysis"
+                helpContent={"Nervousness index measures steering micro-corrections via FFT. High-frequency spikes (>5 Hz) → damper rebound too stiff. Mid-frequency (2–5 Hz) → spring rate issue. Brake-throttle overlap target: 8–18% for proper trail braking. Low overlap → driver lifting brake too early before apex."}
+              >
+                <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
+              </ModuleWithHelp>
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
-      {!isPilotMode && result.suspension?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <ModuleWithHelp
-            title="Suspension Analysis — Pitch & Roll"
-            helpContent={"Shows suspension travel in mm. Roll = left/right difference (load transfer in corners). Pitch = front/rear difference (load under braking/acceleration). Bottoming events = damper at full compression — consider raising ride height or increasing bump stiffness. High roll ratio F/R → ARB imbalance."}
-          >
-            <SuspensionChart suspension={result.suspension} metadata={meta} />
-          </ModuleWithHelp>
-        </div>
+      {!isPilotMode && (
+        result.suspension?.available
+          ? (
+            <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
+              <ModuleWithHelp
+                title="Suspension Analysis — Pitch & Roll"
+                helpContent={"Shows suspension travel in mm. Roll = left/right difference (load transfer in corners). Pitch = front/rear difference (load under braking/acceleration). Bottoming events = damper at full compression — consider raising ride height or increasing bump stiffness. High roll ratio F/R → ARB imbalance."}
+              >
+                <SuspensionChart suspension={result.suspension} metadata={meta} />
+              </ModuleWithHelp>
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
-      {!isPilotMode && result.slip_angle?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <ModuleWithHelp
-            title="Slip Angle — Chassis Sideslip"
-            helpContent={"Body sideslip angle β: difference between car heading and velocity direction. High β = sliding. US% = time spent understeering (front slides more). OS% = oversteering (rear slides more). Balance mean > 0 → understeer tendency; < 0 → oversteer. Target: <10% combined US+OS in fast corners."}
-          >
-            <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
-          </ModuleWithHelp>
-        </div>
+      {!isPilotMode && (
+        result.slip_angle?.available
+          ? (
+            <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
+              <ModuleWithHelp
+                title="Slip Angle — Chassis Sideslip"
+                helpContent={"Body sideslip angle β: difference between car heading and velocity direction. High β = sliding. US% = time spent understeering (front slides more). OS% = oversteering (rear slides more). Balance mean > 0 → understeer tendency; < 0 → oversteer. Target: <10% combined US+OS in fast corners."}
+              >
+                <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
+              </ModuleWithHelp>
+            </div>
+          )
+          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
       )}
 
       {result.tiempo_potencial && (

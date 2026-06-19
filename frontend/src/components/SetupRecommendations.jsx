@@ -111,6 +111,10 @@ function RecCard({ rec, index, isPilotMode }) {
         <div style={{
           padding: '0 14px 14px',
           borderTop: '1px solid rgba(255,255,255,0.05)',
+          transition: 'max-height 0.2s ease, opacity 0.2s ease',
+          maxHeight: open ? 600 : 0,
+          opacity: open ? 1 : 0,
+          overflow: 'hidden',
         }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
             <div>

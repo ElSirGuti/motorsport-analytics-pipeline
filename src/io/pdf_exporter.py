@@ -581,8 +581,8 @@ def _section_key_findings(result: dict, s: dict) -> list:
 
 def _section_identity(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = []
     elems.append(Paragraph("REPORTE DE COMPARACIÓN DE VUELTAS", s["title"]))
     elems.append(Paragraph("Generado automáticamente — Motorsport Analytics Pipeline", s["subtitle"]))
@@ -612,8 +612,8 @@ def _section_identity(result: dict, s: dict, lang: str = 'es') -> list:
 def _section_summary(result: dict, s: dict, lang: str = 'es') -> list:
     summary = result.get("summary", {})
     meta    = result.get("metadata", {})
-    la = meta.get("label_a", "Vuelta A")
-    lb = meta.get("label_b", "Vuelta B")
+    la = meta.get("label_a", "Lap A")
+    lb = meta.get("label_b", "Lap B")
     elems = [Paragraph("RESUMEN GENERAL", s["h2"])]
     delta = summary.get("total_time_delta") or 0.0
     if delta > 0:
@@ -641,8 +641,8 @@ def _section_summary(result: dict, s: dict, lang: str = 'es') -> list:
 
 def _section_speed_delta(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = []
 
     elems.append(Paragraph("TRAZADO DE VELOCIDAD", s["h2"]))
@@ -674,8 +674,8 @@ def _section_speed_delta(result: dict, s: dict, lang: str = 'es') -> list:
 
 def _section_brake_throttle(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = [Paragraph("FRENO Y ACELERADOR", s["h2"])]
     img = _chart_brake_throttle(result, la, lb)
     if img:
@@ -692,8 +692,8 @@ def _section_brake_throttle(result: dict, s: dict, lang: str = 'es') -> list:
 
 def _section_gg(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = [Paragraph("DIAGRAMA GG — CÍRCULO DE FRICCIÓN", s["h2"])]
     img = _chart_gg(result, la, lb)
     if img:
@@ -714,8 +714,8 @@ def _section_tyres(result: dict, s: dict, lang: str = 'es') -> list:
     if not tyre.get("available"):
         return []
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     t_min = tyre.get("t_min", 80)
     t_max = tyre.get("t_max", 100)
     STATUS_LABEL = {
@@ -760,8 +760,8 @@ def _section_brakes(result: dict, s: dict, lang: str = 'es') -> list:
     if not brake.get("available"):
         return []
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = [Paragraph("EFICIENCIA DE FRENOS", s["h2"])]
     score_a    = brake.get("score_a",    0.0) or 0.0
     score_b    = brake.get("score_b",    0.0) or 0.0
@@ -816,8 +816,8 @@ def _section_inputs(result: dict, s: dict, lang: str = 'es') -> list:
     if not inputs.get("available"):
         return []
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = [Paragraph("INPUTS DEL PILOTO", s["h2"])]
     ni_a = inputs.get("nervousness_score_a", 0) or 0
     ni_b = inputs.get("nervousness_score_b", 0) or 0
@@ -859,8 +859,8 @@ def _section_suspension(result: dict, s: dict, lang: str = 'es') -> list:
     if not susp.get("available"):
         return []
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = [Paragraph("SUSPENSIÓN — PITCH / ROLL / BOTTOMING", s["h2"])]
     sa = susp.get("summary_a", {}) or {}
     sb = susp.get("summary_b", {}) or {}
@@ -916,8 +916,8 @@ def _section_slip(result: dict, s: dict, lang: str = 'es') -> list:
     if not slip.get("available"):
         return []
     meta = result.get("metadata", {})
-    la   = meta.get("label_a", "Vuelta A")
-    lb   = meta.get("label_b", "Vuelta B")
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
     elems = [Paragraph("ÁNGULO DE DESLIZAMIENTO — SIDESLIP β", s["h2"])]
     sa = slip.get("summary_a", {}) or {}
     sb = slip.get("summary_b", {}) or {}

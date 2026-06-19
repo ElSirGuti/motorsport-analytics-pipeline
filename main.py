@@ -110,7 +110,7 @@ async def _save_upload(upload: UploadFile, dest_path: str):
 
 
 import math
-from src.i18n import DEFAULT_LANG
+from src.i18n import DEFAULT_LANG, set_language, _
 
 
 def _detect_lang(request: Request) -> str:
@@ -174,6 +174,7 @@ async def generate_pdf_from_json(
     """
     try:
         lang = _detect_lang(request)
+        set_language(lang)
         pdf_bytes = export_report_pdf(result, lang=lang)
         meta      = result.get("metadata", {})
         label_a   = meta.get("label_a", "A")
@@ -207,6 +208,7 @@ async def generate_pdf_report(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
+        set_language(lang)
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_pdf_")
         path = os.path.join(tmp_dir, "session.csv")
         await _save_upload(session_file, path)
@@ -330,6 +332,7 @@ async def compare_laps_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
+        set_language(lang)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_")
         path_a = os.path.join(tmp_dir, "lap_a.csv")
@@ -453,8 +456,8 @@ async def compare_laps_endpoint(
         meta_a = read_motec_metadata(path_a)
         meta_b = read_motec_metadata(path_b)
 
-        driver_a = meta_a.get("driver") or "Piloto A"
-        driver_b = meta_b.get("driver") or "Piloto B"
+        driver_a = meta_a.get("driver") or _("driver_pilot_a")
+        driver_b = meta_b.get("driver") or _("driver_pilot_b")
         vehicle_a = meta_a.get("vehicle") or "?"
         vehicle_b = meta_b.get("vehicle") or "?"
         venue = meta_a.get("venue") or meta_b.get("venue")
@@ -469,8 +472,8 @@ async def compare_laps_endpoint(
             label_a = driver_a
             label_b = driver_b
         else:
-            label_a = "Vuelta A (Ref)"
-            label_b = "Vuelta B"
+            label_a = _("lap_ref_label")
+            label_b = _("lap_b_label")
 
         result["metadata"] = {
             "lap_a_filename": lap_a.filename,
@@ -534,6 +537,7 @@ async def analyze_session_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
+        set_language(lang)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_session_")
         path = os.path.join(tmp_dir, "session.csv")
@@ -605,6 +609,7 @@ async def compare_session_laps_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
+        set_language(lang)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_csl_")
         path = os.path.join(tmp_dir, "session.csv")
@@ -883,6 +888,7 @@ async def compare_telemetry_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
+        set_language(lang)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_geo_")
         path_fast = os.path.join(tmp_dir, "lap_fast.csv")
@@ -995,6 +1001,7 @@ async def analyze_telemetry_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
+        set_language(lang)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_dyn_")
         path_fast = os.path.join(tmp_dir, "lap_fast.csv")
@@ -1139,6 +1146,7 @@ async def analyze_stint_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
+        set_language(lang)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
         dfs = []

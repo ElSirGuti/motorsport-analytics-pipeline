@@ -1583,6 +1583,9 @@ body::after {
 .fade-up--d3 { animation-delay: 0.15s; opacity: 0; }
 .fade-up--d4 { animation-delay: 0.2s;  opacity: 0; }
 .fade-up--d5 { animation-delay: 0.25s; opacity: 0; }
+.fade-up--d6 { animation-delay: 0.3s;  opacity: 0; }
+.fade-up--d7 { animation-delay: 0.35s; opacity: 0; }
+.fade-up--d8 { animation-delay: 0.4s;  opacity: 0; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {

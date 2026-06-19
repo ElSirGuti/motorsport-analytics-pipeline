@@ -60,22 +60,37 @@ export default function PilotEngineerToggle({ isPilotMode, onToggle }) {
     color: '#9CA3AF',
   };
 
+  const labelStyle = {
+    display: 'block',
+    fontSize: '10px',
+    color: '#506080',
+    textAlign: 'center',
+    marginTop: '4px',
+    letterSpacing: '0.03em',
+    fontFamily: "'JetBrains Mono', monospace",
+  };
+
   return (
-    <div style={containerStyle}>
-      <button
-        style={!isPilotMode ? activeStyle : inactiveStyle}
-        onClick={!isPilotMode ? undefined : onToggle}
-        aria-pressed={!isPilotMode}
-      >
-        Engineer
-      </button>
-      <button
-        style={isPilotMode ? activeStyle : inactiveStyle}
-        onClick={isPilotMode ? undefined : onToggle}
-        aria-pressed={isPilotMode}
-      >
-        Pilot
-      </button>
+    <div>
+      <div style={containerStyle}>
+        <button
+          style={!isPilotMode ? activeStyle : inactiveStyle}
+          onClick={!isPilotMode ? undefined : onToggle}
+          aria-pressed={!isPilotMode}
+        >
+          Engineer
+        </button>
+        <button
+          style={isPilotMode ? activeStyle : inactiveStyle}
+          onClick={isPilotMode ? undefined : onToggle}
+          aria-pressed={isPilotMode}
+        >
+          Pilot
+        </button>
+      </div>
+      <span style={labelStyle}>
+        {isPilotMode ? 'Pilot mode — technical panels hidden' : 'Engineer mode — full telemetry'}
+      </span>
     </div>
   );
 }

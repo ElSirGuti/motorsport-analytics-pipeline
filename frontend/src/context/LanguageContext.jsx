@@ -4,12 +4,12 @@ import en from '../i18n/en';
 
 const STRINGS = { es, en };
 
-const LanguageContext = createContext({ lang: 'es', t: es, setLang: () => {} });
+const LanguageContext = createContext({ lang: 'en', t: en, setLang: () => {} });
 
 export function LanguageProvider({ children }) {
   const stored = typeof localStorage !== 'undefined'
-    ? (localStorage.getItem('lang') || 'es')
-    : 'es';
+    ? (localStorage.getItem('lang') || 'en')
+    : 'en';
   const [lang, setLangState] = useState(stored);
 
   function setLang(l) {

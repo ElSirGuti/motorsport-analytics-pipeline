@@ -11,7 +11,7 @@ from contextvars import ContextVar
 DEFAULT_LANG = "en"
 from typing import Optional
 
-_current_lang: ContextVar[str] = ContextVar("current_lang", default="es")
+_current_lang: ContextVar[str] = ContextVar("current_lang", default=DEFAULT_LANG)
 
 _locales: dict[str, dict[str, str]] = {}
 _LOCALE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")

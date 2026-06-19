@@ -232,14 +232,35 @@ def _generate_steer_angle(distance, corners):
 
 
 def _generate_lateral_g(speed_kmh, steer_angle):
-    """Genera fuerza lateral G simulada."""
+    """Genera fuerza lateral G simulada con valores realistas (1-3g en curvas)."""
     speed_ms = speed_kmh / 3.6
-    # G lateral ∝ v² * ángulo de dirección (simplificado)
-    lat_g = (speed_ms ** 2) * np.abs(steer_angle) / 100000
+    # Calibrado: v²*|steer|/11000 produce ~1-3g en curvas reales de circuito
+    lat_g = (speed_ms ** 2) * np.abs(steer_angle) / 11000
     lat_g *= np.sign(steer_angle)
-    lat_g += np.random.normal(0, 0.02, len(lat_g))
-    lat_g = np.clip(lat_g, -4, 4)
+    lat_g += np.random.normal(0, 0.04, len(lat_g))
+    lat_g = np.clip(lat_g, -5, 5)
     return lat_g
+
+
+def _generate_track_position(distance, lat_g, speed_kmh):
+    """Genera coordenadas XY del circuito integrando la curvatura cinemática."""
+    speed_ms = np.maximum(speed_kmh / 3.6, 1.0)
+    g = 9.81
+
+    # κ = a_lat / v² = (lat_g * g) / v²  [rad/m]
+    kappa = (lat_g * g) / (speed_ms ** 2)
+
+    heading = np.zeros(len(distance))
+    x = np.zeros(len(distance))
+    y = np.zeros(len(distance))
+
+    for i in range(1, len(distance)):
+        ds = float(distance[i] - distance[i - 1])
+        heading[i] = heading[i - 1] + kappa[i - 1] * ds
+        x[i] = x[i - 1] + np.cos(heading[i - 1]) * ds
+        y[i] = y[i - 1] + np.sin(heading[i - 1]) * ds
+
+    return np.round(x, 3), np.round(y, 3)
 
 
 def _generate_longitudinal_g(speed_kmh, time):
@@ -286,7 +307,8 @@ def generate_lap(distance, corners, errors=None, label="clean"):
     steer = _generate_steer_angle(distance, corners)
     lat_g = _generate_lateral_g(speed, steer)
     long_g = _generate_longitudinal_g(speed, time)
-    
+    pos_x, pos_y = _generate_track_position(distance, lat_g, speed)
+
     df = pd.DataFrame({
         "Distance": np.round(distance, 3),
         "Speed": np.round(speed, 2),
@@ -298,6 +320,8 @@ def generate_lap(distance, corners, errors=None, label="clean"):
         "LateralG": np.round(lat_g, 4),
         "LongitudinalG": np.round(long_g, 4),
         "LapTime": np.round(time, 6),
+        "PosX": pos_x,
+        "PosY": pos_y,
     })
     
     print(f"    - {len(df)} muestras, tiempo de vuelta: {time[-1]:.3f}s")

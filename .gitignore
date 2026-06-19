@@ -35,4 +35,4 @@ frontend/.env
 # Misc
 *.log
 .env
-.claude/*
+.claude/
