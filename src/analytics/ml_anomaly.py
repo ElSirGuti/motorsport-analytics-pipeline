@@ -138,12 +138,15 @@ def _build_zone(start_m: float, end_m: float, scores: list[float], lang: str = "
     start_m_s = f"{start_m:.0f}"
     end_m_s = f"{end_m:.0f}"
     if avg > 0.82:
+        sev_key = "critico"
         sev = t("anomaly_sev_critico", lang=lang)
         desc = t("anomaly_desc_critico", lang=lang, start_m=start_m_s, end_m=end_m_s)
     elif avg > 0.68:
+        sev_key = "media"
         sev = t("anomaly_sev_media", lang=lang)
         desc = t("anomaly_desc_media", lang=lang, start_m=start_m_s, end_m=end_m_s)
     else:
+        sev_key = "leve"
         sev = t("anomaly_sev_leve", lang=lang)
         desc = t("anomaly_desc_leve", lang=lang, start_m=start_m_s, end_m=end_m_s)
 
@@ -154,5 +157,6 @@ def _build_zone(start_m: float, end_m: float, scores: list[float], lang: str = "
         "avg_score": round(avg, 3),
         "peak_score": round(peak, 3),
         "severity": sev,
+        "severity_key": sev_key,
         "descripcion": desc,
     }

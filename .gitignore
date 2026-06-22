@@ -39,3 +39,4 @@ frontend/.env
 *.log
 .env
 .claude/
+graphify-out/

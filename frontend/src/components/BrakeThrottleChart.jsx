@@ -3,14 +3,14 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
-import { setCursorDistance } from '../api/cursorStore';
-import { useLanguage } from '../context/LanguageContext';
+import { useCursorWriter } from '../hooks/useCursorWriter';
 
 const BRAKE_COLORS    = ['#FF3D3D', '#FF8C42', '#CC2936', '#FF6B6B'];
 const THROTTLE_COLORS = ['#00E676', '#FFB300', '#34D399', '#F59E0B'];
 
-const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick }) => {
-  const { t } = useLanguage();
+// labels: translations object passed from parent
+const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick, labels }) => {
+  const cursorHandlers = useCursorWriter();
   const chartData = useMemo(() => {
     if (!brakeData?.distance || !throttleData) return [];
     const rows = brakeData.distance.map((dist, i) => {
@@ -29,7 +29,7 @@ const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick 
       <div className="chart-card">
         <div className="chart-empty">
           <span className="chart-empty__icon">◌</span>
-          {t.brakeThrottleNoData}
+          {labels?.brakeThrottleNoData ?? ''}
         </div>
       </div>
     );
@@ -57,7 +57,7 @@ const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick 
       <div className="chart-header">
         <div className="chart-title">
           <span>◈</span>
-          {t.brakeThrottleTitle}
+          {labels?.brakeThrottleTitle ?? ''}
         </div>
         {zoomDomain && (
           <span className="chart-zoom-badge">
@@ -68,13 +68,12 @@ const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick 
 
       <div style={{ marginBottom: '4px' }}>
         <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--red)', marginBottom: '4px', opacity: 0.8 }}>
-          {t.brakeThrottleBrake}
+          {labels?.brakeThrottleBrake ?? ''}
         </div>
         <div style={{ width: '100%', height: 170 }}>
           <ResponsiveContainer>
             <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals"
-              onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
-              onMouseLeave={() => setCursorDistance(null)}
+              {...cursorHandlers}
               onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -100,13 +99,12 @@ const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick 
 
       <div>
         <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--green)', marginBottom: '4px', opacity: 0.8 }}>
-          {t.brakeThrottleThrottle}
+          {labels?.brakeThrottleThrottle ?? ''}
         </div>
         <div style={{ width: '100%', height: 170 }}>
           <ResponsiveContainer>
             <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals"
-              onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
-              onMouseLeave={() => setCursorDistance(null)}
+              {...cursorHandlers}
               onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
             >
               <CartesianGrid strokeDasharray="3 3" vertical={false} />

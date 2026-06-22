@@ -5,7 +5,12 @@ import {
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
 
-const SEV_COLOR = { leve: '#00E676', media: '#FFB300', critico: '#FF3D3D' };
+const SEV_COLOR  = { critico: '#FF3D3D', media: '#FFB300', leve: '#00E676' };
+const SEV_BG     = { critico: 'rgba(255,61,61,0.07)',  media: 'rgba(255,179,0,0.06)',  leve: 'rgba(0,230,118,0.05)' };
+const SEV_BORDER = { critico: 'rgba(255,61,61,0.5)',   media: 'rgba(255,179,0,0.45)',  leve: 'rgba(0,230,118,0.4)' };
+
+// score is 0–1 where 0.6 = threshold. Normalise to 0–100 within 0.6–1.0 range.
+const scoreToPercent = (s) => Math.round(Math.min(100, Math.max(0, (s - 0.6) / 0.4 * 100)));
 
 const renderTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null;
@@ -26,6 +31,33 @@ const renderTooltip = ({ active, payload }) => {
   );
 };
 
+const ScoreBar = ({ avg, peak, sevKey }) => {
+  const color = SEV_COLOR[sevKey] ?? '#8899BB';
+  const pct = scoreToPercent(avg);
+  const peakPct = scoreToPercent(peak);
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: '0.65rem', color: 'var(--text-3)' }}>
+        <span>Deviation from reference</span>
+        <span style={{ color, fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>
+          avg {(avg * 100).toFixed(0)}% · peak {(peak * 100).toFixed(0)}%
+        </span>
+      </div>
+      <div style={{ position: 'relative', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'visible' }}>
+        <div style={{
+          position: 'absolute', left: 0, top: 0, height: '100%',
+          width: `${pct}%`, background: color, borderRadius: 3, opacity: 0.7,
+        }} />
+        {/* peak marker */}
+        <div style={{
+          position: 'absolute', top: -2, width: 2, height: 10,
+          left: `${peakPct}%`, background: color, borderRadius: 1,
+        }} />
+      </div>
+    </div>
+  );
+};
+
 const AnomalyReport = ({ anomaly }) => {
   const { t } = useLanguage();
   const { scores_fast = [], scores_slow = [], zones = [] } = anomaly || {};
@@ -42,13 +74,12 @@ const AnomalyReport = ({ anomaly }) => {
 
   if (!chartData.length && !zones.length) return null;
 
-  const maxDist = chartData.at(-1)?.distance ?? 0;
-  const criticalZones = zones.filter((z) => z.severity === 'critico').length;
+  const criticalZones = zones.filter((z) => (z.severity_key ?? z.severity) === 'critico').length;
 
   const SEV_LABEL = {
-    leve: t.severityLeve,
-    media: t.severityMedia,
     critico: t.severityCritico,
+    media:   t.severityMedia,
+    leve:    t.severityLeve,
   };
 
   return (
@@ -88,12 +119,14 @@ const AnomalyReport = ({ anomaly }) => {
             <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v.toFixed(0)}m`} />
             <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} width={36} />
             <Tooltip content={renderTooltip} />
-            <ReferenceLine y={0.6} stroke="rgba(255,179,0,0.4)" strokeDasharray="4 3" />
+            {/* anomaly threshold reference line */}
+            <ReferenceLine y={0.6} stroke="rgba(255,179,0,0.4)" strokeDasharray="4 3"
+              label={{ value: 'threshold', position: 'insideTopRight', fill: 'rgba(255,179,0,0.5)', fontSize: 9 }} />
             {zones.map((z, i) => (
               <ReferenceLine
                 key={i}
                 x={z.start_m}
-                stroke={SEV_COLOR[z.severity]}
+                stroke={SEV_COLOR[z.severity_key ?? 'leve']}
                 strokeWidth={1.5}
                 strokeOpacity={0.6}
               />
@@ -114,23 +147,46 @@ const AnomalyReport = ({ anomaly }) => {
 
       {zones.length > 0 && (
         <div className="anomaly-zones">
-          {zones.map((z, i) => (
-            <div key={i} className={`anomaly-zone anomaly-zone--${z.severity}`}>
-              <div className="anomaly-zone__header">
-                <span className={`dynamic-event__severidad dynamic-event__severidad--${z.severity}`}>
-                  {SEV_LABEL[z.severity]}
-                </span>
-                <span className="anomaly-zone__range">
-                  {z.start_m.toFixed(0)}m – {z.end_m.toFixed(0)}m
-                </span>
-                <span className="anomaly-zone__len">{z.length_m.toFixed(0)}m</span>
-                <span className="anomaly-zone__score" style={{ color: SEV_COLOR[z.severity] }}>
-                  {(z.avg_score * 100).toFixed(0)}{t.anomalyError}
-                </span>
+          {zones.map((z, i) => {
+            const sevKey = z.severity_key ?? 'leve';
+            const color  = SEV_COLOR[sevKey];
+            return (
+              <div key={i} style={{
+                borderRadius: 8,
+                padding: '12px 14px',
+                borderLeft: `3px solid ${SEV_BORDER[sevKey]}`,
+                background: SEV_BG[sevKey],
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}>
+                {/* Header row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase',
+                    letterSpacing: '0.1em', padding: '2px 8px', borderRadius: 4,
+                    color, background: `${color}18`, border: `1px solid ${color}40`,
+                  }}>
+                    {SEV_LABEL[sevKey] ?? z.severity}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-2)' }}>
+                    {z.start_m.toFixed(0)}m – {z.end_m.toFixed(0)}m
+                  </span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-3)' }}>
+                    {z.length_m.toFixed(0)}m zone
+                  </span>
+                </div>
+
+                {/* Deviation bar */}
+                <ScoreBar avg={z.avg_score} peak={z.peak_score} sevKey={sevKey} />
+
+                {/* Description */}
+                <p style={{ margin: 0, fontSize: '0.73rem', color: 'var(--text-2)', lineHeight: 1.55 }}>
+                  {z.descripcion}
+                </p>
               </div>
-              <div className="anomaly-zone__desc">{z.descripcion}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

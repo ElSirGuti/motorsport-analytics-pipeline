@@ -1,12 +1,13 @@
 import { useLanguage } from '../context/LanguageContext';
 
-const SummaryCard = ({ summary, metadata }) => {
+const SummaryCard = ({ summary, metadata, rawTimeDelta }) => {
   const { t } = useLanguage();
   if (!summary) return null;
 
   const { total_time_delta, worst_corner, worst_corner_loss, num_corners_analyzed } = summary;
-  const isPositive = total_time_delta > 0;
-  const isNegative = total_time_delta < 0;
+  const displayDelta = rawTimeDelta ?? total_time_delta;
+  const isPositive = displayDelta > 0;
+  const isNegative = displayDelta < 0;
 
   const labelB = metadata?.label_b || 'Piloto B';
 
@@ -55,7 +56,7 @@ const SummaryCard = ({ summary, metadata }) => {
         <div className={`kpi-card ${isPositive ? 'kpi-card--positive' : isNegative ? 'kpi-card--negative' : 'kpi-card--neutral'}`}>
           <div className="kpi-card__label">{t.summaryDelta}</div>
           <div className={`kpi-card__value ${isPositive ? 'kpi-card__value--positive' : isNegative ? 'kpi-card__value--negative' : 'kpi-card__value--neutral'}`}>
-            {total_time_delta > 0 ? '+' : ''}{total_time_delta.toFixed(3)}s
+            {displayDelta > 0 ? '+' : ''}{displayDelta.toFixed(3)}s
           </div>
           <div className="kpi-card__sub">
             {isPositive

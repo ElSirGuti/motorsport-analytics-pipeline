@@ -3,13 +3,13 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { setCursorDistance } from '../api/cursorStore';
-import { useLanguage } from '../context/LanguageContext';
+import { useCursorWriter } from '../hooks/useCursorWriter';
 
 const COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 
-const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
-  const { t } = useLanguage();
+// labels: translations object passed from parent
+const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
+  const cursorHandlers = useCursorWriter();
   const chartData = useMemo(() => {
     if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => {
@@ -29,7 +29,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-card">
         <div className="chart-empty">
           <span className="chart-empty__icon">◌</span>
-          {t.speedNoData}
+          {labels?.speedNoData ?? ''}
         </div>
       </div>
     );
@@ -43,7 +43,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-header">
         <div className="chart-title">
           <span>⚡</span>
-          {t.speedTitle}
+          {labels?.speedTitle ?? ''}
         </div>
         {zoomDomain && (
           <span className="chart-zoom-badge">
@@ -57,8 +57,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
             data={chartData}
             margin={{ top: 6, right: 12, left: -16, bottom: 0 }}
             syncId="distanceSync"
-            onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
-            onMouseLeave={() => setCursorDistance(null)}
+            {...cursorHandlers}
             onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
           >
             <CartesianGrid strokeDasharray="3 3" vertical={false} />

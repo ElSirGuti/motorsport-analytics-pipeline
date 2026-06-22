@@ -27,6 +27,7 @@ import RacingLinePanel from './components/RacingLinePanel';
 import ThermalManagementPanel from './components/ThermalManagementPanel';
 import HealthDashboard from "./components/HealthDashboard";
 import PilotEngineerToggle, { usePilotMode } from "./components/PilotEngineerToggle";
+import Sidebar from './components/Sidebar';
 
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 
@@ -96,7 +97,7 @@ function SessionKPIs({ sessionResult, stintResult }) {
   );
 }
 
-function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, compareLoading, compareError }) {
+function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, compareLoading, compareError, compareResult }) {
   const { t } = useLanguage();
   const [lapA, lapB] = selectedLaps;
   const canCompare = selectedLaps.length === 2 && !compareLoading;
@@ -231,7 +232,7 @@ function ModuleWithHelp({ children, title, helpContent }) {
   );
 }
 
-function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode }) {
+function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode }) {
   const { t } = useLanguage();
   const meta = result?.metadata;
   const title = comparingLaps
@@ -283,266 +284,274 @@ function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner,
 
       {result && result.health_summary && <HealthDashboard health_summary={result.health_summary} />}
 
-      <SummaryCard summary={result.summary} metadata={result.metadata} />
+      <SummaryCard summary={result.summary} metadata={result.metadata} rawTimeDelta={rawTimeDelta} />
 
-      {result.track_map?.length > 0 && (
-        <div className="fade-up fade-up--d1" style={{ marginTop: 'var(--s4)' }}>
-          <TrackMap
-            trackData={result.track_map}
-            fixedDistance={fixedDistance}
-            onClearFixed={onClearFixed}
+      <div id="section-core-lap">
+        {result.track_map?.length > 0 && (
+          <div className="fade-up fade-up--d1" style={{ marginTop: 'var(--s4)' }}>
+            <TrackMap
+              trackData={result.track_map}
+              fixedDistance={fixedDistance}
+              onClearFixed={onClearFixed}
+            />
+          </div>
+        )}
+
+        {zoomDomain && (
+          <div className="zoom-bar">
+            <span className="zoom-bar__label">
+              {t.zoomLap(zoomDomain[0], zoomDomain[1])}
+              {activeCorner != null && ` ${t.zoomCorner(activeCorner)}`}
+            </span>
+            <button className="zoom-reset-btn" onClick={onResetZoom}>{t.zoomReset}</button>
+          </div>
+        )}
+
+        <div className="charts-section fade-up fade-up--d2" style={{ marginTop: 'var(--s4)' }}>
+          <SpeedChart
+            data={{ ...result.speed_comparison, lap_labels: lapLabels }}
+            zoomDomain={zoomDomain}
+            onChartClick={onChartClick}
+            labels={t}
+          />
+          <BrakeThrottleChart
+            brakeData={{ ...result.brake_comparison, lap_labels: lapLabels }}
+            throttleData={{ ...result.throttle_comparison, lap_labels: lapLabels }}
+            zoomDomain={zoomDomain}
+            onChartClick={onChartClick}
+            labels={t}
+          />
+          <TimeDeltaChart
+            data={result.time_delta_series}
+            zoomDomain={zoomDomain}
+            onChartClick={onChartClick}
+            labels={t}
           />
         </div>
-      )}
 
-      {zoomDomain && (
-        <div className="zoom-bar">
-          <span className="zoom-bar__label">
-            {t.zoomLap(zoomDomain[0], zoomDomain[1])}
-            {activeCorner != null && ` ${t.zoomCorner(activeCorner)}`}
-          </span>
-          <button className="zoom-reset-btn" onClick={onResetZoom}>{t.zoomReset}</button>
-        </div>
-      )}
+        <CornerReport
+          corners={result.corners}
+          onCornerClick={onCornerClick}
+          activeCorner={activeCorner}
+        />
 
-      <div className="charts-section fade-up fade-up--d2" style={{ marginTop: 'var(--s4)' }}>
-        <SpeedChart
-          data={{ ...result.speed_comparison, lap_labels: lapLabels }}
-          zoomDomain={zoomDomain}
-          onChartClick={onChartClick}
-        />
-        <BrakeThrottleChart
-          brakeData={{ ...result.brake_comparison, lap_labels: lapLabels }}
-          throttleData={{ ...result.throttle_comparison, lap_labels: lapLabels }}
-          zoomDomain={zoomDomain}
-          onChartClick={onChartClick}
-        />
-        <TimeDeltaChart
-          data={result.time_delta_series}
-          zoomDomain={zoomDomain}
-          onChartClick={onChartClick}
-        />
+        {result.dynamic_events && result.dynamic_events.length > 0 && (
+          <div className="card fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
+            <div className="card__title">
+              <span className="card__title-icon">⚠</span>
+              {t.eventsTitle}
+              <span style={{
+                marginLeft: 'auto', fontSize: '0.68rem', padding: '3px 8px',
+                background: 'rgba(255,61,61,0.1)', color: 'var(--red)',
+                border: '1px solid rgba(255,61,61,0.25)', borderRadius: 4,
+                fontFamily: "'JetBrains Mono', monospace",
+              }}>
+                {t.eventsCount(result.dynamic_events.length)}
+              </span>
+            </div>
+            <div className="dynamic-events-list">
+              {result.dynamic_events.map((ev, i) => (
+                <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
+                  <div className="dynamic-event__header">
+                    <span className="dynamic-event__tipo">
+                      {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
+                    </span>
+                    <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
+                    <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
+                    <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
+                      {ev.severidad?.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!isPilotMode && (
+          result.curvatura?.length > 0
+            ? (
+              <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
+                <ModuleWithHelp
+                  title="Circuit Curvature Signature"
+                  helpContent={"Shows lateral G intensity (|LateralG|) across the lap. Peaks correspond to corners — numbered dots mark the apex positions. A higher peak means a tighter or faster corner. Compare the profile shape between fast and slow laps to identify where the reference lap carries more or less lateral load."}
+                >
+                  <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
+                </ModuleWithHelp>
+              </div>
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+        )}
+
+        {!isPilotMode && result.sectores?.length > 0 && (
+          <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
+            <SectorTable
+              sectores={result.sectores}
+              totalDelta={result.metadata?.delta_total_s ?? result.summary?.total_time_delta}
+            />
+          </div>
+        )}
       </div>
 
-      <CornerReport
-        corners={result.corners}
-        onCornerClick={onCornerClick}
-        activeCorner={activeCorner}
-      />
-
-      {result.dynamic_events && result.dynamic_events.length > 0 && (
-        <div className="card fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-          <div className="card__title">
-            <span className="card__title-icon">⚠</span>
-            {t.eventsTitle}
-            <span style={{
-              marginLeft: 'auto', fontSize: '0.68rem', padding: '3px 8px',
-              background: 'rgba(255,61,61,0.1)', color: 'var(--red)',
-              border: '1px solid rgba(255,61,61,0.25)', borderRadius: 4,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
-              {t.eventsCount(result.dynamic_events.length)}
-            </span>
-          </div>
-          <div className="dynamic-events-list">
-            {result.dynamic_events.map((ev, i) => (
-              <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
-                <div className="dynamic-event__header">
-                  <span className="dynamic-event__tipo">
-                    {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
-                  </span>
-                  <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
-                  <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
-                  <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
-                    {ev.severidad?.toUpperCase()}
-                  </span>
-                </div>
-                <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
+      {!isPilotMode && (
+        <div id="section-dynamics">
+          {(result.gg_diagram || result.g_limit)
+            ? (
+              <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+                <ModuleWithHelp
+                  title="GG Diagram — Grip Utilization"
+                  helpContent={"Plots lateral G vs longitudinal G for every telemetry sample. Points near the outer edge of the circle = using the car's full grip. Sparse center = under-driving. The efficiency % shows how each sample compares to the car's grip limit. A well-driven lap fills the outer ring evenly."}
+                >
+                  <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
+                </ModuleWithHelp>
               </div>
-            ))}
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+          }
+
+          {result.anomaly
+            ? (
+              <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
+                <AnomalyReport anomaly={result.anomaly} />
+              </div>
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+          }
+
+          {result.slip_angle?.available
+            ? (
+              <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
+                <ModuleWithHelp
+                  title="Slip Angle — Chassis Sideslip"
+                  helpContent={"Body sideslip angle β: difference between car heading and velocity direction. High β = sliding. US% = time spent understeering (front slides more). OS% = oversteering (rear slides more). Balance mean > 0 → understeer tendency; < 0 → oversteer. Target: <10% combined US+OS in fast corners."}
+                >
+                  <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
+                </ModuleWithHelp>
+              </div>
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+          }
+
+          {result.suspension?.available
+            ? (
+              <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
+                <ModuleWithHelp
+                  title="Suspension Analysis — Pitch & Roll"
+                  helpContent={"Shows suspension travel in mm. Roll = left/right difference (load transfer in corners). Pitch = front/rear difference (load under braking/acceleration). Bottoming events = damper at full compression — consider raising ride height or increasing bump stiffness. High roll ratio F/R → ARB imbalance."}
+                >
+                  <SuspensionChart suspension={result.suspension} metadata={meta} />
+                </ModuleWithHelp>
+              </div>
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+          }
+        </div>
+      )}
+
+      {!isPilotMode && (
+        <div id="section-inputs">
+          {result.tyre_analysis?.available
+            ? (
+              <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
+                <ModuleWithHelp
+                  title="Tyre Temperature Analysis"
+                  helpContent={"Shows inner / middle / outer tyre temperature per corner. Optimal window: 80–100 °C. Inner hotter than outer → too much negative camber. Outer hotter → too little. Even distribution → camber is well set. Front much hotter than rear → understeer bias or need more rear downforce."}
+                >
+                  <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
+                </ModuleWithHelp>
+              </div>
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+          }
+
+          {result.brake_analysis?.available
+            ? (
+              <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
+                <ModuleWithHelp
+                  title="Brake Efficiency — Fade Analysis"
+                  helpContent={"Ratio of generated deceleration to applied brake pressure. Baseline = 1.0. A progressive drop means thermal fade — the pads/discs are overheating. Highlighted zones fell >15% below baseline. Fix: more brake duct opening, harder compound, or reduce brake bias slightly."}
+                >
+                  <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
+                </ModuleWithHelp>
+              </div>
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+          }
+
+          {result.driver_inputs?.available
+            ? (
+              <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
+                <ModuleWithHelp
+                  title="Driver Inputs — Smoothness Analysis"
+                  helpContent={"Nervousness index measures steering micro-corrections via FFT. High-frequency spikes (>5 Hz) → damper rebound too stiff. Mid-frequency (2–5 Hz) → spring rate issue. Brake-throttle overlap target: 8–18% for proper trail braking. Low overlap → driver lifting brake too early before apex."}
+                >
+                  <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
+                </ModuleWithHelp>
+              </div>
+            )
+            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+          }
+        </div>
+      )}
+
+      <div id="section-strategy">
+        {result.tiempo_potencial && (
+          <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+            <PotentialLapCard
+              tiempoPotencial={result.tiempo_potencial}
+              xgboostPred={result.xgboost_pred}
+              historySamples={result.metadata?.history_samples}
+            />
           </div>
-        </div>
-      )}
+        )}
 
-      {!isPilotMode && (
-        result.curvatura?.length > 0
-          ? (
-            <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-              <ModuleWithHelp
-                title="Circuit Curvature Signature"
-                helpContent={"Shows lateral G intensity (|LateralG|) across the lap. Peaks correspond to corners — numbered dots mark the apex positions. A higher peak means a tighter or faster corner. Compare the profile shape between fast and slow laps to identify where the reference lap carries more or less lateral load."}
-              >
-                <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
-              </ModuleWithHelp>
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {!isPilotMode && result.sectores?.length > 0 && (
-        <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-          <SectorTable
-            sectores={result.sectores}
-            totalDelta={result.metadata?.delta_total_s ?? result.summary?.total_time_delta}
-          />
-        </div>
-      )}
-
-      {!isPilotMode && (
-        (result.gg_diagram || result.g_limit)
-          ? (
-            <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-              <ModuleWithHelp
-                title="GG Diagram — Grip Utilization"
-                helpContent={"Plots lateral G vs longitudinal G for every telemetry sample. Points near the outer edge of the circle = using the car's full grip. Sparse center = under-driving. The efficiency % shows how each sample compares to the car's grip limit. A well-driven lap fills the outer ring evenly."}
-              >
-                <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
-              </ModuleWithHelp>
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {!isPilotMode && (
-        result.anomaly
-          ? (
-            <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
-              <AnomalyReport anomaly={result.anomaly} />
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {!isPilotMode && (
-        result.tyre_analysis?.available
-          ? (
-            <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
-              <ModuleWithHelp
-                title="Tyre Temperature Analysis"
-                helpContent={"Shows inner / middle / outer tyre temperature per corner. Optimal window: 80–100 °C. Inner hotter than outer → too much negative camber. Outer hotter → too little. Even distribution → camber is well set. Front much hotter than rear → understeer bias or need more rear downforce."}
-              >
-                <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
-              </ModuleWithHelp>
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {!isPilotMode && (
-        result.brake_analysis?.available
-          ? (
-            <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
-              <ModuleWithHelp
-                title="Brake Efficiency — Fade Analysis"
-                helpContent={"Ratio of generated deceleration to applied brake pressure. Baseline = 1.0. A progressive drop means thermal fade — the pads/discs are overheating. Highlighted zones fell >15% below baseline. Fix: more brake duct opening, harder compound, or reduce brake bias slightly."}
-              >
-                <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
-              </ModuleWithHelp>
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {!isPilotMode && (
-        result.driver_inputs?.available
-          ? (
-            <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
-              <ModuleWithHelp
-                title="Driver Inputs — Smoothness Analysis"
-                helpContent={"Nervousness index measures steering micro-corrections via FFT. High-frequency spikes (>5 Hz) → damper rebound too stiff. Mid-frequency (2–5 Hz) → spring rate issue. Brake-throttle overlap target: 8–18% for proper trail braking. Low overlap → driver lifting brake too early before apex."}
-              >
-                <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
-              </ModuleWithHelp>
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {!isPilotMode && (
-        result.suspension?.available
-          ? (
-            <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
-              <ModuleWithHelp
-                title="Suspension Analysis — Pitch & Roll"
-                helpContent={"Shows suspension travel in mm. Roll = left/right difference (load transfer in corners). Pitch = front/rear difference (load under braking/acceleration). Bottoming events = damper at full compression — consider raising ride height or increasing bump stiffness. High roll ratio F/R → ARB imbalance."}
-              >
-                <SuspensionChart suspension={result.suspension} metadata={meta} />
-              </ModuleWithHelp>
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {!isPilotMode && (
-        result.slip_angle?.available
-          ? (
-            <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
-              <ModuleWithHelp
-                title="Slip Angle — Chassis Sideslip"
-                helpContent={"Body sideslip angle β: difference between car heading and velocity direction. High β = sliding. US% = time spent understeering (front slides more). OS% = oversteering (rear slides more). Balance mean > 0 → understeer tendency; < 0 → oversteer. Target: <10% combined US+OS in fast corners."}
-              >
-                <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
-              </ModuleWithHelp>
-            </div>
-          )
-          : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
-      )}
-
-      {result.tiempo_potencial && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <PotentialLapCard
-            tiempoPotencial={result.tiempo_potencial}
-            xgboostPred={result.xgboost_pred}
-            historySamples={result.metadata?.history_samples}
-          />
-        </div>
-      )}
-
-      {result.thermal_analysis?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <ThermalManagementPanel thermal_analysis={result.thermal_analysis} />
-        </div>
-      )}
-
-      {result.setup_advisor?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <SetupRecommendations
-            setup_advisor={result.setup_advisor}
-            source="compare"
-            isPilotMode={isPilotMode}
-          />
-        </div>
-      )}
-
-      {result.text_report && (
-        <div className="card report-card fade-up fade-up--d5">
-          <div className="report-header">
-            <div className="report-title">
-              <span>▤</span>
-              {t.reportTitle}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className={`copy-btn ${copied ? 'copy-btn--copied' : ''}`}
-                onClick={onCopyReport}
-                aria-label={t.reportCopyAria}
-              >
-                {copied ? `✓ ${t.copied}` : `⎘ ${t.copyReport}`}
-              </button>
-              <button
-                className="copy-btn"
-                onClick={onPdfDownload}
-                disabled={pdfLoading}
-                aria-label={t.reportDownloadAria}
-                style={{ opacity: pdfLoading ? 0.6 : 1 }}
-              >
-                {pdfLoading ? '⏳' : `⬇ ${t.pdfDownload}`}
-              </button>
-            </div>
+        {result.thermal_analysis?.available && (
+          <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+            <ThermalManagementPanel thermal_analysis={result.thermal_analysis} />
           </div>
-          <pre className="text-report">{result.text_report}</pre>
-        </div>
-      )}
+        )}
+
+        {result.setup_advisor?.available && (
+          <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+            <SetupRecommendations
+              setup_advisor={result.setup_advisor}
+              source="compare"
+              isPilotMode={isPilotMode}
+            />
+          </div>
+        )}
+
+        {result.text_report && (
+          <div className="card report-card fade-up fade-up--d5">
+            <div className="report-header">
+              <div className="report-title">
+                <span>▤</span>
+                {t.reportTitle}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  className={`copy-btn ${copied ? 'copy-btn--copied' : ''}`}
+                  onClick={onCopyReport}
+                  aria-label={t.reportCopyAria}
+                >
+                  {copied ? `✓ ${t.copied}` : `⎘ ${t.copyReport}`}
+                </button>
+                <button
+                  className="copy-btn"
+                  onClick={onPdfDownload}
+                  disabled={pdfLoading}
+                  aria-label={t.reportDownloadAria}
+                  style={{ opacity: pdfLoading ? 0.6 : 1 }}
+                >
+                  {pdfLoading ? '⏳' : `⬇ ${t.pdfDownload}`}
+                </button>
+              </div>
+            </div>
+            <pre className="text-report">{result.text_report}</pre>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -573,6 +582,15 @@ export default function App() {
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const [isPilotMode, togglePilotMode] = usePilotMode();
+
+  const rawTimeDelta = useMemo(() => {
+    if (!comparingLaps || !sessionResult?.laps) return null;
+    const [a, b] = comparingLaps;
+    const lapA = sessionResult.laps.find(l => l.lap_number === a);
+    const lapB = sessionResult.laps.find(l => l.lap_number === b);
+    if (!lapA || !lapB) return null;
+    return Math.round((lapB.lap_time - lapA.lap_time) * 1000) / 1000;
+  }, [comparingLaps, sessionResult]);
 
   const isSessionMode = files.length === 1;
 
@@ -902,118 +920,138 @@ export default function App() {
         </button>
       </section>
 
-      {/* ── Session Results ── */}
-      {sessionResult && (
-        <div className="fade-up">
-          <div className="section">
-            <SessionKPIs sessionResult={sessionResult} stintResult={stintResult} />
-          </div>
-
-          {sessionResult.track_map?.length > 0 && (
-            <div className="section fade-up fade-up--d1">
-              <TrackMap trackData={sessionResult.track_map} />
-            </div>
-          )}
-
-          <div className="section fade-up fade-up--d2">
-            <SessionLapTable
-              laps={sessionResult.laps}
-              fastestLap={sessionResult.fastest_lap}
-              selectedLaps={selectedLaps}
-              onToggleLap={toggleLapSelection}
-              onCompare={handleCompareLaps}
-              compareLoading={compareLoading}
-              compareError={compareError}
-            />
-            <div style={{ marginTop: 'var(--s3)', display: 'flex', gap: 'var(--s2)' }}>
-              <button
-                className="btn-analyze"
-                onClick={handleCompareBestWorst}
-                disabled={compareLoading}
-                style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '0.8rem', padding: '6px 14px' }}
-              >
-                {compareLoading ? t.appComparing : t.appCompareBestWorst}
-              </button>
-            </div>
-          </div>
-
-          {stintResult && (
-            <div className="section fade-up fade-up--d3">
-              {stintResult && stintResult.health_summary && <HealthDashboard health_summary={stintResult.health_summary} />}
-              {stintResult && stintResult.track_evolution && stintResult.track_evolution.available && (
-                <div style={{color:"#9CA3AF",fontSize:"0.8rem",marginBottom:"8px",padding:"4px 8px"}}>Track evolution: {stintResult.track_evolution.note}</div>
-              )}
-              <LapTimelineChart
-                degradacion={stintResult.degradacion}
-                montecarlo={stintResult.montecarlo}
-                laps={stintResult.laps}
-              />
-              {stintResult.combustible?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <PitWindowWidget combustible={stintResult.combustible} />
-                </div>
-              )}
-              {stintResult.curvas_sesion?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <CornerAnalysisPanel
-                    result={{
-                      corners: stintResult.curvas_sesion.corners,
-                      setup_advisor: stintResult.setup_sesion,
-                    }}
-                    metadata={{
-                      label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
-                      label_b: `${t.avgTime} ${stintResult.curvas_sesion.n_laps_compared} ${t.timelineLap}`,
-                    }}
-                    sessionMode
-                    referenceLap={stintResult.curvas_sesion.reference_lap}
-                    nLaps={stintResult.curvas_sesion.n_laps_compared}
-                  />
-                </div>
-              )}
-              {stintResult.thermal_analysis?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <ThermalManagementPanel thermal_analysis={stintResult.thermal_analysis} />
-                </div>
-              )}
-              {stintResult.setup_sesion?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <SetupRecommendations setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
-                </div>
-              )}
-              {stintResult.degradacion_neumatico?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <TyreDegradationPanel data={stintResult.degradacion_neumatico} />
-                </div>
-              )}
-              {stintResult.racing_line_rl?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <RacingLinePanel data={stintResult.racing_line_rl} />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Direct Multi-File Comparison or Session-Lap Comparison ── */}
-      {compareResult && (
-        <div className="section" style={{ marginTop: sessionResult ? 'var(--s6)' : 0 }}>
-          <ComparisonSection
-            result={compareResult}
-            comparingLaps={comparingLaps}
-            onCornerClick={handleCornerClick}
-            activeCorner={activeCorner}
-            zoomDomain={zoomDomain}
-            fixedDistance={fixedDistance}
-            onClearFixed={handleClearFixed}
-            onChartClick={handleChartClick}
-            onResetZoom={resetZoom}
-            copied={copied}
-            onCopyReport={handleCopyReport}
-            onPdfDownload={handlePdfDownload}
-            pdfLoading={pdfLoading}
+      {(sessionResult || compareResult) && (
+        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+          <Sidebar
+            mode={!compareResult ? 'session' : sessionResult ? 'both' : 'compare'}
             isPilotMode={isPilotMode}
+            resultKey={`${!!sessionResult}-${!!stintResult}-${!!compareResult}`}
           />
+          <div style={{ flex: 1, minWidth: 0 }}>
+
+            {/* ── Session Results ── */}
+            {sessionResult && (
+              <div className="fade-up">
+                <div id="section-overview" className="section">
+                  <SessionKPIs sessionResult={sessionResult} stintResult={stintResult} />
+                </div>
+
+                {sessionResult.track_map?.length > 0 && (
+                  <div className="section fade-up fade-up--d1">
+                    <TrackMap trackData={sessionResult.track_map} />
+                  </div>
+                )}
+
+                <div className="section fade-up fade-up--d2">
+                  <SessionLapTable
+                    laps={sessionResult.laps}
+                    fastestLap={sessionResult.fastest_lap}
+                    selectedLaps={selectedLaps}
+                    onToggleLap={toggleLapSelection}
+                    onCompare={handleCompareLaps}
+                    compareLoading={compareLoading}
+                    compareError={compareError}
+                    compareResult={compareResult}
+                  />
+                  <div style={{ marginTop: 'var(--s3)', display: 'flex', gap: 'var(--s2)' }}>
+                    <button
+                      className="btn-analyze"
+                      onClick={handleCompareBestWorst}
+                      disabled={compareLoading}
+                      style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '0.8rem', padding: '6px 14px' }}
+                    >
+                      {compareLoading ? t.appComparing : t.appCompareBestWorst}
+                    </button>
+                  </div>
+                </div>
+
+                {stintResult && (
+                  <div id="section-stint" className="section fade-up fade-up--d3">
+                    {stintResult.health_summary && <HealthDashboard health_summary={stintResult.health_summary} />}
+                    {stintResult.track_evolution?.available && (
+                      <div style={{color:"#9CA3AF",fontSize:"0.8rem",marginBottom:"8px",padding:"4px 8px"}}>Track evolution: {stintResult.track_evolution.note}</div>
+                    )}
+                    <LapTimelineChart
+                      degradacion={stintResult.degradacion}
+                      montecarlo={stintResult.montecarlo}
+                      laps={stintResult.laps}
+                    />
+                    {stintResult.combustible?.available && (
+                      <div style={{ marginTop: 'var(--s4)' }}>
+                        <PitWindowWidget combustible={stintResult.combustible} />
+                      </div>
+                    )}
+                    {stintResult.curvas_sesion?.available && (
+                      <div style={{ marginTop: 'var(--s4)' }}>
+                        <CornerAnalysisPanel
+                          result={{
+                            corners: stintResult.curvas_sesion.corners,
+                            setup_advisor: stintResult.setup_sesion,
+                          }}
+                          metadata={{
+                            label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
+                            label_b: `${t.avgTime} ${stintResult.curvas_sesion.n_laps_compared} ${t.timelineLap}`,
+                          }}
+                          sessionMode
+                          referenceLap={stintResult.curvas_sesion.reference_lap}
+                          nLaps={stintResult.curvas_sesion.n_laps_compared}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {stintResult && (stintResult.thermal_analysis?.available || stintResult.setup_sesion?.available || stintResult.degradacion_neumatico?.available || stintResult.racing_line_rl?.available) && (
+                  <div id="section-setup" className="section fade-up fade-up--d3">
+                    {stintResult.thermal_analysis?.available && (
+                      <div style={{ marginTop: 'var(--s4)' }}>
+                        <ThermalManagementPanel thermal_analysis={stintResult.thermal_analysis} />
+                      </div>
+                    )}
+                    {stintResult.setup_sesion?.available && (
+                      <div style={{ marginTop: 'var(--s4)' }}>
+                        <SetupRecommendations setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
+                      </div>
+                    )}
+                    {stintResult.degradacion_neumatico?.available && (
+                      <div style={{ marginTop: 'var(--s4)' }}>
+                        <TyreDegradationPanel data={stintResult.degradacion_neumatico} />
+                      </div>
+                    )}
+                    {stintResult.racing_line_rl?.available && (
+                      <div style={{ marginTop: 'var(--s4)' }}>
+                        <RacingLinePanel data={stintResult.racing_line_rl} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Comparison Results ── */}
+            {compareResult && (
+              <div className="section" style={{ marginTop: sessionResult ? 'var(--s6)' : 0 }}>
+                <ComparisonSection
+                  result={compareResult}
+                  rawTimeDelta={rawTimeDelta}
+                  comparingLaps={comparingLaps}
+                  onCornerClick={handleCornerClick}
+                  activeCorner={activeCorner}
+                  zoomDomain={zoomDomain}
+                  fixedDistance={fixedDistance}
+                  onClearFixed={handleClearFixed}
+                  onChartClick={handleChartClick}
+                  onResetZoom={resetZoom}
+                  copied={copied}
+                  onCopyReport={handleCopyReport}
+                  onPdfDownload={handlePdfDownload}
+                  pdfLoading={pdfLoading}
+                  isPilotMode={isPilotMode}
+                />
+              </div>
+            )}
+
+          </div>
         </div>
       )}
 
