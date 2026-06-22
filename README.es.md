@@ -260,5 +260,9 @@ Todos los módulos están documentados con fundamentos matemáticos, pseudocódi
 | Inputs del Piloto — FFT y nerviosismo de volante | [docs/11_driver_inputs.md](./docs/11_driver_inputs.es.md) |
 | Suspensión — pitch, roll y bottoming | [docs/12_suspension.md](./docs/12_suspension.es.md) |
 | Ángulo de Deslizamiento — sideslip β y balance αF/αR | [docs/13_slip_angle.md](./docs/13_slip_angle.es.md) |
+| Gestión Térmica — ventana, disipación y optimización de temperatura | [docs/14_thermal_management.md](./docs/14_thermal_management.es.md) |
+| Degradación de Neumáticos — modelo de compuesto, grip y estrategia de pit | [docs/15_tyre_degradation.md](./docs/15_tyre_degradation.es.md) |
+| Optimización de Línea de Carrera (RL) — trayectoria, apex y eficiencia en curva | [docs/16_racing_line_rl.md](./docs/16_racing_line_rl.es.md) |
+| Asesor de Configuración — balance aerodinámico, suspensión y carga de combustible | [docs/17_setup_advisor.md](./docs/17_setup_advisor.es.md) |
 
 Ver índice completo en [docs/README.md](./docs/README.es.md).
