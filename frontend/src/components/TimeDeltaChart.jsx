@@ -3,11 +3,19 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
+<<<<<<< HEAD
 import { setCursorDistance } from '../api/cursorStore';
 import { useLanguage } from '../context/LanguageContext';
 
 const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
   const { t } = useLanguage();
+=======
+import { useCursorWriter } from '../hooks/useCursorWriter';
+
+// labels: translations object passed from parent
+const TimeDeltaChart = ({ data, zoomDomain, onChartClick, labels }) => {
+  const cursorHandlers = useCursorWriter();
+>>>>>>> origin/main
   const chartData = useMemo(() => {
     if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => ({
@@ -24,7 +32,11 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-card">
         <div className="chart-empty">
           <span className="chart-empty__icon">◌</span>
+<<<<<<< HEAD
           {t.timeDeltaNoData}
+=======
+          {labels?.timeDeltaNoData ?? ''}
+>>>>>>> origin/main
         </div>
       </div>
     );
@@ -38,7 +50,11 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
       <div className="chart-header">
         <div className="chart-title">
           <span>◷</span>
+<<<<<<< HEAD
           {t.timeDeltaTitle}
+=======
+          {labels?.timeDeltaTitle ?? ''}
+>>>>>>> origin/main
         </div>
         {zoomDomain && (
           <span className="chart-zoom-badge">
@@ -53,8 +69,12 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
             data={chartData}
             margin={{ top: 10, right: 12, left: -12, bottom: 0 }}
             syncId="distanceSync"
+<<<<<<< HEAD
             onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
             onMouseLeave={() => setCursorDistance(null)}
+=======
+            {...cursorHandlers}
+>>>>>>> origin/main
             onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
           >
             <defs>
@@ -92,7 +112,11 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
             <Area
               type="monotone"
               dataKey={(d) => (d.delta >= 0 ? d.delta : 0)}
+<<<<<<< HEAD
               name={t.timeDeltaLoss}
+=======
+              name={labels?.timeDeltaLoss ?? ''}
+>>>>>>> origin/main
               stroke="var(--red)"
               strokeWidth={0}
               fill="url(#deltaGradAbove)"
@@ -101,7 +125,11 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick }) => {
             <Area
               type="monotone"
               dataKey={(d) => (d.delta <= 0 ? d.delta : 0)}
+<<<<<<< HEAD
               name={t.timeDeltaGain}
+=======
+              name={labels?.timeDeltaGain ?? ''}
+>>>>>>> origin/main
               stroke="var(--green)"
               strokeWidth={0}
               fill="url(#deltaGradBelow)"

@@ -1,6 +1,10 @@
 # Motorsport Analytics Pipeline
 
+<<<<<<< HEAD
 > Automated lap telemetry comparison and analysis for Assetto Corsa / MoTeC compatible simulators.
+=======
+> Automated lap telemetry comparison and analysis for Assetto Corsa, iRacing / MoTeC compatible data.
+>>>>>>> origin/main
 
 🌐 [Leer en Español](README.es.md)
 
@@ -258,6 +262,13 @@ All modules are documented with mathematical foundations, pseudocode, and matplo
 | 11 | Driver Inputs — FFT & Steering Jitter | [docs/11_driver_inputs.md](./docs/11_driver_inputs.md) |
 | 12 | Suspension — Pitch, Roll & Bottoming | [docs/12_suspension.md](./docs/12_suspension.md) |
 | 13 | Sideslip Angle — β & αF/αR Balance | [docs/13_slip_angle.md](./docs/13_slip_angle.md) |
+<<<<<<< HEAD
+=======
+| 14 | Thermal Management — Window, Heat Dissipation & Temperature Optimization | [docs/14_thermal_management.md](./docs/14_thermal_management.md) |
+| 15 | Tyre Degradation — Compound Model, Grip Loss & Pit Strategy | [docs/15_tyre_degradation.md](./docs/15_tyre_degradation.md) |
+| 16 | Racing Line Optimization (RL) — Trajectory, Apex Trade-offs & Cornering Efficiency | [docs/16_racing_line_rl.md](./docs/16_racing_line_rl.md) |
+| 17 | Vehicle Setup Advisor — Aero Balance, Suspension Geometry & Fuel Load | [docs/17_setup_advisor.md](./docs/17_setup_advisor.md) |
+>>>>>>> origin/main
 
 See the full index at [docs/README.md](./docs/README.md).
 

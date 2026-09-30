@@ -10,7 +10,11 @@ const en = {
   telemetryEyebrow: 'Telemetry · Assetto Corsa ACTI',
   uploadAria: 'Load telemetry',
   uploadTitle: 'Load Telemetry',
+<<<<<<< HEAD
   statusReady: 'Sistema Listo',
+=======
+  statusReady: 'System Ready',
+>>>>>>> origin/main
 
   // Language toggle
   langSwitchTo: 'Switch to English',

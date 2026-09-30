@@ -22,6 +22,7 @@ from scipy.signal import welch
 logger = logging.getLogger(__name__)
 
 # ── Channel name candidates ───────────────────────────────────────────────────
+<<<<<<< HEAD
 
 _SPEED_CH   = ["Speed"]
 _BRAKE_CH   = ["Brake", "Brake Pressure", "BrakePressure"]
@@ -60,11 +61,77 @@ _TYRE_OUTER = {
            "TyreTempOuter_RR", "TyreTemp_OuterRR"],
 }
 _BRAKE_TEMP = {
+=======
+# Covers iRacing (native + MoTeC export), ACTI/Assetto Corsa, generic MoTeC.
+# iRacing exports via MoTeC use descriptive names; the loader already remaps
+# some aliases (e.g. "G Force Lat" → "LateralG", "Lap Distance" → "Distance").
+
+_SPEED_CH   = ["Speed", "Ground Speed", "GPS Speed", "VehicleSpeed"]
+_BRAKE_CH   = ["Brake", "Brake Pedal Pos", "Brake Pressure", "BrakePressure",
+               "Brake Pos"]
+_THROTTLE_CH= ["Throttle", "Throttle Pos", "Throttle Position", "ThrottlePosition"]
+_LONG_G_CH  = ["LongitudinalG", "Longitudinal G", "G Force Long",
+               "LongAccel", "Longitudinal Accel", "LongG"]
+_LAT_G_CH   = ["LateralG", "Lateral G", "G Force Lat", "LatAccel",
+               "Lateral Accel", "LatG"]
+_YAW_CH     = ["YawRate", "Gyro - Yaw Velocity", "Yaw Rate", "YawRateVehicle",
+               "Yaw Rate Vehicle", "YawVelocity"]
+_STEER_CH   = ["SteeringWheelAngle", "Steering Wheel Angle",
+               "SteerAngle", "Steer Angle", "Steering Angle", "SteeringAngle"]
+
+# iRacing tyre temps: LFtempCL/CM/CR = Center-Left/Middle/Right strip across tread
+#   MoTeC export renames: "Tyre Temp FL Centre / Inner / Outer"
+#   Inner  = towards car centre  → LFtempCR / RFtempCL
+#   Centre = middle strip        → LFtempCM / RFtempCM
+#   Outer  = kerb side           → LFtempCL / RFtempCR
+_TYRE_SURF  = {   # best single-channel summary per corner (middle strip / average)
+    "FL": ["Tyre Temp FL Centre", "LFtempCM", "LFtempM",
+           "TyreTemp_FL", "Tyre Temp FL", "TyreTempFL"],
+    "FR": ["Tyre Temp FR Centre", "RFtempCM", "RFtempM",
+           "TyreTemp_FR", "Tyre Temp FR", "TyreTempFR"],
+    "RL": ["Tyre Temp RL Centre", "LRtempCM", "LRtempM",
+           "TyreTemp_RL", "Tyre Temp RL", "TyreTempRL"],
+    "RR": ["Tyre Temp RR Centre", "RRtempCM", "RRtempM",
+           "TyreTemp_RR", "Tyre Temp RR", "TyreTempRR"],
+}
+_TYRE_INNER = {   # inner edge (towards centre of car)
+    "FL": ["Tyre Temp FL Inner", "LFtempCR", "LFtempR",
+           "TyreTempInnerFL", "Tyre Temp Inner FL"],
+    "FR": ["Tyre Temp FR Inner", "RFtempCL", "RFtempL",
+           "TyreTempInnerFR", "Tyre Temp Inner FR"],
+    "RL": ["Tyre Temp RL Inner", "LRtempCR", "LRtempR",
+           "TyreTempInnerRL", "Tyre Temp Inner RL"],
+    "RR": ["Tyre Temp RR Inner", "RRtempCL", "RRtempL",
+           "TyreTempInnerRR", "Tyre Temp Inner RR"],
+}
+_TYRE_OUTER = {   # outer edge (towards kerb)
+    "FL": ["Tyre Temp FL Outer", "LFtempCL", "LFtempL",
+           "TyreTempOuterFL", "Tyre Temp Outer FL"],
+    "FR": ["Tyre Temp FR Outer", "RFtempCR", "RFtempR",
+           "TyreTempOuterFR", "Tyre Temp Outer FR"],
+    "RL": ["Tyre Temp RL Outer", "LRtempCL", "LRtempL",
+           "TyreTempOuterRL", "Tyre Temp Outer RL"],
+    "RR": ["Tyre Temp RR Outer", "RRtempCR", "RRtempR",
+           "TyreTempOuterRR", "Tyre Temp Outer RR"],
+}
+_TYRE_PRES = {    # tyre pressure (kPa in iRacing native, psi in MoTeC export)
+    "FL": ["Tyre Pres FL", "LFpressure", "LFcoldPressure",
+           "TyrePres_FL", "Tyre Pressure FL"],
+    "FR": ["Tyre Pres FR", "RFpressure", "RFcoldPressure",
+           "TyrePres_FR", "Tyre Pressure FR"],
+    "RL": ["Tyre Pres RL", "LRpressure", "LRcoldPressure",
+           "TyrePres_RL", "Tyre Pressure RL"],
+    "RR": ["Tyre Pres RR", "RRpressure", "RRcoldPressure",
+           "TyrePres_RR", "Tyre Pressure RR"],
+}
+_BRAKE_TEMP = {   # iRacing does not export brake disc temps; ACTI does
+>>>>>>> origin/main
     "FL": ["BrakeTemp_FL", "Brake Temp FL", "BrakeTempFL", "Brake Disc Temp FL"],
     "FR": ["BrakeTemp_FR", "Brake Temp FR", "BrakeTempFR", "Brake Disc Temp FR"],
     "RL": ["BrakeTemp_RL", "Brake Temp RL", "BrakeTempRL", "Brake Disc Temp RL"],
     "RR": ["BrakeTemp_RR", "Brake Temp RR", "BrakeTempRR", "Brake Disc Temp RR"],
 }
+<<<<<<< HEAD
 _SUSP = {
     "FL": ["SuspTravelFL", "Susp Travel FL", "SuspTravel FL",
            "Susp_Travel_FL", "SuspensionTravelFL"],
@@ -74,6 +141,17 @@ _SUSP = {
            "Susp_Travel_RL", "SuspensionTravelRL"],
     "RR": ["SuspTravelRR", "Susp Travel RR", "SuspTravel RR",
            "Susp_Travel_RR", "SuspensionTravelRR"],
+=======
+_SUSP = {         # shock deflection / suspension travel
+    "FL": ["LFshockDefl", "Susp Pos FL", "Ride Height FL",
+           "SuspTravelFL", "Susp Travel FL", "SuspensionTravelFL"],
+    "FR": ["RFshockDefl", "Susp Pos FR", "Ride Height FR",
+           "SuspTravelFR", "Susp Travel FR", "SuspensionTravelFR"],
+    "RL": ["LRshockDefl", "Susp Pos RL", "Ride Height RL",
+           "SuspTravelRL", "Susp Travel RL", "SuspensionTravelRL"],
+    "RR": ["RRshockDefl", "Susp Pos RR", "Ride Height RR",
+           "SuspTravelRR", "Susp Travel RR", "SuspensionTravelRR"],
+>>>>>>> origin/main
 }
 
 # Tyre operating window (°C)
@@ -123,6 +201,10 @@ def _analyse_tyres_lap(df: pd.DataFrame) -> dict:
         inner_col  = _col(df, _TYRE_INNER[pos])
         outer_col  = _col(df, _TYRE_OUTER[pos])
         btemp_col  = _col(df, _BRAKE_TEMP[pos])
+<<<<<<< HEAD
+=======
+        pres_col   = _col(df, _TYRE_PRES[pos])
+>>>>>>> origin/main
 
         vals = {}
         if surf_col:
@@ -132,6 +214,16 @@ def _analyse_tyres_lap(df: pd.DataFrame) -> dict:
                 vals["surf_max"]  = float(s.max())
                 vals["status"]    = _window_status(vals["surf_mean"])
 
+<<<<<<< HEAD
+=======
+        if pres_col:
+            p = _num(df, pres_col).dropna()
+            if len(p) >= 10:
+                vals["pressure_mean"] = float(p.mean())
+                vals["pressure_max"]  = float(p.max())
+                vals["pressure_min"]  = float(p.min())
+
+>>>>>>> origin/main
         if inner_col and outer_col:
             inn = _num(df, inner_col).dropna()
             out = _num(df, outer_col).dropna()

@@ -36,6 +36,7 @@ def _describe_corner(num: int, loss: float, brake: float,
     return t("sess_curve_format", lang=lang, num=num, parts=", ".join(parts))
 
 
+<<<<<<< HEAD
 def analizar_curvas_sesion(dfs: list, df_laps, lang: str = "es") -> dict:
     """
     Compare each non-pit flying lap against the fastest (reference) lap.
@@ -55,11 +56,67 @@ def analizar_curvas_sesion(dfs: list, df_laps, lang: str = "es") -> dict:
         }
     """
     # Deferred imports to avoid circular deps and keep module load fast
+=======
+def get_corner_observations(dfs: list, df_laps) -> dict:
+    """
+    Extract per-lap, per-corner raw observations without aggregating.
+    Returns {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
+    Exposed so the RL module can reuse alignments already computed here.
+    """
+>>>>>>> origin/main
     from src.processing.alignment import align_pair
     from src.telemetry.lap_comparator import _estimate_corner_time_loss
     from src.telemetry.metrics import segment_corners
 
+<<<<<<< HEAD
     # ── Identify reference (fastest non-pit) lap ──────────────────────────────
+=======
+    flying_mask = ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
+    flying = df_laps[flying_mask]
+    if len(flying) < 2:
+        return {}
+
+    ref_idx = int(flying["lap_time_s"].idxmin())
+    ref_df  = dfs[ref_idx]
+    obs: dict = defaultdict(list)
+
+    for idx in flying.index:
+        if idx == ref_idx:
+            continue
+        try:
+            al_a, al_b = align_pair(ref_df, dfs[idx])
+            corners_a  = segment_corners(al_a)
+            corners_b  = segment_corners(al_b)
+            n = min(len(corners_a), len(corners_b))
+            for i in range(n):
+                ca, cb = corners_a[i], corners_b[i]
+                tl = _estimate_corner_time_loss(al_a, al_b, ca, cb)
+                obs[i + 1].append({
+                    "time_loss":    float(tl),
+                    "brake_delta":  float(cb["braking_point"]["distance"] - ca["braking_point"]["distance"]),
+                    "apex_delta":   float(cb["apex"]["speed"] - ca["apex"]["speed"]),
+                    "thtl_delta":   float(cb["full_throttle"]["distance"] - ca["full_throttle"]["distance"]),
+                })
+        except Exception as exc:
+            logger.debug("get_corner_observations: idx=%d: %s", idx, exc)
+
+    return dict(obs)
+
+
+def analizar_curvas_sesion(
+    dfs: list, df_laps, lang: str = "es",
+    precomputed_obs: dict | None = None,
+) -> dict:
+    """
+    Compare each non-pit flying lap against the fastest (reference) lap.
+
+    Args:
+        dfs:              Per-lap DataFrames.
+        df_laps:          Lap metrics DataFrame.
+        lang:             Language code for description strings.
+        precomputed_obs:  If provided (from get_corner_observations), skip re-aligning.
+    """
+>>>>>>> origin/main
     flying_mask = ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
     flying = df_laps[flying_mask]
 
@@ -68,8 +125,11 @@ def analizar_curvas_sesion(dfs: list, df_laps, lang: str = "es") -> dict:
         return {"available": False}
 
     ref_idx = int(flying["lap_time_s"].idxmin())
+<<<<<<< HEAD
     ref_df = dfs[ref_idx]
 
+=======
+>>>>>>> origin/main
     ref_lap_num = (
         int(df_laps.loc[ref_idx, "lap_number"])
         if "lap_number" in df_laps.columns
@@ -85,6 +145,7 @@ def analizar_curvas_sesion(dfs: list, df_laps, lang: str = "es") -> dict:
         ref_lap_num, ref_time_str, len(flying) - 1,
     )
 
+<<<<<<< HEAD
     # ── Accumulate per-corner across all other laps ───────────────────────────
     corner_data: dict = defaultdict(list)
 
@@ -114,6 +175,48 @@ def analizar_curvas_sesion(dfs: list, df_laps, lang: str = "es") -> dict:
                 })
         except Exception as exc:
             logger.debug("session_corner_analysis: idx=%d falló: %s", idx, exc)
+=======
+    # ── Use pre-computed or compute fresh ────────────────────────────────────
+    if precomputed_obs:
+        # Translate from {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
+        # to the internal format expected below
+        corner_data: dict = defaultdict(list)
+        for cnum, laps in precomputed_obs.items():
+            for lap in laps:
+                corner_data[cnum].append({
+                    "time_loss":      lap["time_loss"],
+                    "brake_delta":    lap["brake_delta"],
+                    "apex_delta":     lap["apex_delta"],
+                    "throttle_delta": lap["thtl_delta"],
+                })
+    else:
+        from src.processing.alignment import align_pair
+        from src.telemetry.lap_comparator import _estimate_corner_time_loss
+        from src.telemetry.metrics import segment_corners
+
+        ref_df = dfs[ref_idx]
+        corner_data = defaultdict(list)
+
+        for idx in flying.index:
+            if idx == ref_idx:
+                continue
+            try:
+                aligned_a, aligned_b = align_pair(ref_df, dfs[idx])
+                corners_a = segment_corners(aligned_a)
+                corners_b = segment_corners(aligned_b)
+                n = min(len(corners_a), len(corners_b))
+                for i in range(n):
+                    ca, cb = corners_a[i], corners_b[i]
+                    tl = _estimate_corner_time_loss(aligned_a, aligned_b, ca, cb)
+                    corner_data[i + 1].append({
+                        "time_loss":      float(tl),
+                        "brake_delta":    float(cb["braking_point"]["distance"] - ca["braking_point"]["distance"]),
+                        "apex_delta":     float(cb["apex"]["speed"] - ca["apex"]["speed"]),
+                        "throttle_delta": float(cb["full_throttle"]["distance"] - ca["full_throttle"]["distance"]),
+                    })
+            except Exception as exc:
+                logger.debug("session_corner_analysis: idx=%d falló: %s", idx, exc)
+>>>>>>> origin/main
 
     if not corner_data:
         logger.info("session_corner_analysis: sin datos de curvas — omitido")

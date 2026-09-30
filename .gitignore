@@ -11,8 +11,16 @@ venv/
 env/
 .venv/
 
+<<<<<<< HEAD
 # Data (CSVs locales — no subir a git)
 *.csv
+=======
+# Local reference files
+estructura_ac.txt
+estructura_iracing.txt
+
+# Data (CSVs locales — no subir a git)
+>>>>>>> origin/main
 data/raw/
 data/processed/
 tmp/
@@ -35,3 +43,8 @@ frontend/.env
 # Misc
 *.log
 .env
+<<<<<<< HEAD
+=======
+.claude/
+graphify-out/
+>>>>>>> origin/main

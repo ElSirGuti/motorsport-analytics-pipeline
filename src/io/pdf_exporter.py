@@ -472,12 +472,125 @@ def _chart_corner_losses(result: dict, la: str, lb: str,
         return None
 
 
+<<<<<<< HEAD
+=======
+# ── Key findings helper ───────────────────────────────────────────────────────
+
+def _build_key_findings(result: dict) -> list:
+    """
+    Return up to 5 bullet strings summarising the most important findings.
+    All bullets are plain strings; callers are responsible for rendering.
+    """
+    findings = []
+
+    # 1. Best lap time
+    best_lap = result.get("best_lap")
+    if best_lap is None:
+        # Fallback: minimum lap time from laps list
+        laps = result.get("laps") or []
+        times = [lap.get("lap_time") for lap in laps if lap.get("lap_time") is not None]
+        if times:
+            best_lap = min(times)
+    if best_lap is not None:
+        try:
+            findings.append(f"Best lap: {float(best_lap):.3f}s")
+        except (TypeError, ValueError):
+            findings.append(f"Best lap: {best_lap}")
+
+    # 2. Biggest time loss corner
+    corners = result.get("corners") or []
+    if corners:
+        worst = max(corners, key=lambda c: c.get("time_loss_seconds") or 0, default=None)
+        if worst:
+            tl = worst.get("time_loss_seconds") or 0
+            cn = worst.get("corner_number", "?")
+            if abs(tl) >= 0.01:
+                findings.append(f"Biggest time loss: corner #{cn} ({tl:+.3f}s)")
+
+    # 3. Tyre degradation
+    tyre_deg = result.get("tyre_degradation") or {}
+    deg = tyre_deg.get("deg_per_lap_s") or tyre_deg.get("degradation_rate_s_per_lap")
+    if deg is not None:
+        try:
+            findings.append(f"Tyre deg: {float(deg):.3f}s/lap")
+        except (TypeError, ValueError):
+            pass
+    else:
+        if not findings or len(findings) < 5:
+            findings.append("No tyre data")
+
+    # 4. Setup note (first high-priority recommendation)
+    setup = result.get("setup_sesion") or result.get("setup_advisor") or {}
+    recs = setup.get("recommendations") or []
+    if recs:
+        first = recs[0]
+        problem = first.get("problem") or first.get("recommendation") or ""
+        category = first.get("category", "")
+        if problem:
+            note = f"{category}: {problem}" if category else problem
+            if len(note) > 80:
+                note = note[:77] + "..."
+            findings.append(f"Setup note: {note}")
+    else:
+        findings.append("No setup data")
+
+    # 5. Track evolution (omit entirely if unavailable)
+    track_evo = result.get("track_evolution") or {}
+    note = track_evo.get("note")
+    if note:
+        findings.append(f"Track evolution: {note}")
+
+    return findings[:5]
+
+
+def _section_key_findings(result: dict, s: dict) -> list:
+    """
+    Renders the KEY FINDINGS executive summary block at the top of the PDF body.
+    Returns an empty list when no findings are available.
+    """
+    findings = _build_key_findings(result)
+    if not findings:
+        return []
+
+    heading_style = ParagraphStyle(
+        "rp_kf_heading",
+        parent=s["h2"],
+        fontSize=12,
+        leading=15,
+        spaceBefore=6,
+        spaceAfter=6,
+        textColor=_DARK,
+        fontName="Helvetica-Bold",
+    )
+    bullet_style = ParagraphStyle(
+        "rp_kf_bullet",
+        parent=s["body"],
+        fontSize=9,
+        leading=14,
+        leftIndent=12,
+        spaceAfter=2,
+    )
+
+    elems = []
+    elems.append(Paragraph("KEY FINDINGS", heading_style))
+    for finding in findings:
+        elems.append(Paragraph(f"•  {finding}", bullet_style))
+    elems.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#CCCCDD"), spaceAfter=6))
+    return elems
+
+
+>>>>>>> origin/main
 # ── Section builders ──────────────────────────────────────────────────────────
 
 def _section_identity(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = []
     elems.append(Paragraph("REPORTE DE COMPARACIÓN DE VUELTAS", s["title"]))
     elems.append(Paragraph("Generado automáticamente — Motorsport Analytics Pipeline", s["subtitle"]))
@@ -507,8 +620,13 @@ def _section_identity(result: dict, s: dict, lang: str = 'es') -> list:
 def _section_summary(result: dict, s: dict, lang: str = 'es') -> list:
     summary = result.get("summary", {})
     meta    = result.get("metadata", {})
+<<<<<<< HEAD
     la = meta.get("label_a", "Vuelta A")
     lb = meta.get("label_b", "Vuelta B")
+=======
+    la = meta.get("label_a", "Lap A")
+    lb = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = [Paragraph("RESUMEN GENERAL", s["h2"])]
     delta = summary.get("total_time_delta") or 0.0
     if delta > 0:
@@ -536,8 +654,13 @@ def _section_summary(result: dict, s: dict, lang: str = 'es') -> list:
 
 def _section_speed_delta(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = []
 
     elems.append(Paragraph("TRAZADO DE VELOCIDAD", s["h2"]))
@@ -569,8 +692,13 @@ def _section_speed_delta(result: dict, s: dict, lang: str = 'es') -> list:
 
 def _section_brake_throttle(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = [Paragraph("FRENO Y ACELERADOR", s["h2"])]
     img = _chart_brake_throttle(result, la, lb)
     if img:
@@ -587,8 +715,13 @@ def _section_brake_throttle(result: dict, s: dict, lang: str = 'es') -> list:
 
 def _section_gg(result: dict, s: dict, lang: str = 'es') -> list:
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = [Paragraph("DIAGRAMA GG — CÍRCULO DE FRICCIÓN", s["h2"])]
     img = _chart_gg(result, la, lb)
     if img:
@@ -609,8 +742,13 @@ def _section_tyres(result: dict, s: dict, lang: str = 'es') -> list:
     if not tyre.get("available"):
         return []
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     t_min = tyre.get("t_min", 80)
     t_max = tyre.get("t_max", 100)
     STATUS_LABEL = {
@@ -655,8 +793,13 @@ def _section_brakes(result: dict, s: dict, lang: str = 'es') -> list:
     if not brake.get("available"):
         return []
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = [Paragraph("EFICIENCIA DE FRENOS", s["h2"])]
     score_a    = brake.get("score_a",    0.0) or 0.0
     score_b    = brake.get("score_b",    0.0) or 0.0
@@ -711,8 +854,13 @@ def _section_inputs(result: dict, s: dict, lang: str = 'es') -> list:
     if not inputs.get("available"):
         return []
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = [Paragraph("INPUTS DEL PILOTO", s["h2"])]
     ni_a = inputs.get("nervousness_score_a", 0) or 0
     ni_b = inputs.get("nervousness_score_b", 0) or 0
@@ -754,8 +902,13 @@ def _section_suspension(result: dict, s: dict, lang: str = 'es') -> list:
     if not susp.get("available"):
         return []
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = [Paragraph("SUSPENSIÓN — PITCH / ROLL / BOTTOMING", s["h2"])]
     sa = susp.get("summary_a", {}) or {}
     sb = susp.get("summary_b", {}) or {}
@@ -811,8 +964,13 @@ def _section_slip(result: dict, s: dict, lang: str = 'es') -> list:
     if not slip.get("available"):
         return []
     meta = result.get("metadata", {})
+<<<<<<< HEAD
     la   = meta.get("label_a", "Vuelta A")
     lb   = meta.get("label_b", "Vuelta B")
+=======
+    la   = meta.get("label_a", "Lap A")
+    lb   = meta.get("label_b", "Lap B")
+>>>>>>> origin/main
     elems = [Paragraph("ÁNGULO DE DESLIZAMIENTO — SIDESLIP β", s["h2"])]
     sa = slip.get("summary_a", {}) or {}
     sb = slip.get("summary_b", {}) or {}
@@ -1026,6 +1184,11 @@ def export_report_pdf(comparison_result: dict, filepath: Optional[str] = None, l
 
     story += _section_identity(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.4*cm))
+<<<<<<< HEAD
+=======
+    story += _section_key_findings(comparison_result, s)
+    story.append(Spacer(1, 0.2*cm))
+>>>>>>> origin/main
     story += _section_summary(comparison_result, s, lang=lang)
     story.append(Spacer(1, 0.4*cm))
     story += _section_speed_delta(comparison_result, s, lang=lang)
