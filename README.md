@@ -17,7 +17,7 @@
 ### 1 — Clone the repository
 
 ```bash
-git clone https://github.com/your-user/motorsport-analytics-pipeline.git
+git clone https://github.com/ElSirGuti/motorsport-analytics-pipeline.git
 cd motorsport-analytics-pipeline
 ```
 
