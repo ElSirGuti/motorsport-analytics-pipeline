@@ -4,85 +4,67 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Badge } from './ui';
+import styles from './Analysis.module.css';
+import {
+  COLOR_A, COLOR_B, COLOR_C, COLOR_D, AXIS_TICK, AXIS_LINE, GRID_PROPS,
+  CHART_MARGIN, fmtDist, makeTooltip, Legend,
+} from './analysisKit';
 
-const renderTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'rgba(10,15,30,0.97)', border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 8, padding: '8px 12px', fontSize: '0.72rem',
-      fontFamily: "'JetBrains Mono', monospace",
-    }}>
-      <div style={{ color: 'var(--text-3)', marginBottom: 4 }}>{Number(label).toFixed(0)}m</div>
-      {payload.map((p) => (
-        <div key={p.dataKey} style={{ color: p.color }}>
-          {p.name}: {(p.value * 100).toFixed(1)}%
-        </div>
-      ))}
-    </div>
-  );
-};
+const tooltip = makeTooltip((v) => `${(v * 100).toFixed(1)}%`);
 
-const BandBar = ({ label: lbl, value, title, lapLabel, color }) => {
+const BandBar = ({ label, value, color }) => {
   if (value == null) return null;
+  const pct = Math.max(0, Math.min(100, value * 100));
   return (
-    <div style={{ marginBottom: 6 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.67rem', color: 'var(--text-3)', marginBottom: 2 }}>
-        <span>{lbl}</span>
-        <span style={{ color }}>{(value * 100).toFixed(1)}%</span>
+    <div className={styles.bandRow}>
+      <div className={styles.bandHead}>
+        <span>{label}</span>
+        <span>{(value * 100).toFixed(1)}%</span>
       </div>
-      <div style={{ height: 5, background: 'rgba(255,255,255,0.06)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ width: `${value * 100}%`, height: '100%', background: color, borderRadius: 3 }} />
+      <div className={styles.track}>
+        <div className={styles.fill} style={{ width: `${pct}%`, background: color }} />
       </div>
     </div>
   );
 };
 
-const PilotCard = ({ scoreKey, labelKey, bandsKey, overlapKey, data, lapLabel, colorPrimary }) => {
+const PilotCard = ({ scoreKey, labelKey, bandsKey, overlapKey, data, lapLabel, lapColor }) => {
   const { t } = useLanguage();
-  const score  = data[scoreKey];
-  const lbl    = data[labelKey];
-  const bands  = data[bandsKey];
+  const score = data[scoreKey];
+  const lbl = data[labelKey];
+  const bands = data[bandsKey];
   const overlap = data[overlapKey];
   if (score == null) return null;
 
-  const LABEL_MAP = {
-    [t.driverInputsVerySmooth]: { color: '#00E676', bg: 'rgba(0,230,118,0.12)' },
-    [t.driverInputsSmooth]:     { color: '#69F0AE', bg: 'rgba(105,240,174,0.10)' },
-    [t.driverInputsNormal]:    { color: '#00D4FF', bg: 'rgba(0,212,255,0.10)' },
-    [t.driverInputsActive]:    { color: '#FFB300', bg: 'rgba(255,179,0,0.12)' },
-    [t.driverInputsNervous]:  { color: '#FF3D3D', bg: 'rgba(255,61,61,0.15)' },
+  const TONES = {
+    [t.driverInputsVerySmooth]: { tone: 'ok', color: 'var(--ok)' },
+    [t.driverInputsSmooth]: { tone: 'ok', color: 'var(--ok)' },
+    [t.driverInputsNormal]: { tone: 'accent', color: 'var(--accent)' },
+    [t.driverInputsActive]: { tone: 'warn', color: 'var(--warn)' },
+    [t.driverInputsNervous]: { tone: 'bad', color: 'var(--bad)' },
   };
-
-  const style = LABEL_MAP[lbl] || { color: 'var(--text-2)', bg: 'rgba(255,255,255,0.06)' };
+  const style = TONES[lbl] || { tone: undefined, color: 'var(--ink-1)' };
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 8, padding: '12px 14px', flex: '1 1 180px',
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: '0.78rem', color: colorPrimary, fontWeight: 600 }}>{lapLabel}</span>
-        <span style={{
-          fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.06em',
-          color: style.color, background: style.bg, borderRadius: 4, padding: '2px 8px',
-        }}>
-          {lbl || '—'}
-        </span>
+    <div className={styles.card}>
+      <div className={styles.cardHead}>
+        <span className={styles.lapName}><span className={styles.swatch} style={{ background: lapColor }} />{lapLabel}</span>
+        <Badge tone={style.tone}>{lbl || '—'}</Badge>
       </div>
-      <div style={{ fontSize: '1.4rem', fontWeight: 700, color: style.color, marginBottom: 8 }}>
+      <div className={styles.mValue} style={{ fontSize: 'var(--fs-xl)', color: style.color, marginBottom: 10 }}>
         {(score * 100).toFixed(1)}%
-        <span style={{ fontSize: '0.65rem', opacity: 0.6, marginLeft: 4 }}>{t.driverInputsNervousness}</span>
+        <span className={styles.mUnit}>{t.driverInputsNervousness}</span>
       </div>
       {bands && (
         <div style={{ marginBottom: 8 }}>
-          <BandBar lbl={t.driverInputsLowFreq} value={bands.low} color="#00E676" />
-          <BandBar lbl={t.driverInputsMidFreq} value={bands.mid} color="#FFB300" />
-          <BandBar lbl={t.driverInputsHighFreq}  value={bands.high} color="#FF3D3D" />
+          <BandBar label={t.driverInputsLowFreq} value={bands.low} color={COLOR_C} />
+          <BandBar label={t.driverInputsMidFreq} value={bands.mid} color={COLOR_D} />
+          <BandBar label={t.driverInputsHighFreq} value={bands.high} color="#f0616d" />
         </div>
       )}
       {overlap != null && (
-        <div style={{ fontSize: '0.67rem', color: overlap > 5 ? '#FFB300' : 'var(--text-3)' }}>
+        <div className={styles.sub} style={{ color: overlap > 5 ? 'var(--warn)' : undefined }}>
           {t.driverInputsOverlap(overlap)}
         </div>
       )}
@@ -93,13 +75,9 @@ const PilotCard = ({ scoreKey, labelKey, bandsKey, overlapKey, data, lapLabel, c
 const DriverInputsChart = ({ driver_inputs, metadata }) => {
   const { t } = useLanguage();
   const data = driver_inputs;
-  if (!data?.available) return null;
-
-  const labelA = metadata?.label_a || 'A';
-  const labelB = metadata?.label_b || 'B';
 
   const chartData = useMemo(() => {
-    const pd = data.per_distance;
+    const pd = data?.per_distance;
     if (!pd?.distance) return [];
     return pd.distance.map((d, i) => ({
       distance: d,
@@ -108,65 +86,61 @@ const DriverInputsChart = ({ driver_inputs, metadata }) => {
     }));
   }, [data]);
 
+  if (!data?.available) return null;
+
+  const labelA = metadata?.label_a || 'A';
+  const labelB = metadata?.label_b || 'B';
+
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title"><span>◈</span> {t.driverInputsTitle}</div>
-        <span className="chart-zoom-badge">{t.driverInputsFFT}</span>
-      </div>
+    <Panel icon="steering" title={t.driverInputsTitle} actions={<Badge>{t.driverInputsFFT}</Badge>}>
+      <p className={styles.desc}>{t.driverInputsDescription}</p>
 
-      <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
-        {t.driverInputsDescription}
-      </p>
-
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <PilotCard
-          scoreKey="nervousness_score_a" labelKey="nervousness_label_a"
-          bandsKey="fft_bands_a" overlapKey="overlap_pct_a"
-          data={data} lapLabel={labelA} colorPrimary="#00D4FF"
-        />
-        <PilotCard
-          scoreKey="nervousness_score_b" labelKey="nervousness_label_b"
-          bandsKey="fft_bands_b" overlapKey="overlap_pct_b"
-          data={data} lapLabel={labelB} colorPrimary="#FF6B6B"
-        />
+      <div className={styles.cards}>
+        <PilotCard scoreKey="nervousness_score_a" labelKey="nervousness_label_a" bandsKey="fft_bands_a"
+          overlapKey="overlap_pct_a" data={data} lapLabel={labelA} lapColor={COLOR_A} />
+        <PilotCard scoreKey="nervousness_score_b" labelKey="nervousness_label_b" bandsKey="fft_bands_b"
+          overlapKey="overlap_pct_b" data={data} lapLabel={labelB} lapColor={COLOR_B} />
       </div>
 
       {chartData.length > 0 && (
-        <ResponsiveContainer width="100%" height={180}>
-          <AreaChart data={chartData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
-            <defs>
-              <linearGradient id="nervGradA" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#00D4FF" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#00D4FF" stopOpacity={0.02} />
-              </linearGradient>
-              <linearGradient id="nervGradB" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor="#FF6B6B" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#FF6B6B" stopOpacity={0.02} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
-            <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Number(v).toFixed(0)}m`} />
-            <YAxis domain={[0, 1]} tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} width={36} />
-            <Tooltip content={renderTooltip} />
-            {data.available_a && (
-              <Area
-                type="monotone" dataKey="nerv_a" name={labelA}
-                stroke="#00D4FF" strokeWidth={1.5} fill="url(#nervGradA)"
-                isAnimationActive={false} dot={false} connectNulls
-              />
-            )}
-            {data.available_b && (
-              <Area
-                type="monotone" dataKey="nerv_b" name={labelB}
-                stroke="#FF6B6B" strokeWidth={1.5} fill="url(#nervGradB)"
-                isAnimationActive={false} dot={false} connectNulls
-              />
-            )}
-          </AreaChart>
-        </ResponsiveContainer>
+        <div className={styles.chartBox}>
+          <div className={styles.chartTitle}>
+            <span className={styles.chartLabel}>{t.driverInputsNervousness} (%)</span>
+            <Legend items={[
+              ...(data.available_a ? [{ label: labelA, color: COLOR_A }] : []),
+              ...(data.available_b ? [{ label: labelB, color: COLOR_B }] : []),
+            ]} />
+          </div>
+          <ResponsiveContainer width="100%" height={190}>
+            <AreaChart data={chartData} margin={CHART_MARGIN}>
+              <defs>
+                <linearGradient id="nervGradA" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={COLOR_A} stopOpacity={0.22} />
+                  <stop offset="95%" stopColor={COLOR_A} stopOpacity={0.01} />
+                </linearGradient>
+                <linearGradient id="nervGradB" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={COLOR_B} stopOpacity={0.22} />
+                  <stop offset="95%" stopColor={COLOR_B} stopOpacity={0.01} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid {...GRID_PROPS} />
+              <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
+              <YAxis domain={[0, 1]} tick={AXIS_TICK} axisLine={false} tickLine={false}
+                tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} width={44} />
+              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              {data.available_a && (
+                <Area type="monotone" dataKey="nerv_a" name={labelA} stroke={COLOR_A} strokeWidth={1.5}
+                  fill="url(#nervGradA)" isAnimationActive={false} dot={false} connectNulls />
+              )}
+              {data.available_b && (
+                <Area type="monotone" dataKey="nerv_b" name={labelB} stroke={COLOR_B} strokeWidth={1.5}
+                  fill="url(#nervGradB)" isAnimationActive={false} dot={false} connectNulls />
+              )}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
       )}
-    </div>
+    </Panel>
   );
 };
 

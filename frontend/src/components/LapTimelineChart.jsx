@@ -1,15 +1,22 @@
 import { useMemo } from 'react';
 import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ReferenceLine, ResponsiveContainer,
+  Tooltip, ReferenceLine, ResponsiveContainer,
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Badge, EmptyState } from './ui';
+import css from './LapTimelineChart.module.css';
+
+const HIDDEN_SERIES = ['band_floor', 'band_dim_low', 'band_bright', 'band_dim_high', 'pit_marker'];
+const AXIS_TICK = { fill: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)' };
+
+const clean = (s) => String(s ?? '').replace(/^[^\p{L}\p{N}(]+/u, '');
 
 function fmtLaptime(seconds) {
   if (seconds == null || isNaN(seconds) || seconds <= 0) return '—';
   const m = Math.floor(seconds / 60);
-  const s = (seconds % 60).toFixed(1);
-  return `${m}:${s.padStart(4, '0')}`;
+  const s = (seconds % 60).toFixed(3);
+  return `${m}:${s.padStart(6, '0')}`;
 }
 
 function fmtAxis(seconds) {
@@ -25,27 +32,22 @@ const CustomTooltip = ({ active, payload, label, t }) => {
   const isPit = point?.pit_actual_time != null;
 
   return (
-    <div style={{
-      background: 'rgba(10,15,30,0.97)',
-      border: `1px solid ${isPit ? 'rgba(255,61,61,0.3)' : 'rgba(255,255,255,0.07)'}`,
-      borderRadius: 8,
-      padding: '10px 14px',
-      fontSize: '0.75rem',
-      fontFamily: "'JetBrains Mono', monospace",
-    }}>
-      <div style={{ color: isPit ? '#FF3D3D' : 'var(--text-2)', marginBottom: 6, fontWeight: 600 }}>
-        {isPit ? `${t.timelinePitStop} · ` : ''}{t.timelineLap} {label}
+    <div className={css.tip}>
+      <div className={css.tipHead}>
+        {t.timelineLap} {label}
+        {isPit && <Badge tone="warn">{clean(t.timelineLegendPit)}</Badge>}
       </div>
       {isPit ? (
-        <div style={{ color: '#FF3D3D' }}>
-          {t.timelinePitStop}: {fmtLaptime(point.pit_actual_time)}
+        <div className={css.tipRow}>
+          {clean(t.timelinePitStop)}<b>{fmtLaptime(point.pit_actual_time)}</b>
         </div>
       ) : (
         payload.map((p) => {
-          if (!p.value || ['band_floor','band_dim_low','band_bright','band_dim_high','pit_marker'].includes(p.name)) return null;
+          if (!p.value || HIDDEN_SERIES.includes(p.name)) return null;
           return (
-            <div key={p.name} style={{ color: p.color || 'var(--text-1)', marginBottom: 2 }}>
-              {p.name}: {fmtLaptime(p.value)}
+            <div key={p.name} className={css.tipRow}>
+              <span className={css.sw} style={{ background: p.color || p.stroke }} />
+              {p.name}<b>{fmtLaptime(p.value)}</b>
             </div>
           );
         })
@@ -54,13 +56,23 @@ const CustomTooltip = ({ active, payload, label, t }) => {
   );
 };
 
-const LegendContent = ({ hasPitLaps, t }) => (
-  <div style={{ display: 'flex', gap: 20, justifyContent: 'center', fontSize: '0.72rem',
-    fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-2)', marginTop: 8 }}>
-    <span style={{ color: 'var(--cyan)' }}>● {t.timelineLegendActual}</span>
-    <span style={{ color: 'rgba(0,212,255,0.4)' }}>╌ {t.timelineLegendTrend}</span>
-    <span style={{ color: 'var(--amber)' }}>╌ {t.timelineLegendMC}</span>
-    {hasPitLaps && <span style={{ color: '#FF3D3D' }}>● {t.timelineLegendPit}</span>}
+function Swatch({ color, dashed, dot, band }) {
+  if (band) return <svg width="16" height="10" aria-hidden="true"><rect width="16" height="10" rx="2" fill={color} fillOpacity=".25" /></svg>;
+  return (
+    <svg width="18" height="10" aria-hidden="true">
+      <line x1="0" y1="5" x2="18" y2="5" stroke={color} strokeWidth="2" strokeDasharray={dashed ? '4 3' : undefined} />
+      {dot && <circle cx="9" cy="5" r="3.5" fill={color} />}
+    </svg>
+  );
+}
+
+const Legend = ({ hasPitLaps, hasMC, t }) => (
+  <div className={css.legend}>
+    <span className={css.legendItem}><Swatch color="var(--lap-a)" dot /> {t.timelineLegendActual}</span>
+    <span className={css.legendItem}><Swatch color="var(--ink-3)" dashed /> {t.timelineLegendTrend}</span>
+    {hasMC && <span className={css.legendItem}><Swatch color="var(--warn)" dashed /> {t.timelineLegendMC}</span>}
+    {hasMC && <span className={css.legendItem}><Swatch color="var(--warn)" band /> P10 – P90</span>}
+    {hasPitLaps && <span className={css.legendItem}><Swatch color="var(--lap-e)" dot /> {clean(t.timelineLegendPit)}</span>}
   </div>
 );
 
@@ -95,7 +107,7 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
       ...(degradacion.actual_times || []),
       ...(montecarlo?.p10 || []),
       ...(montecarlo?.p90 || []),
-    ].filter(t => t != null && !isNaN(t) && t > 0);
+    ].filter(v => v != null && !isNaN(v) && v > 0);
 
     const minT = racingTimes.length ? Math.min(...racingTimes) - 1.0 : 0;
     const maxT = racingTimes.length ? Math.max(...racingTimes) + 1.0 : 300;
@@ -132,84 +144,94 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
     };
   }, [degradacion, montecarlo, laps]);
 
+  const title = clean(t.timelineTitle);
+
   if (!degradacion?.available || chartData.length === 0) {
     return (
-      <div className="chart-card">
-        <div className="chart-header">
-          <div className="chart-title">◎ {t.timelineTitle}</div>
-        </div>
-        <div className="chart-empty">
-          <span className="chart-empty__icon">◎</span>
-          {t.timelineNoData}
-        </div>
-      </div>
+      <Panel icon="activity" title={title}>
+        <EmptyState icon="activity">{t.timelineNoData}</EmptyState>
+      </Panel>
     );
   }
 
+  const hasMC = !!montecarlo?.available;
+
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title">◎ {t.timelineTitle}</div>
-        {montecarlo?.available && (
-          <span className="chart-zoom-badge">σ = {montecarlo.sigma_real_s}s</span>
-        )}
+    <Panel
+      icon="activity"
+      title={title}
+      actions={(
+        <span className={css.headBadges}>
+          {pitLapNums.size > 0 && <Badge tone="warn">{clean(t.timelineLegendPit)} · {pitLapNums.size}</Badge>}
+          {hasMC && <Badge title="Monte Carlo">σ = {montecarlo.sigma_real_s}s</Badge>}
+        </span>
+      )}
+    >
+      <div className={css.chart}>
+        <ResponsiveContainer width="100%" height={300}>
+          <ComposedChart data={chartData} margin={{ top: 12, right: 16, left: 0, bottom: 4 }}>
+            <CartesianGrid stroke="var(--line)" strokeOpacity={0.6} vertical={false} />
+            <XAxis
+              dataKey="lap"
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={{ stroke: 'var(--line-strong)' }}
+              label={{ value: t.timelineLap, position: 'insideBottom', offset: -2, fill: 'var(--ink-3)', fontSize: 11 }}
+              height={36}
+            />
+            <YAxis
+              domain={yDomain}
+              allowDataOverflow
+              tickFormatter={fmtAxis}
+              tick={AXIS_TICK}
+              tickLine={false}
+              axisLine={false}
+              width={48}
+            />
+            <Tooltip content={<CustomTooltip t={t} />} cursor={{ stroke: 'var(--ink-4)', strokeDasharray: '3 3' }} />
+
+            {[...pitLapNums].map(lapNum => (
+              <ReferenceLine
+                key={`pit-${lapNum}`}
+                x={lapNum}
+                stroke="var(--lap-e)"
+                strokeOpacity={0.5}
+                strokeDasharray="3 3"
+                label={{ value: 'PIT', fill: 'var(--lap-e)', fontSize: 10, fontWeight: 600, position: 'insideTop' }}
+              />
+            ))}
+
+            {separatorLap && hasMC && (
+              <ReferenceLine
+                x={separatorLap}
+                stroke="var(--ink-4)"
+                strokeDasharray="4 4"
+                label={{ value: clean(t.timelineProjection), fill: 'var(--ink-3)', fontSize: 10, position: 'insideTopRight' }}
+              />
+            )}
+
+            <Area dataKey="band_floor"    stackId="mc" fill="transparent"  stroke="none" isAnimationActive={false} legendType="none" />
+            <Area dataKey="band_dim_low"  stackId="mc" fill="var(--warn)" fillOpacity={0.08} stroke="none" isAnimationActive={false} legendType="none" />
+            <Area dataKey="band_bright"   stackId="mc" fill="var(--warn)" fillOpacity={0.2}  stroke="none" isAnimationActive={false} legendType="none" />
+            <Area dataKey="band_dim_high" stackId="mc" fill="var(--warn)" fillOpacity={0.08} stroke="none" isAnimationActive={false} legendType="none" />
+
+            <Line dataKey="mc_p50" name={t.timelineLegendMC} stroke="var(--warn)" strokeWidth={1.5}
+              strokeDasharray="5 3" dot={false} isAnimationActive={false} connectNulls={false} />
+
+            <Line dataKey="trend" name={t.timelineLegendTrend} stroke="var(--ink-3)" strokeWidth={1.25}
+              strokeDasharray="4 4" dot={false} isAnimationActive={false} connectNulls={false} />
+
+            <Line dataKey="actual" name={t.timelineLegendActual} stroke="var(--lap-a)" strokeWidth={2}
+              dot={{ fill: 'var(--lap-a)', r: 3.5, strokeWidth: 0 }}
+              activeDot={{ r: 5.5 }} isAnimationActive={false} connectNulls={false} />
+
+            <Line dataKey="pit_marker" name="pit_marker" stroke="none" strokeWidth={0}
+              dot={{ fill: 'var(--surface-1)', r: 5, strokeWidth: 2, stroke: 'var(--lap-e)' }}
+              activeDot={{ r: 7 }} isAnimationActive={false} connectNulls={false} legendType="none" />
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
-      <ResponsiveContainer width="100%" height={280}>
-        <ComposedChart data={chartData} margin={{ top: 8, right: 24, left: 8, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-          <XAxis
-            dataKey="lap"
-            tick={{ fill: 'var(--text-3)', fontSize: 11 }}
-            label={{ value: t.timelineLap, position: 'insideBottom', offset: -2, fill: 'var(--text-3)', fontSize: 10 }}
-          />
-          <YAxis
-            domain={yDomain}
-            tickFormatter={fmtAxis}
-            tick={{ fill: 'var(--text-3)', fontSize: 11 }}
-            width={52}
-          />
-          <Tooltip content={<CustomTooltip t={t} />} />
-          <Legend content={<LegendContent hasPitLaps={pitLapNums.size > 0} t={t} />} />
-
-          {[...pitLapNums].map(lapNum => (
-            <ReferenceLine
-              key={`pit-${lapNum}`}
-              x={lapNum}
-              stroke="rgba(255,61,61,0.25)"
-              strokeDasharray="3 3"
-              label={{ value: '🔧', fill: '#FF3D3D', fontSize: 11, position: 'insideTop' }}
-            />
-          ))}
-
-          {separatorLap && (
-            <ReferenceLine
-              x={separatorLap}
-              stroke="rgba(255,255,255,0.15)"
-              strokeDasharray="4 4"
-              label={{ value: `${t.timelineProjection}`, fill: 'var(--text-3)', fontSize: 9, position: 'insideTopRight' }}
-            />
-          )}
-
-          <Area dataKey="band_floor"    stackId="mc" fill="transparent"          stroke="none" isAnimationActive={false} legendType="none" />
-          <Area dataKey="band_dim_low"  stackId="mc" fill="rgba(255,179,0,0.07)" stroke="none" isAnimationActive={false} legendType="none" />
-          <Area dataKey="band_bright"   stackId="mc" fill="rgba(255,179,0,0.18)" stroke="none" isAnimationActive={false} legendType="none" />
-          <Area dataKey="band_dim_high" stackId="mc" fill="rgba(255,179,0,0.07)" stroke="none" isAnimationActive={false} legendType="none" />
-
-          <Line dataKey="mc_p50" name={t.timelineLegendMC} stroke="var(--amber)" strokeWidth={1.5}
-            strokeDasharray="5 3" dot={false} isAnimationActive={false} connectNulls={false} />
-
-          <Line dataKey="trend" name={t.timelineLegendTrend} stroke="rgba(0,212,255,0.4)" strokeWidth={1}
-            strokeDasharray="4 4" dot={false} isAnimationActive={false} connectNulls={false} />
-
-          <Line dataKey="actual" name={t.timelineLegendActual} stroke="var(--cyan)" strokeWidth={2}
-            dot={{ fill: 'var(--cyan)', r: 4, strokeWidth: 0 }}
-            activeDot={{ r: 6 }} isAnimationActive={false} connectNulls={false} />
-
-          <Line dataKey="pit_marker" name="pit_marker" stroke="none" strokeWidth={0}
-            dot={{ fill: '#FF3D3D', r: 5, strokeWidth: 2, stroke: 'rgba(255,61,61,0.4)' }}
-            activeDot={{ r: 7 }} isAnimationActive={false} connectNulls={false} legendType="none" />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
+      <Legend hasPitLaps={pitLapNums.size > 0} hasMC={hasMC} t={t} />
+    </Panel>
   );
 }

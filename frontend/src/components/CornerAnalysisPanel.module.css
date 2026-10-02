@@ -1,0 +1,33 @@
+.tip {
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  padding: 10px 12px; box-shadow: var(--shadow-pop); font-size: var(--fs-sm); min-width: 200px;
+}
+.tipHead { color: var(--ink-1); font-weight: 600; margin-bottom: 6px; }
+.tipGrid { display: grid; grid-template-columns: auto 1fr; gap: 3px 16px; color: var(--ink-2); }
+.tipGrid b { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-1); font-weight: 600; }
+.tipGrid .bad { color: var(--bad); } .tipGrid .ok { color: var(--ok); } .tipGrid .warn { color: var(--warn); }
+.tipFocus { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--accent); font-size: var(--fs-xs); }
+.total { text-align: right; }
+.totalVal { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-xl); font-weight: 600; color: var(--bad); line-height: 1.1; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 8px 0 4px; font-size: var(--fs-xs); color: var(--ink-2); align-items: center; }
+.legendItem { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; }
+.hover { margin-left: auto; color: var(--ink-3); }
+.section { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 10px; }
+.card { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.cardHead { display: flex; align-items: center; gap: 10px; }
+.rank { width: 24px; height: 24px; border-radius: 50%; background: var(--surface-3); border: 1px solid var(--line-strong); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 600; color: var(--ink-1); flex-shrink: 0; }
+.cardName { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-1); }
+.cardPhase { font-size: var(--fs-xs); color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+.cardLoss { margin-left: auto; text-align: right; }
+.cardLossVal { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-lg); font-weight: 600; line-height: 1.1; }
+.cardLossLbl { font-size: var(--fs-xs); color: var(--ink-3); }
+.loss { color: var(--bad); } .gain { color: var(--ok); }
+.phase { display: grid; grid-template-columns: 8px 56px 1fr 72px; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--ink-3); }
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.track { height: 4px; background: var(--surface-3); border-radius: 2px; overflow: hidden; }
+.fill { height: 100%; border-radius: 2px; }
+.phaseVal { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-1); }
+.focus { padding: 6px 10px; border-left: 2px solid var(--accent); background: var(--accent-soft); border-radius: var(--radius-sm); font-size: var(--fs-xs); color: var(--ink-1); font-weight: 600; }
+.desc { margin: 0; font-size: var(--fs-xs); color: var(--ink-3); line-height: 1.5; }

@@ -1,52 +1,46 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
+import { Icon } from './ui';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function InfoButton({ title, content }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const popId = useId();
+  const { lang } = useLanguage();
 
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => {
+    const onDown = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
+  const label = title ?? (lang === 'es' ? 'Ayuda' : 'Help');
+
   return (
-    <div ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+    <div ref={ref} className="info-btn">
       <button
+        type="button"
+        className={`info-btn__trigger${open ? ' is-open' : ''}`}
         onClick={() => setOpen(o => !o)}
-        style={{
-          width: 18, height: 18, borderRadius: '50%',
-          background: open ? 'rgba(0,212,255,0.15)' : 'rgba(255,255,255,0.06)',
-          border: `1px solid ${open ? 'rgba(0,212,255,0.4)' : 'rgba(255,255,255,0.12)'}`,
-          color: open ? '#00D4FF' : '#7080A0',
-          fontSize: 11, fontWeight: 700, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 0, lineHeight: 1, flexShrink: 0,
-          transition: 'all 0.15s',
-        }}
+        aria-expanded={open}
+        aria-controls={open ? popId : undefined}
+        aria-label={label}
+        title={label}
       >
-        ?
+        <Icon name="help" size={14} />
       </button>
       {open && (
-        <div style={{
-          position: 'absolute', bottom: 24, right: 0, zIndex: 200,
-          background: 'rgba(8,12,24,0.98)',
-          border: '1px solid rgba(0,212,255,0.2)',
-          borderRadius: 8, padding: '12px 14px',
-          width: 300, maxWidth: '90vw',
-          fontSize: 11, color: '#9AAABB', lineHeight: 1.65,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-          whiteSpace: 'pre-line',
-        }}>
-          {title && (
-            <div style={{ color: '#00D4FF', fontWeight: 700, fontSize: 12, marginBottom: 8 }}>
-              {title}
-            </div>
-          )}
-          <p style={{ margin: 0 }}>{content}</p>
+        <div id={popId} role="dialog" aria-label={label} className="info-btn__pop">
+          {title && <div className="info-btn__title">{title}</div>}
+          <p>{content}</p>
         </div>
       )}
     </div>

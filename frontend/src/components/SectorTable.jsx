@@ -1,4 +1,6 @@
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Badge } from './ui';
+import styles from './SectorTable.module.css';
 
 const sign = (v) => (v > 0 ? '+' : '');
 
@@ -9,67 +11,54 @@ const SectorTable = ({ sectores, totalDelta }) => {
   const maxAbs = Math.max(...sectores.map((s) => Math.abs(s.delta_parcial)));
 
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title">
-          <span>⬡</span>
-          {t.sectorTitle}
-        </div>
-        {totalDelta != null && (
-          <span
-            className="chart-zoom-badge"
-            style={{ color: totalDelta > 0 ? 'var(--red)' : 'var(--green)' }}
-          >
-            Total: {sign(totalDelta)}{totalDelta.toFixed(3)}s
-          </span>
-        )}
+    <Panel
+      icon="layers"
+      title={t.sectorTitle}
+      flush
+      actions={totalDelta != null && (
+        <Badge tone={totalDelta > 0 ? 'bad' : 'ok'}>
+          Total {sign(totalDelta)}{totalDelta.toFixed(3)} s
+        </Badge>
+      )}
+    >
+      <div className={styles.scroll}>
+        <table className="ui-table">
+          <thead>
+            <tr>
+              <th>{t.sectorNumber}</th>
+              <th>{t.sectorZone}</th>
+              <th className="is-num">{t.sectorMeters}</th>
+              <th className="is-num">{t.sectorPartialDelta}</th>
+              <th className={styles.barCol}>{t.sectorBar}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sectores.map((s) => {
+              const isLoss = s.delta_parcial > 0.01;
+              const isGain = s.delta_parcial < -0.01;
+              const pct = maxAbs > 0 ? Math.abs(s.delta_parcial) / maxAbs : 0;
+              const color = isLoss ? 'var(--bad)' : isGain ? 'var(--ok)' : 'var(--ink-4)';
+              const longitud = (s.dist_fin - s.dist_inicio).toFixed(0);
+              return (
+                <tr key={s.sector}>
+                  <td className={styles.num}>{s.sector}</td>
+                  <td className={styles.zone}>{s.descripcion}</td>
+                  <td className="is-num">{longitud} m</td>
+                  <td className="is-num" style={{ color, fontWeight: 600 }}>
+                    {sign(s.delta_parcial)}{s.delta_parcial.toFixed(3)} s
+                  </td>
+                  <td className={styles.barCol}>
+                    <div className={styles.track}>
+                      <div className={styles.fill} style={{ width: `${(pct * 100).toFixed(1)}%`, background: color }} />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
-      <div className="sector-table">
-        <div className="sector-table__head">
-          <span>{t.sectorNumber}</span>
-          <span>{t.sectorZone}</span>
-          <span>{t.sectorMeters}</span>
-          <span>{t.sectorPartialDelta}</span>
-          <span>{t.sectorBar}</span>
-        </div>
-
-        {sectores.map((s) => {
-          const isLoss = s.delta_parcial > 0.01;
-          const isGain = s.delta_parcial < -0.01;
-          const pct    = maxAbs > 0 ? Math.abs(s.delta_parcial) / maxAbs : 0;
-          const color  = isLoss ? 'var(--red)' : isGain ? 'var(--green)' : 'rgba(255,255,255,0.3)';
-          const longitud = (s.dist_fin - s.dist_inicio).toFixed(0);
-
-          return (
-            <div
-              key={s.sector}
-              className={`sector-row ${isLoss ? 'sector-row--loss' : isGain ? 'sector-row--gain' : ''}`}
-            >
-              <span className="sector-row__num">{s.sector}</span>
-              <span className="sector-row__desc">{s.descripcion}</span>
-              <span className="sector-row__dist">{longitud}m</span>
-              <span
-                className="sector-row__delta"
-                style={{ color }}
-              >
-                {sign(s.delta_parcial)}{s.delta_parcial.toFixed(3)}s
-              </span>
-              <span className="sector-row__bar">
-                <span
-                  className="sector-row__bar-fill"
-                  style={{
-                    width: `${(pct * 100).toFixed(1)}%`,
-                    background: color,
-                    opacity: 0.85,
-                  }}
-                />
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    </Panel>
   );
 };
 

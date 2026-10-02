@@ -12,7 +12,7 @@ El output principal es un diccionario estructurado con:
 
 import numpy as np
 import pandas as pd
-from ..telemetry.metrics import segment_corners
+from ..telemetry.metrics import segment_corners, pair_corners
 import logging
 
 logger = logging.getLogger(__name__)
@@ -155,15 +155,14 @@ def compare_laps(df_a: pd.DataFrame, df_b: pd.DataFrame) -> dict:
     logger.info(f"  Delta de tiempo total: {total_time_delta:+.3f}s")
     
     # 3. Emparejar curvas de A y B por proximidad del apex
-    num_corners = min(len(corners_a), len(corners_b))
+    paired = pair_corners(corners_a, corners_b)
+    num_corners = len(paired)
     
     corner_analyses = []
     worst_loss = 0
     worst_corner = 0
     
-    for i in range(num_corners):
-        ca = corners_a[i]
-        cb = corners_b[i]
+    for i, ca, cb in paired:
         
         # Diferencia en punto de frenado (metros)
         brake_delta = cb["braking_point"]["distance"] - ca["braking_point"]["distance"]

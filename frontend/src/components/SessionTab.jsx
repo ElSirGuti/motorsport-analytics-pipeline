@@ -3,9 +3,20 @@ import FileUploader from './FileUploader';
 import TrackMap from './TrackMap';
 import { analyzeSession } from '../api/telemetry';
 import { useLanguage } from '../context/LanguageContext';
+import { Icon, Panel, Stat, Badge } from './ui';
+import css from './SessionTab.module.css';
+
+const clean = (s) => String(s ?? '').replace(/^[^\p{L}\p{N}(]+/u, '');
+
+const formatTime = (seconds) => {
+  if (seconds == null) return '—';
+  const m = Math.floor(seconds / 60);
+  const s = (seconds % 60).toFixed(3);
+  return m > 0 ? `${m}:${s.padStart(6, '0')}` : `${Number(s).toFixed(3)}s`;
+};
 
 const SessionTab = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [sessionFile, setSessionFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -26,106 +37,85 @@ const SessionTab = () => {
     }
   };
 
-  const formatTime = (seconds) => {
-    if (seconds == null) return '—';
-    const m = Math.floor(seconds / 60);
-    const s = (seconds % 60).toFixed(3);
-    return m > 0 ? `${m}:${s.padStart(6, '0')}` : `${Number(s).toFixed(3)}s`;
-  };
+  const outlierLabel = lang === 'es' ? 'Atípica' : 'Outlier';
 
   return (
-    <div>
-      {/* Upload section */}
-      <section className="section card" aria-label={t.uploadAria}>
-        <div className="card__title">
-          <span className="card__title-icon">▦</span>
-          {t.sessionLoadTitle}
-        </div>
-
-        <div style={{ marginBottom: 'var(--s4)' }}>
-          <FileUploader
-            label={t.sessionCsvLabel}
-            selectedFile={sessionFile}
-            onFileSelect={setSessionFile}
-          />
-        </div>
+    <div className={css.root}>
+      <Panel icon="upload" title={clean(t.sessionLoadTitle)} id="session-upload">
+        <FileUploader
+          label={t.sessionCsvLabel}
+          selectedFile={sessionFile}
+          onFileSelect={setSessionFile}
+        />
 
         {error && (
-          <div className="error-banner" role="alert" style={{ marginBottom: 'var(--s3)' }}>
-            <span className="error-banner__icon">✕</span>
-            <div className="error-banner__text">
-              <div className="error-banner__title">{t.errorTitle}</div>
+          <div className={css.error} role="alert">
+            <Icon name="alert" size={16} />
+            <div>
+              <div className={css.errorTitle}>{clean(t.errorTitle)}</div>
               {error}
             </div>
           </div>
         )}
 
-        <button
-          className="btn-analyze"
-          onClick={handleAnalyze}
-          disabled={!sessionFile || loading}
-          aria-label={loading ? t.sessionAnalyzingAria : t.sessionAnalyzeAria}
-        >
-          {loading
-            ? <><div className="spinner" /> {t.sessionProcessing}</>
-            : `⚡ ${t.analyzeSession}`
-          }
-        </button>
-      </section>
+        <div className={css.actions}>
+          <button
+            type="button"
+            className="ui-btn ui-btn--primary"
+            onClick={handleAnalyze}
+            disabled={!sessionFile || loading}
+            aria-label={loading ? t.sessionAnalyzingAria : t.sessionAnalyzeAria}
+          >
+            {loading
+              ? <><span className={css.spin} /> {clean(t.sessionProcessing)}</>
+              : <><Icon name="activity" size={16} /> {clean(t.analyzeSession)}</>
+            }
+          </button>
+        </div>
+      </Panel>
 
-      {/* Results */}
       {results && (
-        <div className="fade-up">
-          {/* KPI summary */}
-          <div className="kpi-grid" style={{ marginBottom: 'var(--s5)' }}>
-            <div className="kpi-card kpi-card--info">
-              <div className="kpi-card__label">{t.validLaps}</div>
-              <div className="kpi-card__value kpi-card__value--neutral">{results.total_laps}</div>
+        <>
+          <Panel flush>
+            <div className={css.kpis}>
+              <div className={css.kpi}><Stat label={t.validLaps} value={results.total_laps} /></div>
+              {results.fastest_lap && (
+                <div className={css.kpi}>
+                  <Stat
+                    label={t.bestLap}
+                    value={formatTime(results.fastest_lap.lap_time)}
+                    hint={`#${results.fastest_lap.lap_number}`}
+                    tone="accent"
+                  />
+                </div>
+              )}
+              {results.fastest_lap && (
+                <div className={css.kpi}>
+                  <Stat
+                    label={t.maxSpeed}
+                    value={results.fastest_lap.max_speed?.toFixed(0) ?? '—'}
+                    hint={clean(t.kmhInBestLap)}
+                  />
+                </div>
+              )}
             </div>
-
-            {results.fastest_lap && (
-              <div className="kpi-card kpi-card--negative">
-                <div className="kpi-card__label">{t.bestLap}</div>
-                <div className="kpi-card__value kpi-card__value--neutral">
-                  #{results.fastest_lap.lap_number}
-                </div>
-                <div className="kpi-card__sub">{formatTime(results.fastest_lap.lap_time)}</div>
-              </div>
-            )}
-
-            {results.fastest_lap && (
-              <div className="kpi-card kpi-card--info">
-                <div className="kpi-card__label">{t.maxSpeed}</div>
-                <div className="kpi-card__value kpi-card__value--info" style={{ fontSize: '1.5rem' }}>
-                  {results.fastest_lap.max_speed?.toFixed(0) ?? '—'}
-                </div>
-                <div className="kpi-card__sub">{t.kmhInBestLap}</div>
-              </div>
-            )}
-          </div>
+          </Panel>
 
           {results.track_map && results.track_map.length > 0 && (
-            <div style={{ marginBottom: 'var(--s5)' }}>
-              <TrackMap trackData={results.track_map} />
-            </div>
+            <TrackMap trackData={results.track_map} />
           )}
 
-          {/* Lap table */}
           {results.laps && results.laps.length > 0 && (
-            <div className="card">
-              <div className="card__title">
-                <span className="card__title-icon">▤</span>
-                {t.sessionListTitle}
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table className="session-lap-table">
+            <Panel icon="flag" title={clean(t.sessionListTitle)} flush>
+              <div className={css.scroll}>
+                <table className="ui-table">
                   <thead>
                     <tr>
                       <th>{t.lapCol}</th>
-                      <th>{t.timeCol}</th>
-                      <th>{t.maxSpeedCol}</th>
-                      <th>{t.distanceCol}</th>
-                      <th>{t.deltaCol}</th>
+                      <th className="is-num">{t.timeCol}</th>
+                      <th className="is-num">{t.maxSpeedCol}</th>
+                      <th className="is-num">{t.distanceCol}</th>
+                      <th className="is-num">{t.deltaCol}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -135,21 +125,19 @@ const SessionTab = () => {
                         : null;
 
                       return (
-                        <tr key={lap.lap_number} className={lap.is_fastest ? 'row-fastest' : ''}>
-                          <td className="td-lap-num">
-                            {lap.lap_number}
-                            {lap.is_fastest && (
-                              <span style={{ marginLeft: '6px', color: 'var(--cyan)', fontSize: '0.7rem' }}>
-                                BEST
-                              </span>
-                            )}
+                        <tr key={lap.lap_number} className={lap.is_fastest ? css.best : undefined}>
+                          <td>
+                            <span className={css.lapCell}>
+                              {lap.lap_number}
+                              {lap.is_fastest && <Badge tone="accent">BEST</Badge>}
+                              {lap.is_pit_lap && <Badge tone="warn">PIT</Badge>}
+                              {lap.is_outlier && <Badge tone="bad">{outlierLabel}</Badge>}
+                            </span>
                           </td>
-                          <td className={`td-time ${lap.is_fastest ? '' : ''}`}>
-                            {formatTime(lap.lap_time)}
-                          </td>
-                          <td>{lap.max_speed?.toFixed(1) ?? '—'} km/h</td>
-                          <td>{lap.lap_distance?.toFixed(0) ?? '—'} m</td>
-                          <td style={{ color: delta != null && delta > 0 ? 'var(--red)' : 'var(--text-3)' }}>
+                          <td className="is-num">{formatTime(lap.lap_time)}</td>
+                          <td className="is-num">{lap.max_speed?.toFixed(1) ?? '—'} km/h</td>
+                          <td className="is-num">{lap.lap_distance?.toFixed(0) ?? '—'} m</td>
+                          <td className={`is-num ${delta != null && delta > 0 ? css.loss : css.muted}`}>
                             {delta != null && delta > 0 ? `+${delta.toFixed(3)}s` : '—'}
                           </td>
                         </tr>
@@ -158,9 +146,9 @@ const SessionTab = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </Panel>
           )}
-        </div>
+        </>
       )}
     </div>
   );

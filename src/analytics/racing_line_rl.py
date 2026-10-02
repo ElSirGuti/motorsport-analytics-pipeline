@@ -71,45 +71,8 @@ def _get_per_lap_observations(dfs: list, df_laps):
     Re-run corner extraction for each flying lap and return raw per-corner
     observations: {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
     """
-    from src.processing.alignment import align_pair
-    from src.telemetry.lap_comparator import _estimate_corner_time_loss
-    from src.telemetry.metrics import segment_corners
-
-    if 'is_pit_lap' in df_laps.columns:
-        flying = df_laps[~df_laps['is_pit_lap'] & df_laps['lap_time_s'].notna()]
-    else:
-        flying = df_laps[df_laps['lap_time_s'].notna()]
-
-    if len(flying) < 2:
-        return {}
-
-    ref_idx = int(flying['lap_time_s'].idxmin())
-    ref_df  = dfs[ref_idx]
-
-    obs: dict = defaultdict(list)
-
-    for idx in flying.index:
-        if idx == ref_idx:
-            continue
-        lap_df = dfs[idx]
-        try:
-            al_a, al_b = align_pair(ref_df, lap_df)
-            corners_a  = segment_corners(al_a)
-            corners_b  = segment_corners(al_b)
-            n = min(len(corners_a), len(corners_b))
-            for i in range(n):
-                ca, cb = corners_a[i], corners_b[i]
-                tl = _estimate_corner_time_loss(al_a, al_b, ca, cb)
-                obs[i + 1].append({
-                    "time_loss":    float(tl),
-                    "brake_delta":  float(cb["braking_point"]["distance"] - ca["braking_point"]["distance"]),
-                    "apex_delta":   float(cb["apex"]["speed"] - ca["apex"]["speed"]),
-                    "thtl_delta":   float(cb["full_throttle"]["distance"] - ca["full_throttle"]["distance"]),
-                })
-        except Exception as exc:
-            logger.debug("rl_obs: idx=%d: %s", idx, exc)
-
-    return dict(obs)
+    from src.analytics.session_corner_analysis import get_corner_observations
+    return get_corner_observations(dfs, df_laps)
 
 
 def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None) -> dict:

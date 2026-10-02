@@ -1,0 +1,9 @@
+.container {
+  width: 100%;
+  aspect-ratio: 600 / 360;
+  max-height: 420px;
+  background: var(--surface-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}

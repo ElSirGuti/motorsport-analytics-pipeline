@@ -14,24 +14,24 @@ logger = logging.getLogger(__name__)
 _TYRE_CORE: dict = {
     # iRacing native: LFtempCM/LFtempM = centre-strip (most representative)
     # MoTeC export names: "Tyre Temp FL Centre / Inner / Outer"
-    'FL': ['Tyre Temp FL Centre', 'LFtempCM', 'LFtempM',
+    'FL': ['TyreTempMiddleFL', 'TyreTempCoreFL', 'Tyre Temp FL Centre', 'LFtempCM', 'LFtempM',
            'TyreTempCore_FL', 'Tyre Temp Core FL', 'TyreTempFL', 'Tyre Temp FL',
            'Tyre Temp FL Inner', 'LFtempCR', 'LFtempR', 'LFtempCL', 'LFtempL'],
-    'FR': ['Tyre Temp FR Centre', 'RFtempCM', 'RFtempM',
+    'FR': ['TyreTempMiddleFR', 'TyreTempCoreFR', 'Tyre Temp FR Centre', 'RFtempCM', 'RFtempM',
            'TyreTempCore_FR', 'Tyre Temp Core FR', 'TyreTempFR', 'Tyre Temp FR',
            'Tyre Temp FR Inner', 'RFtempCL', 'RFtempL', 'RFtempCR', 'RFtempR'],
-    'RL': ['Tyre Temp RL Centre', 'LRtempCM', 'LRtempM',
+    'RL': ['TyreTempMiddleRL', 'TyreTempCoreRL', 'Tyre Temp RL Centre', 'LRtempCM', 'LRtempM',
            'TyreTempCore_RL', 'Tyre Temp Core RL', 'TyreTempRL', 'Tyre Temp RL',
            'Tyre Temp RL Inner', 'LRtempCR', 'LRtempR', 'LRtempCL', 'LRtempL'],
-    'RR': ['Tyre Temp RR Centre', 'RRtempCM', 'RRtempM',
+    'RR': ['TyreTempMiddleRR', 'TyreTempCoreRR', 'Tyre Temp RR Centre', 'RRtempCM', 'RRtempM',
            'TyreTempCore_RR', 'Tyre Temp Core RR', 'TyreTempRR', 'Tyre Temp RR',
            'Tyre Temp RR Inner', 'RRtempCL', 'RRtempL', 'RRtempCR', 'RRtempR'],
 }
 _TYRE_PRES: dict = {
-    'FL': ['Tyre Pres FL', 'LFpressure', 'LFcoldPressure', 'TyrePres_FL'],
-    'FR': ['Tyre Pres FR', 'RFpressure', 'RFcoldPressure', 'TyrePres_FR'],
-    'RL': ['Tyre Pres RL', 'LRpressure', 'LRcoldPressure', 'TyrePres_RL'],
-    'RR': ['Tyre Pres RR', 'RRpressure', 'RRcoldPressure', 'TyrePres_RR'],
+    'FL': ['TyrePressFL', 'Tyre Pres FL', 'LFpressure', 'LFcoldPressure', 'TyrePres_FL'],
+    'FR': ['TyrePressFR', 'Tyre Pres FR', 'RFpressure', 'RFcoldPressure', 'TyrePres_FR'],
+    'RL': ['TyrePressRL', 'Tyre Pres RL', 'LRpressure', 'LRcoldPressure', 'TyrePres_RL'],
+    'RR': ['TyrePressRR', 'Tyre Pres RR', 'RRpressure', 'RRcoldPressure', 'TyrePres_RR'],
 }
 _LAT_G  = ['LateralG', 'Lateral G', 'G Force Lat', 'LatAccel', 'LateralAcc', 'Lateral Acc']
 _LONG_G = ['LongitudinalG', 'Longitudinal G', 'G Force Long', 'LongAccel',

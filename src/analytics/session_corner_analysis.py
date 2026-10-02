@@ -44,7 +44,7 @@ def get_corner_observations(dfs: list, df_laps) -> dict:
     """
     from src.processing.alignment import align_pair
     from src.telemetry.lap_comparator import _estimate_corner_time_loss
-    from src.telemetry.metrics import segment_corners
+    from src.telemetry.metrics import segment_corners, pair_corners
 
     flying_mask = ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
     flying = df_laps[flying_mask]
@@ -62,9 +62,7 @@ def get_corner_observations(dfs: list, df_laps) -> dict:
             al_a, al_b = align_pair(ref_df, dfs[idx])
             corners_a  = segment_corners(al_a)
             corners_b  = segment_corners(al_b)
-            n = min(len(corners_a), len(corners_b))
-            for i in range(n):
-                ca, cb = corners_a[i], corners_b[i]
+            for i, ca, cb in pair_corners(corners_a, corners_b):
                 tl = _estimate_corner_time_loss(al_a, al_b, ca, cb)
                 obs[i + 1].append({
                     "time_loss":    float(tl),
@@ -96,7 +94,7 @@ def analizar_curvas_sesion(
 
     if len(flying) < 2:
         logger.info("session_corner_analysis: <2 vueltas volantes — omitido")
-        return {"available": False}
+        return {"available": False, "reason": "fewer than 2 flying laps to compare"}
 
     ref_idx = int(flying["lap_time_s"].idxmin())
     ref_lap_num = (
@@ -114,50 +112,23 @@ def analizar_curvas_sesion(
         ref_lap_num, ref_time_str, len(flying) - 1,
     )
 
-    # ── Use pre-computed or compute fresh ────────────────────────────────────
-    if precomputed_obs:
-        # Translate from {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
-        # to the internal format expected below
-        corner_data: dict = defaultdict(list)
-        for cnum, laps in precomputed_obs.items():
-            for lap in laps:
-                corner_data[cnum].append({
-                    "time_loss":      lap["time_loss"],
-                    "brake_delta":    lap["brake_delta"],
-                    "apex_delta":     lap["apex_delta"],
-                    "throttle_delta": lap["thtl_delta"],
-                })
-    else:
-        from src.processing.alignment import align_pair
-        from src.telemetry.lap_comparator import _estimate_corner_time_loss
-        from src.telemetry.metrics import segment_corners
-
-        ref_df = dfs[ref_idx]
-        corner_data = defaultdict(list)
-
-        for idx in flying.index:
-            if idx == ref_idx:
-                continue
-            try:
-                aligned_a, aligned_b = align_pair(ref_df, dfs[idx])
-                corners_a = segment_corners(aligned_a)
-                corners_b = segment_corners(aligned_b)
-                n = min(len(corners_a), len(corners_b))
-                for i in range(n):
-                    ca, cb = corners_a[i], corners_b[i]
-                    tl = _estimate_corner_time_loss(aligned_a, aligned_b, ca, cb)
-                    corner_data[i + 1].append({
-                        "time_loss":      float(tl),
-                        "brake_delta":    float(cb["braking_point"]["distance"] - ca["braking_point"]["distance"]),
-                        "apex_delta":     float(cb["apex"]["speed"] - ca["apex"]["speed"]),
-                        "throttle_delta": float(cb["full_throttle"]["distance"] - ca["full_throttle"]["distance"]),
-                    })
-            except Exception as exc:
-                logger.debug("session_corner_analysis: idx=%d falló: %s", idx, exc)
+    # ── Use pre-computed or compute fresh (single implementation: get_corner_observations)
+    if precomputed_obs is None:
+        precomputed_obs = get_corner_observations(dfs, df_laps)
+    corner_data: dict = defaultdict(list)
+    for cnum, laps in precomputed_obs.items():
+        for lap in laps:
+            corner_data[cnum].append({
+                "time_loss":      lap["time_loss"],
+                "brake_delta":    lap["brake_delta"],
+                "apex_delta":     lap["apex_delta"],
+                "throttle_delta": lap["thtl_delta"],
+            })
 
     if not corner_data:
         logger.info("session_corner_analysis: sin datos de curvas — omitido")
-        return {"available": False}
+        return {"available": False,
+                "reason": "no corners could be matched between laps (need Brake/Speed/Throttle channels with braking zones)"}
 
     # ── Aggregate ─────────────────────────────────────────────────────────────
     corners_agg = []

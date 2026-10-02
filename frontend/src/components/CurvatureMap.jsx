@@ -1,7 +1,11 @@
 import { useMemo } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Badge } from './ui';
+import { COLOR } from './chartTheme';
 
-const TrackMap = ({ curvatura, apexes }) => {
+const MONO = 'JetBrains Mono, monospace';
+
+const CurvatureMap = ({ curvatura, apexes }) => {
   const { t } = useLanguage();
   const { path, apexPoints, viewBox } = useMemo(() => {
     if (!curvatura || curvatura.length < 2) return { path: '', apexPoints: [], viewBox: '0 0 100 40' };
@@ -26,7 +30,6 @@ const TrackMap = ({ curvatura, apexes }) => {
       num: i + 1,
       speed: a.Speed,
       dist: a.Distance,
-      radio: a.Curvature > 0 ? (1 / a.Curvature).toFixed(0) : '∞',
     }));
 
     return {
@@ -39,86 +42,38 @@ const TrackMap = ({ curvatura, apexes }) => {
   if (!path) return null;
 
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title">
-          <span>◎</span>
-          {t.curvatureTitle}
-        </div>
-        <span className="chart-zoom-badge">{t.curvatureCorners(apexes?.length || 0)}</span>
-      </div>
-
+    <Panel
+      icon="activity"
+      title={t.curvatureTitle}
+      actions={<Badge>{t.curvatureCorners(apexes?.length || 0)}</Badge>}
+    >
       <svg
         viewBox={viewBox}
+        role="img"
         style={{ width: '100%', height: 160, overflow: 'visible' }}
         aria-label={t.curvatureAria}
       >
-        <defs>
-          <linearGradient id="trackGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#00D4FF" stopOpacity={0.9} />
-            <stop offset="50%" stopColor="#a78bfa" stopOpacity={0.9} />
-            <stop offset="100%" stopColor="#00D4FF" stopOpacity={0.9} />
-          </linearGradient>
-          <filter id="apexGlow">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
+        <line x1="0" y1="120" x2="800" y2="120" stroke={COLOR.lineStrong} strokeWidth="1" />
 
-        <line x1="0" y1="120" x2="800" y2="120" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-
-        <path
-          d={`${path} L800,120 L0,120 Z`}
-          fill="url(#trackGrad)"
-          fillOpacity={0.12}
-        />
-
-        <path
-          d={path}
-          fill="none"
-          stroke="url(#trackGrad)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d={`${path} L800,120 L0,120 Z`} fill={COLOR.accent} fillOpacity={0.1} />
+        <path d={path} fill="none" stroke={COLOR.accent} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
 
         {apexPoints.map((a) => (
-          <g key={a.num} filter="url(#apexGlow)">
-            <line
-              x1={a.x} y1={a.y - 4}
-              x2={a.x} y2={120}
-              stroke="#FFB300"
-              strokeWidth="1"
-              strokeDasharray="3 2"
-              strokeOpacity={0.5}
-            />
-            <circle cx={a.x} cy={a.y} r={5} fill="#FFB300" stroke="#1a1a2e" strokeWidth={1.5} />
-            <text
-              x={a.x}
-              y={a.y - 12}
-              textAnchor="middle"
-              fontSize="10"
-              fill="#FFB300"
-              fontFamily="Inter, sans-serif"
-              fontWeight="700"
-            >
+          <g key={a.num}>
+            <line x1={a.x} y1={a.y + 4} x2={a.x} y2={120} stroke={COLOR.warn} strokeWidth="1" strokeDasharray="3 2" strokeOpacity={0.5} />
+            <circle cx={a.x} cy={a.y} r={4} fill={COLOR.warn} stroke="#12161c" strokeWidth={1.5} />
+            <text x={a.x} y={a.y - 10} textAnchor="middle" fontSize="10" fill={COLOR.warn} fontFamily={MONO} fontWeight="600">
               {a.num}
             </text>
-            <text
-              x={a.x}
-              y={135}
-              textAnchor="middle"
-              fontSize="9"
-              fill="rgba(255,255,255,0.45)"
-              fontFamily="Inter, sans-serif"
-            >
-              {a.dist?.toFixed(0)}m
+            <text x={a.x} y={135} textAnchor="middle" fontSize="9" fill={COLOR.ink3} fontFamily={MONO}>
+              {a.dist?.toFixed(0)}
             </text>
           </g>
         ))}
+        <text x="800" y="149" textAnchor="end" fontSize="9" fill={COLOR.ink3} fontFamily={MONO}>m</text>
       </svg>
-    </div>
+    </Panel>
   );
 };
 
-export default TrackMap;
+export default CurvatureMap;

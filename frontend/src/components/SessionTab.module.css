@@ -1,0 +1,16 @@
+.root { display: flex; flex-direction: column; gap: 16px; }
+.error { display: flex; gap: 10px; margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--bad-soft); border: 1px solid var(--bad-line); font-size: var(--fs-sm); color: var(--ink-1); }
+.error svg { color: var(--bad); margin-top: 2px; }
+.errorTitle { font-weight: 600; color: var(--bad); margin-bottom: 2px; }
+.actions { margin-top: 16px; }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--accent-ink); border-top-color: transparent; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.kpi { padding: 16px 18px; border-right: 1px solid var(--line); }
+.kpi:last-child { border-right: 0; }
+@media (max-width: 720px) { .kpis { grid-template-columns: 1fr; } .kpi { border-right: 0; border-bottom: 1px solid var(--line); } }
+.scroll { overflow-x: auto; max-height: 560px; overflow-y: auto; }
+.best { background: var(--accent-soft); }
+.lapCell { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); }
+.muted { color: var(--ink-3); }
+.loss { color: var(--bad); }

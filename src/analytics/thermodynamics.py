@@ -31,7 +31,7 @@ def _surface_mean(df: pd.DataFrame, corner: str, suffix: str = "") -> pd.Series 
 
 
 def _core_series(df: pd.DataFrame, corner: str, suffix: str = "") -> pd.Series | None:
-    c = f"TyreTemp Core{corner}{suffix}"
+    c = f"TyreTempCore{corner}{suffix}"
     if c in df.columns:
         return df[c]
     return None

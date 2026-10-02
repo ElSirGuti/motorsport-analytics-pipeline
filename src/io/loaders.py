@@ -193,6 +193,35 @@ def read_motec_metadata(filepath: str) -> dict:
     return meta
 
 
+def _best_time_step(df: pd.DataFrame):
+    """
+    Returns (column_name, dt Series in seconds) from the first usable time clock.
+
+    A usable clock increases at (almost) every sample. Some exports (e.g. the
+    AC/MoTeC "LR Sample Clock") are a 0/1 square wave, not a time axis: integrating
+    Speed against it samples speed at ~1 Hz and makes lap lengths wrong by 1-2 %.
+    Falls back to 'Session Time Left' (counting down) and to the lap timer.
+    Non-positive / huge steps (lap-timer resets) are replaced with the median step.
+    """
+    candidates = [(c, 1.0) for c in _TIME_CANDIDATES if c in df.columns]
+    candidates += [(c, -1.0) for c in ("Session Time Left",) if c in df.columns]
+    candidates += [(c, 1.0) for c in ("LapTime", "Lap Time2") if c in df.columns]
+    seen = set()
+    for col, sign in candidates:
+        if col in seen:
+            continue
+        seen.add(col)
+        t = pd.to_numeric(df[col], errors="coerce").ffill().bfill() * sign
+        d = t.diff()
+        pos = d[d > 0]
+        if len(d) < 3 or len(pos) / max(len(d) - 1, 1) < 0.9:
+            continue
+        med = float(pos.median())
+        dt = d.where((d > 0) & (d < 2.0), med).fillna(0.0)
+        return col, dt
+    return None, None
+
+
 def _synthesize_distance(df: pd.DataFrame) -> pd.DataFrame:
     """
     Computes a Distance column (metres, cumulative) from Speed × dt when the
@@ -203,13 +232,10 @@ def _synthesize_distance(df: pd.DataFrame) -> pd.DataFrame:
     The synthesized distances are session-continuous (not reset per lap) — for
     per-lap analysis the caller must slice and re-cumsum after lap segmentation.
     """
-    time_col = next((c for c in _TIME_CANDIDATES if c in df.columns), None)
-
     speed_ms = pd.to_numeric(df["Speed"], errors="coerce").fillna(0) / 3.6  # km/h → m/s
 
+    time_col, dt = _best_time_step(df)
     if time_col:
-        t = pd.to_numeric(df[time_col], errors="coerce").ffill().bfill()
-        dt = t.diff().fillna(0).clip(lower=0, upper=2.0)
         logger.warning(
             "Canal 'Distance' ausente — sintetizado integrando Speed con '%s'. "
             "Precisión suficiente para análisis de stint; no apta para comparación de vueltas.",
@@ -317,6 +343,9 @@ def load_telemetry_data(filepath: str,
     if not os.path.exists(filepath):
         raise DataLoaderException(f"No se encontró el archivo: {filepath}")
     
+    if os.path.getsize(filepath) == 0:
+        raise DataLoaderException("El archivo CSV está vacío (0 bytes)")
+
     # Auto-detectar separador y cabecera
     detected_sep, header_idx, has_units = _detect_separator_and_header(filepath)
     
@@ -445,6 +474,13 @@ def load_telemetry_data(filepath: str,
     for ch in base_channels:
         if ch in df.columns:
             df[ch] = pd.to_numeric(df[ch], errors="coerce")
+
+    # 6b. Un canal esencial sin ningún valor numérico no se puede analizar
+    for ch in ESSENTIAL_CHANNELS:
+        if ch in df.columns and df[ch].isnull().all():
+            raise DataLoaderException(
+                f"El canal esencial '{ch}' no contiene valores numéricos válidos"
+            )
 
     # 7. Interpolar NaN en canales base
     present_base = [ch for ch in base_channels if ch in df.columns]

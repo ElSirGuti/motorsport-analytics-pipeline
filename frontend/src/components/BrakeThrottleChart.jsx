@@ -4,9 +4,10 @@ import {
   ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
 import { useCursorWriter } from '../hooks/useCursorWriter';
-
-const BRAKE_COLORS    = ['#FF3D3D', '#FF8C42', '#CC2936', '#FF6B6B'];
-const THROTTLE_COLORS = ['#00E676', '#FFB300', '#34D399', '#F59E0B'];
+import { Panel } from './ui';
+import { LAP_COLORS, TICK, AXIS_LINE, GRID_PROPS, CURSOR, ACTIVE_DOT, fmtDist } from './chartTheme';
+import { ChartTooltip, ZoomBadge, SeriesLegend, ChartEmpty } from './chartKit';
+import styles from './BrakeThrottleChart.module.css';
 
 // labels: translations object passed from parent
 const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick, labels }) => {
@@ -25,109 +26,67 @@ const BrakeThrottleChart = ({ brakeData, throttleData, zoomDomain, onChartClick,
   }, [brakeData, throttleData, zoomDomain]);
 
   if (!chartData.length) {
-    return (
-      <div className="chart-card">
-        <div className="chart-empty">
-          <span className="chart-empty__icon">◌</span>
-          {labels?.brakeThrottleNoData ?? ''}
-        </div>
-      </div>
-    );
+    return <ChartEmpty icon="activity" title={labels?.brakeThrottleTitle}>{labels?.brakeThrottleNoData ?? ''}</ChartEmpty>;
   }
 
   const brakeKeys    = Object.keys(brakeData).filter((k) => k.startsWith('brake_'));
   const throttleKeys = Object.keys(throttleData).filter((k) => k.startsWith('throttle_'));
-  const lapLabels    = brakeData?.lap_labels || {};
+  const lapLabels    = { ...(throttleData?.lap_labels || {}), ...(brakeData?.lap_labels || {}) };
 
-  const commonXAxis = (
-    <XAxis
-      dataKey="distance"
-      type="number"
-      domain={['dataMin', 'dataMax']}
-      tickFormatter={(v) => `${v.toFixed(0)}m`}
+  const onClick = (state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); };
+  const yAxis = <YAxis domain={[0, 100]} ticks={[0, 50, 100]} tick={TICK} axisLine={false} tickLine={false} width={40} />;
+  const tooltip = <Tooltip cursor={CURSOR} content={<ChartTooltip unit="%" nameMap={lapLabels} />} />;
+
+  const renderAreas = (keys) => keys.map((key, idx) => (
+    <Area
+      key={key} type="monotone" dataKey={key} name={key}
+      stroke={LAP_COLORS[idx % LAP_COLORS.length]}
+      fill={LAP_COLORS[idx % LAP_COLORS.length]}
+      fillOpacity={idx === 0 ? 0.14 : 0}
+      strokeWidth={1.75} activeDot={ACTIVE_DOT} isAnimationActive={false}
     />
-  );
+  ));
 
-  const commonYAxis = (
-    <YAxis domain={[0, 105]} tickFormatter={(v) => `${v}%`} width={38} />
-  );
+  const prefix = `${labels?.brakeThrottleBrake ?? ''} — `;
+  const legend = brakeKeys.map((k, i) => ({
+    key: k, color: LAP_COLORS[i % LAP_COLORS.length],
+    label: (brakeData.lap_labels?.[k] || k).replace(prefix, ''),
+  }));
 
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title">
-          <span>◈</span>
-          {labels?.brakeThrottleTitle ?? ''}
-        </div>
-        {zoomDomain && (
-          <span className="chart-zoom-badge">
-            ZOOM {zoomDomain[0].toFixed(0)}m → {zoomDomain[1].toFixed(0)}m
-          </span>
-        )}
+    <Panel icon="activity" title={labels?.brakeThrottleTitle ?? ''} subtitle="%" actions={<ZoomBadge domain={zoomDomain} />}>
+      <SeriesLegend items={legend} />
+
+      <div className={styles.lane}>{labels?.brakeThrottleBrake ?? ''}</div>
+      <div style={{ width: '100%', height: 150 }}>
+        <ResponsiveContainer>
+          <AreaChart data={chartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }} syncId="pedals" {...cursorHandlers} onClick={onClick}>
+            <CartesianGrid {...GRID_PROPS} />
+            <XAxis dataKey="distance" hide type="number" domain={['dataMin', 'dataMax']} />
+            {yAxis}
+            {tooltip}
+            {renderAreas(brakeKeys)}
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
 
-      <div style={{ marginBottom: '4px' }}>
-        <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--red)', marginBottom: '4px', opacity: 0.8 }}>
-          {labels?.brakeThrottleBrake ?? ''}
-        </div>
-        <div style={{ width: '100%', height: 170 }}>
-          <ResponsiveContainer>
-            <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals"
-              {...cursorHandlers}
-              onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="distance" hide type="number" domain={['dataMin', 'dataMax']} />
-              {commonYAxis}
-              <Tooltip
-                formatter={(v, n) => [`${Number(v).toFixed(1)}%`, lapLabels[n] || n]}
-                labelFormatter={(l) => `${Number(l).toFixed(0)} m`}
-              />
-              {brakeKeys.map((key, idx) => (
-                <Area
-                  key={key} type="monotone" dataKey={key}
-                  stroke={BRAKE_COLORS[idx % BRAKE_COLORS.length]}
-                  fill={idx === 0 ? BRAKE_COLORS[0] : 'none'}
-                  fillOpacity={0.18} strokeWidth={1.8}
-                  activeDot={{ r: 3, strokeWidth: 0 }}
-                />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
+      <div className={styles.lane}>{labels?.brakeThrottleThrottle ?? ''}</div>
+      <div style={{ width: '100%', height: 170 }}>
+        <ResponsiveContainer>
+          <AreaChart data={chartData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }} syncId="pedals" {...cursorHandlers} onClick={onClick}>
+            <CartesianGrid {...GRID_PROPS} />
+            <XAxis
+              dataKey="distance" type="number" domain={['dataMin', 'dataMax']}
+              tick={TICK} axisLine={AXIS_LINE} tickLine={false}
+              tickFormatter={fmtDist} unit=" m" minTickGap={28}
+            />
+            {yAxis}
+            {tooltip}
+            {renderAreas(throttleKeys)}
+          </AreaChart>
+        </ResponsiveContainer>
       </div>
-
-      <div>
-        <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--green)', marginBottom: '4px', opacity: 0.8 }}>
-          {labels?.brakeThrottleThrottle ?? ''}
-        </div>
-        <div style={{ width: '100%', height: 170 }}>
-          <ResponsiveContainer>
-            <AreaChart data={chartData} margin={{ top: 4, right: 12, left: -16, bottom: 0 }} syncId="pedals"
-              {...cursorHandlers}
-              onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              {commonXAxis}
-              {commonYAxis}
-              <Tooltip
-                formatter={(v, n) => [`${Number(v).toFixed(1)}%`, lapLabels[n] || n]}
-                labelFormatter={(l) => `${Number(l).toFixed(0)} m`}
-              />
-              {throttleKeys.map((key, idx) => (
-                <Area
-                  key={key} type="monotone" dataKey={key}
-                  stroke={THROTTLE_COLORS[idx % THROTTLE_COLORS.length]}
-                  fill={idx === 0 ? THROTTLE_COLORS[0] : 'none'}
-                  fillOpacity={0.15} strokeWidth={1.8}
-                  activeDot={{ r: 3, strokeWidth: 0 }}
-                />
-              ))}
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    </div>
+    </Panel>
   );
 };
 

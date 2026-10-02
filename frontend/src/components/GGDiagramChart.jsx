@@ -1,8 +1,11 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Badge, Stat } from './ui';
+import styles from './GGDiagramChart.module.css';
 
 const PAD = { top: 24, right: 24, bottom: 40, left: 44 };
 const CSS_H = 340;
+const MONO = 'JetBrains Mono, monospace';
 
 function makeCoordFns(cssW, limit) {
   const range = limit * 1.15 * 2;
@@ -13,18 +16,12 @@ function makeCoordFns(cssW, limit) {
   return { toX, toY, plotW, plotH, range };
 }
 
-const GGStat = ({ label, value, color }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-    <span style={{ fontSize: '0.63rem', color: 'var(--text-3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
-    <span style={{ fontSize: '0.85rem', fontWeight: 700, color, fontFamily: "'JetBrains Mono', monospace" }}>{value}</span>
-  </div>
-);
-
 const effColor = (eff, alpha = 1) => {
-  if (eff >= 90) return `rgba(0,230,118,${alpha})`;
-  if (eff >= 72) return `rgba(255,179,0,${alpha})`;
-  return `rgba(255,61,61,${alpha})`;
+  if (eff >= 90) return `rgba(61,214,140,${alpha})`;
+  if (eff >= 72) return `rgba(245,165,36,${alpha})`;
+  return `rgba(240,97,109,${alpha})`;
 };
+const effTone = (eff) => (eff >= 90 ? 'ok' : eff >= 72 ? 'warn' : 'bad');
 
 const REC_MAP = {
   braking: {
@@ -74,6 +71,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
 
     const dpr = window.devicePixelRatio || 1;
     const cssW = container.clientWidth;
+    if (cssW < 120) return; // container not laid out yet (avoids negative arc radius)
     canvas.width = cssW * dpr;
     canvas.height = CSS_H * dpr;
     canvas.style.width = cssW + 'px';
@@ -83,11 +81,12 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     ctx.scale(dpr, dpr);
 
     const { toX, toY, plotW, plotH, range } = makeCoordFns(cssW, limit);
+    const ticks = [-limit, -limit * 0.5, 0, limit * 0.5, limit];
 
     // Grid lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.strokeStyle = 'rgba(163,173,187,0.10)';
     ctx.lineWidth = 1;
-    [-limit, -limit * 0.5, 0, limit * 0.5, limit].forEach(v => {
+    ticks.forEach(v => {
       ctx.beginPath(); ctx.moveTo(toX(v), PAD.top); ctx.lineTo(toX(v), PAD.top + plotH); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(PAD.left, toY(v)); ctx.lineTo(PAD.left + plotW, toY(v)); ctx.stroke();
     });
@@ -95,55 +94,59 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     // Friction circle
     const cx = toX(0);
     const cy = toY(0);
-    const r = limit / range * plotW;
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    ctx.lineWidth = 1.5;
+    const r = Math.max(0, limit / range * plotW);
+    ctx.strokeStyle = 'rgba(163,173,187,0.55)';
+    ctx.lineWidth = 1.25;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Center crosshair
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
-    ctx.lineWidth = 1;
+    // Centre axes
+    ctx.strokeStyle = 'rgba(163,173,187,0.30)';
     ctx.beginPath(); ctx.moveTo(cx, PAD.top); ctx.lineTo(cx, PAD.top + plotH); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(PAD.left, cy); ctx.lineTo(PAD.left + plotW, cy); ctx.stroke();
 
-    // Quadrant labels — placed near each axis half, just off the crosshair
-    ctx.font = 'bold 7.5px JetBrains Mono, monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    // Quadrant labels
+    ctx.font = `600 10px ${MONO}`;
+    ctx.fillStyle = 'rgba(163,173,187,0.55)';
     ctx.textAlign = 'right';
-    ctx.fillText('← BRAKING', cx - 8, cy - 5);
+    ctx.fillText('BRAKING', cx - 8, cy - 5);
     ctx.textAlign = 'left';
-    ctx.fillText('TRACTION →', cx + 8, cy - 5);
+    ctx.fillText('TRACTION', cx + 8, cy - 5);
     ctx.textAlign = 'center';
-    ctx.fillText('TURN LEFT ↑', cx, PAD.top + 12);
-    ctx.fillText('↓ TURN RIGHT', cx, PAD.top + plotH - 5);
+    ctx.fillText('LEFT', cx, PAD.top + 12);
+    ctx.fillText('RIGHT', cx, PAD.top + plotH - 5);
 
-    // Points — slow below fast
+    // Points: slow = hollow rings, fast = filled dots (efficiency colour)
+    ctx.lineWidth = 1;
     slowPoints.forEach(({ lat, lon, eff }) => {
       ctx.beginPath();
-      ctx.arc(toX(lon), toY(lat), 2, 0, Math.PI * 2);
-      ctx.fillStyle = effColor(eff, 0.5);
-      ctx.fill();
+      ctx.arc(toX(lon), toY(lat), 2.4, 0, Math.PI * 2);
+      ctx.strokeStyle = effColor(eff, 0.55);
+      ctx.stroke();
     });
     fastPoints.forEach(({ lat, lon, eff }) => {
       ctx.beginPath();
       ctx.arc(toX(lon), toY(lat), 2, 0, Math.PI * 2);
-      ctx.fillStyle = effColor(eff, 0.78);
+      ctx.fillStyle = effColor(eff, 0.85);
       ctx.fill();
     });
 
-    // Axis tick values
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.font = '9px JetBrains Mono, monospace';
-    [-limit, -limit * 0.5, 0, limit * 0.5, limit].forEach(v => {
+    // Axis tick values + titles
+    ctx.fillStyle = 'rgba(163,173,187,0.7)';
+    ctx.font = `10px ${MONO}`;
+    ticks.forEach(v => {
       ctx.textAlign = 'center';
       ctx.fillText(v.toFixed(1), toX(v), PAD.top + plotH + 16);
       ctx.textAlign = 'right';
-      ctx.fillText(v.toFixed(1), PAD.left - 4, toY(v) + 3);
+      ctx.fillText(v.toFixed(1), PAD.left - 6, toY(v) + 3);
     });
+    ctx.textAlign = 'right';
+    ctx.fillText('Lon G', PAD.left + plotW, PAD.top + plotH + 32);
+    ctx.textAlign = 'left';
+    ctx.fillText('Lat G', 2, PAD.top - 10);
   }, [fastPoints, slowPoints, limit]);
 
   useEffect(() => {
@@ -188,7 +191,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
 
     const getRec = (key, eff) => REC_MAP[key][eff >= 85 ? 'high' : eff >= 72 ? 'mid' : 'low'];
 
-    // Show recommendations only for quadrants below 85 — sorted worst first
+    // Show recommendations only for quadrants below 85, sorted worst first
     const recs = [...quadrants]
       .filter(q => q.eff < 85)
       .sort((a, b) => a.eff - b.eff)
@@ -207,149 +210,78 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
   if (!fastPoints.length && !slowPoints.length && !gLimit) return null;
 
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title"><span>◈</span> {t.ggTitle}</div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: '#00D4FF' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00D4FF', display: 'inline-block' }} />
-            {t.ggFast}
+    <Panel
+      icon="target"
+      title={t.ggTitle}
+      actions={<Badge>{t.ggLimit(limit)}</Badge>}
+    >
+      <div className={styles.legend}>
+        <span className={styles.legendItem}><span className={styles.dotFilled} />{t.ggFast}</span>
+        <span className={styles.legendItem}><span className={styles.dotHollow} />{t.ggSlow}</span>
+        <span className={styles.spacer} />
+        {[['ok', '≥ 90 %'], ['warn', '72–90 %'], ['bad', '< 72 %']].map(([tone, label]) => (
+          <span key={tone} className={styles.legendItem}>
+            <span className={styles.swatch} style={{ background: `var(--${tone})` }} />
+            {label}
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.72rem', color: '#FF6B6B' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6B6B', display: 'inline-block' }} />
-            {t.ggSlow}
-          </span>
-          <span className="chart-zoom-badge">{t.ggLimit(limit)}</span>
-        </div>
+        ))}
       </div>
 
-      <div ref={containerRef} style={{ position: 'relative', width: '100%' }}>
+      <div ref={containerRef} className={styles.canvasWrap}>
         <canvas
           ref={canvasRef}
+          role="img"
+          aria-label={t.ggTitle}
           style={{ display: 'block', cursor: 'crosshair' }}
           onMouseMove={handleMouseMove}
           onMouseLeave={() => setTooltip(null)}
         />
         {tooltip && (
-          <div style={{
-            position: 'absolute',
-            left: tooltip.screenX + 14,
-            top: tooltip.screenY - 8,
-            pointerEvents: 'none',
-            background: 'rgba(10,15,30,0.97)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 8,
-            padding: '8px 12px',
-            fontSize: '0.75rem',
-            fontFamily: "'JetBrains Mono', monospace",
-            color: '#8899BB',
-            zIndex: 10,
-          }}>
-            <div style={{ color: '#fff', marginBottom: 4 }}>
-              {tooltip._lap === 'fast' ? `🔵 ${t.ggFast}` : `🔴 ${t.ggSlow}`}
+          <div className={styles.tip} style={{ left: tooltip.screenX + 14, top: tooltip.screenY - 8 }}>
+            <div className={styles.tipHead}>{tooltip._lap === 'fast' ? t.ggFast : t.ggSlow}</div>
+            <div className={styles.tipRow}><span>Lat</span><b>{tooltip.lat.toFixed(3)} G</b></div>
+            <div className={styles.tipRow}><span>Lon</span><b>{tooltip.lon.toFixed(3)} G</b></div>
+            <div className={styles.tipRow}>
+              <span>Eff</span>
+              <b style={{ color: `var(--${effTone(tooltip.eff)})` }}>{tooltip.eff.toFixed(1)} %</b>
             </div>
-            <div>Lat: <span style={{ color: '#fff' }}>{tooltip.lat.toFixed(3)} G</span></div>
-            <div>Lon: <span style={{ color: '#fff' }}>{tooltip.lon.toFixed(3)} G</span></div>
-            <div>Eff: <span style={{
-              color: tooltip.eff >= 90 ? '#00E676' : tooltip.eff >= 72 ? '#FFB300' : '#FF3D3D',
-              fontWeight: 700,
-            }}>{tooltip.eff.toFixed(1)}%</span></div>
           </div>
         )}
       </div>
 
       {stats && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 16px 16px' }}>
-
-          {/* Summary stats + legend */}
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
-            <GGStat label="Fast avg eff" value={`${stats.fastAvgEff.toFixed(1)}%`}
-              color={effColor(stats.fastAvgEff)} />
+        <div className={styles.stats}>
+          <div className="ui-grid ui-grid--3">
+            <Stat label="Fast avg eff" value={`${stats.fastAvgEff.toFixed(1)} %`} tone={effTone(stats.fastAvgEff)} />
             {stats.slowAvgEff !== null && (
-              <GGStat label="Slow avg eff" value={`${stats.slowAvgEff.toFixed(1)}%`}
-                color={effColor(stats.slowAvgEff)} />
+              <Stat label="Slow avg eff" value={`${stats.slowAvgEff.toFixed(1)} %`} tone={effTone(stats.slowAvgEff)} />
             )}
-            <GGStat label="Peak G (fast)" value={`${stats.fastPeakG.toFixed(2)} G`} color="#8899BB" />
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
-              {[['≥ 90%', '#00E676'], ['72–90%', '#FFB300'], ['< 72%', '#FF3D3D']].map(([label, color]) => (
-                <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.68rem', color: 'var(--text-3)' }}>
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }} />
-                  {label}
-                </span>
-              ))}
-            </div>
+            <Stat label="Peak G (fast)" value={`${stats.fastPeakG.toFixed(2)} G`} />
           </div>
 
-          {/* Per-quadrant efficiency chips */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div className={styles.quads}>
             {stats.quadrants.map(({ key, label, eff }) => (
-              <div key={key} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${effColor(eff, 0.35)}`,
-                borderRadius: 6,
-                padding: '5px 10px',
-              }}>
-                <span style={{
-                  width: 6, height: 6, borderRadius: '50%',
-                  background: effColor(eff),
-                  flexShrink: 0,
-                }} />
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-3)' }}>{label}</span>
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  color: effColor(eff),
-                  fontFamily: "'JetBrains Mono', monospace",
-                }}>{eff.toFixed(1)}%</span>
-              </div>
+              <Badge key={key} tone={effTone(eff)}>{label} {eff.toFixed(1)} %</Badge>
             ))}
           </div>
 
-          {/* Targeted recommendations */}
-          {stats.recs.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {stats.recs.length > 0 ? (
+            <ul className={styles.recs}>
               {stats.recs.map(({ key, label, eff, rec }) => (
-                <div key={key} style={{
-                  display: 'flex',
-                  gap: 10,
-                  alignItems: 'flex-start',
-                  borderLeft: `2px solid ${effColor(eff, 0.6)}`,
-                  paddingLeft: 10,
-                }}>
-                  <span style={{
-                    fontSize: '0.63rem',
-                    fontWeight: 700,
-                    color: effColor(eff),
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.08em',
-                    whiteSpace: 'nowrap',
-                    paddingTop: 2,
-                    minWidth: 70,
-                  }}>{label}</span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-2)', lineHeight: 1.5 }}>{rec}</span>
-                </div>
+                <li key={key} className={styles.rec} style={{ borderLeftColor: `var(--${effTone(eff)})` }}>
+                  <span className={styles.recLabel}>{label}</span>
+                  <span className={styles.recText}>{rec}</span>
+                </li>
               ))}
-            </div>
-          )}
-
-          {stats.recs.length === 0 && (
-            <p style={{
-              margin: 0,
-              fontSize: '0.73rem',
-              color: 'var(--text-2)',
-              lineHeight: 1.5,
-              borderLeft: '2px solid rgba(0,230,118,0.4)',
-              paddingLeft: 10,
-            }}>
+            </ul>
+          ) : (
+            <p className={`${styles.rec} ${styles.recOk}`}>
               All quadrants above 85% — driver is consistently near the friction limit.
             </p>
           )}
         </div>
       )}
-    </div>
+    </Panel>
   );
 };
 

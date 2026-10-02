@@ -5,6 +5,8 @@ import LapTimelineChart from './LapTimelineChart';
 import PitWindowWidget from './PitWindowWidget';
 import CornerAnalysisPanel from './CornerAnalysisPanel';
 import SetupRecommendations from './SetupRecommendations';
+import { Icon, Panel, Stat, Badge } from './ui';
+import css from './StintPanel.module.css';
 
 function sigmaNote(sigma, laps, t) {
   if (!sigma || laps < 3) return null;
@@ -13,14 +15,14 @@ function sigmaNote(sigma, laps, t) {
   return t.stintSigmaNoteHigh;
 }
 
-function KpiCard({ label, value, sub, accent }) {
-  return (
-    <div className="stint-kpi">
-      <div className="stint-kpi__label">{label}</div>
-      <div className="stint-kpi__value" style={accent ? { color: accent } : undefined}>{value}</div>
-      {sub && <div className="stint-kpi__sub">{sub}</div>}
-    </div>
-  );
+/** Strip leading decorative glyphs/emoji that legacy i18n strings may carry. */
+const clean = (s) => String(s ?? '').replace(/^[^\p{L}\p{N}(]+/u, '');
+
+function fmtLaptime(s) {
+  if (!s || isNaN(s) || s <= 0) return '—';
+  const m = Math.floor(s / 60);
+  const sec = (s % 60).toFixed(3);
+  return `${m}:${sec.padStart(6, '0')}`;
 }
 
 export default function StintPanel() {
@@ -89,226 +91,188 @@ export default function StintPanel() {
   };
 
   const racingLaps = result?.laps?.filter(l => !l.is_pit_lap) ?? [];
+  const validTimes = racingLaps.map(l => l.lap_time_s).filter(v => v && !isNaN(v));
 
-  const bestTime = racingLaps.length
-    ? Math.min(...racingLaps.map(l => l.lap_time_s).filter(t => t && !isNaN(t)))
-    : null;
+  const bestTime = validTimes.length ? Math.min(...validTimes) : null;
 
   const meanTime = racingLaps.length
     ? racingLaps.reduce((s, l) => s + (l.lap_time_s || 0), 0) / racingLaps.length
     : null;
 
-  function fmtLaptime(s) {
-    if (!s || isNaN(s) || s <= 0) return '—';
-    const m = Math.floor(s / 60);
-    const sec = (s % 60).toFixed(3);
-    return `${m}:${sec.padStart(6, '0')}`;
-  }
-
   const sigma = result?.montecarlo?.sigma_real_s;
   const tasa = result?.degradacion?.tasa_s_per_lap;
+  const sigmaTone = sigma == null ? undefined : sigma < 0.3 ? 'ok' : sigma < 0.8 ? 'warn' : 'bad';
+  const r2 = result?.degradacion?.r_squared;
 
   return (
-    <div className="section">
-      {/* Upload card */}
-      <div className="card" style={{ marginBottom: 'var(--s4)' }}>
-        <div className="card__title">
-          <span className="card__title-icon">◉</span>
-          {t.stintTitle}
-        </div>
-
-        {/* Dropzone */}
-        <div
+    <div className={css.root}>
+      <Panel icon="layers" title={clean(t.stintTitle)}>
+        <button
+          type="button"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onClick={() => fileInputRef.current?.click()}
-          className="dropzone"
-          style={{
-            borderColor: dragging ? 'var(--green)' : undefined,
-            background: dragging ? 'var(--green-dim)' : undefined,
-            cursor: 'pointer',
-            marginBottom: files.length ? 'var(--s3)' : 0,
-          }}
+          className={`${css.dropzone} ${dragging ? css.dropzoneActive : ''}`}
         >
-          <div className="dropzone__icon">◎</div>
-          <div className="dropzone__label">{t.stintDropLabel}</div>
-          <div className="dropzone__sub">
-            {t.stintDropSub}
-          </div>
-        </div>
+          <Icon name="upload" size={24} className={css.dropIcon} />
+          <span>
+            <span className={css.dropLabel}>{clean(t.stintDropLabel)}</span>
+            <span className={css.dropSub}>{clean(t.stintDropSub)}</span>
+          </span>
+        </button>
         <input
           ref={fileInputRef}
           type="file"
           accept=".csv"
           multiple
-          style={{ display: 'none' }}
+          className={css.hidden}
           onChange={handleFileInput}
         />
 
-        {/* File list */}
         {files.length > 0 && (
-          <div className="stint-file-list">
+          <>
             {isSessionMode && (
-              <div style={{
-                fontSize: '0.7rem', color: 'var(--cyan)', fontFamily: "'JetBrains Mono', monospace",
-                padding: '4px 8px', marginBottom: 4,
-                background: 'var(--cyan-dim)', borderRadius: 4, border: '1px solid var(--cyan-border)',
-              }}>
-                ◎ {t.stintSessionMode}
-              </div>
+              <div className={css.mode}><Badge tone="accent">{clean(t.stintSessionMode)}</Badge></div>
             )}
-            {files.map((f, i) => (
-              <div key={i} className="stint-file-row">
-                <span className="stint-file-row__num">{isSessionMode ? '◉' : `V${i + 1}`}</span>
-                <span className="stint-file-row__name" title={f.name}>{f.name}</span>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontFamily: "'JetBrains Mono', monospace" }}>
-                  {(f.size / 1024).toFixed(0)} KB
-                </span>
-                <button className="stint-file-row__remove" onClick={(e) => { e.stopPropagation(); removeFile(i); }} aria-label={t.stintRemoveAria(isSessionMode, i)}>
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
+            <div className={css.files}>
+              {files.map((f, i) => (
+                <div key={f.name + f.size} className={css.fileRow}>
+                  <span className={css.fileTag}>{isSessionMode ? 'CSV' : `V${i + 1}`}</span>
+                  <span className={css.fileName} title={f.name}>{f.name}</span>
+                  <span className={css.fileSize}>{(f.size / 1024).toFixed(0)} KB</span>
+                  <button type="button" className={css.remove} onClick={() => removeFile(i)} aria-label={t.stintRemoveAria(isSessionMode, i)}>
+                    <Icon name="x" size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
-        {/* Progress steps */}
         {loading && step >= 0 && (
-          <div className="progress-steps" aria-live="polite">
+          <ol className={css.steps} aria-live="polite">
             {steps.map((s, i) => (
-              <div
+              <li
                 key={s}
-                className={`progress-step ${i < step ? 'progress-step--done' : i === step ? 'progress-step--active' : ''}`}
+                className={`${css.step} ${i < step ? css.stepDone : i === step ? css.stepActive : ''}`}
               >
-                <span className={`progress-step__dot ${i === step ? 'progress-step__dot--pulse' : ''}`} />
-                {i < step ? '✓' : ''} {s}
-              </div>
+                {i < step ? <Icon name="check" size={13} /> : <span className={css.dot} />}
+                {clean(s)}
+              </li>
             ))}
-          </div>
+          </ol>
         )}
 
-        {/* Error */}
         {error && (
-          <div className="error-banner" role="alert">
-            <span className="error-banner__icon">✕</span>
-            <div className="error-banner__text">
-              <div className="error-banner__title">{t.errorTitle}</div>
+          <div className={css.error} role="alert">
+            <Icon name="alert" size={16} />
+            <div>
+              <div className={css.errorTitle}>{clean(t.errorTitle)}</div>
               {error}
             </div>
           </div>
         )}
 
-        <button
-          className="btn-analyze"
-          onClick={handleAnalyze}
-          disabled={!canAnalyze || loading}
-          aria-label={loading ? t.stintAnalyzeAria('analyze') : isSessionMode ? t.stintAnalyzeAria('session') : t.stintAnalyzeAria('analyze')}
-        >
-          {loading
-            ? <><div className="spinner" /> {t.stintProcessing}</>
-            : isSessionMode
-              ? `◉ ${t.stintAnalyzeSession}`
-              : `◉ ${t.stintAnalyzeN(files.length)}`
-          }
-        </button>
-
-        {files.length > 1 && files.length < 3 && !loading && (
-          <div style={{ marginTop: 8, fontSize: '0.72rem', color: 'var(--amber)',
-            fontFamily: "'JetBrains Mono', monospace", textAlign: 'center' }}>
-            {t.stintNeedMore(3 - files.length)}
-          </div>
-        )}
-      </div>
-
-      {/* Results */}
-      {result && (
-        <div className="fade-up">
-          {/* KPI grid */}
-          <div className="stint-kpi-grid">
-            <KpiCard
-              label={t.stintKpiTotal}
-              value={racingLaps.length}
-              sub={result.n_laps > racingLaps.length
-                ? t.stintExcluded(result.n_laps - racingLaps.length)
-                : t.stintRacing}
-            />
-            <KpiCard
-              label={t.stintKpiBest}
-              value={fmtLaptime(bestTime)}
-              accent="var(--cyan)"
-            />
-            <KpiCard
-              label={t.stintKpiMean}
-              value={fmtLaptime(meanTime)}
-            />
-            <KpiCard
-              label={t.stintKpiDeg}
-              value={tasa != null ? `${tasa > 0 ? '+' : ''}${tasa.toFixed(3)}s` : '—'}
-              sub={t.perLap}
-              accent={tasa != null ? (tasa > 0.1 ? 'var(--red)' : tasa > 0 ? 'var(--amber)' : 'var(--green)') : undefined}
-            />
-            <KpiCard
-              label={t.stintKpiSigma}
-              value={sigma != null ? `${sigma.toFixed(3)}s` : '—'}
-              sub={sigma < 0.3 ? t.stintConsistencyVery : sigma < 0.8 ? t.stintConsistencyNormal : t.stintConsistencyHigh}
-              accent="var(--purple)"
-            />
-          </div>
-
-          {/* Timeline chart */}
-          <div style={{ marginBottom: 'var(--s4)' }}>
-            <LapTimelineChart
-              degradacion={result.degradacion}
-              montecarlo={result.montecarlo}
-              laps={result.laps}
-            />
-          </div>
-
-          {/* Pit window */}
-          {result.combustible && (
-            <PitWindowWidget combustible={result.combustible} />
-          )}
-
-          {/* Sigma note */}
-          {sigma != null && (
-            <div className="stint-sigma-note">
-              <strong>σ = {sigma.toFixed(3)}s</strong> — {sigmaNote(sigma, result.n_laps, t)}
-              {result.degradacion?.r_squared != null && (
-                <span style={{ display: 'block', marginTop: 4, color: 'var(--text-3)', fontSize: '0.72rem' }}>
-                  {t.stintRSquared(result.degradacion.r_squared)}
-                  {result.degradacion.r_squared > 0.8 ? ` ${t.stintRSquaredExcellent}` : result.degradacion.r_squared > 0.5 ? ` ${t.stintRSquaredModerate}` : ` ${t.stintRSquaredPoor}`}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Session corner analysis */}
-          {result.curvas_sesion?.available && (
-            <div style={{ marginTop: 'var(--s4)' }}>
-              <CornerAnalysisPanel
-                result={{
-                  corners: result.curvas_sesion.corners,
-                  setup_advisor: result.setup_sesion,
-                }}
-                metadata={{
-                  label_a: `${t.timelineLap} ${result.curvas_sesion.reference_lap} (${t.anomalyReference})`,
-                  label_b: `${t.timelineLap} ${result.curvas_sesion.n_laps_compared}`,
-                }}
-                sessionMode
-                referenceLap={result.curvas_sesion.reference_lap}
-                nLaps={result.curvas_sesion.n_laps_compared}
-              />
-            </div>
-          )}
-
-          {/* Session setup advisor */}
-          {result.setup_sesion?.available && (
-            <div style={{ marginTop: 'var(--s4)' }}>
-              <SetupRecommendations setup_advisor={result.setup_sesion} />
-            </div>
+        <div className={css.actions}>
+          <button
+            type="button"
+            className="ui-btn ui-btn--primary"
+            onClick={handleAnalyze}
+            disabled={!canAnalyze || loading}
+            aria-label={isSessionMode && !loading ? t.stintAnalyzeAria('session') : t.stintAnalyzeAria('analyze')}
+          >
+            {loading
+              ? <><span className={css.spin} /> {clean(t.stintProcessing)}</>
+              : <><Icon name="activity" size={16} /> {clean(isSessionMode ? t.stintAnalyzeSession : t.stintAnalyzeN(files.length))}</>
+            }
+          </button>
+          {files.length > 1 && files.length < 3 && !loading && (
+            <span className={css.hint}>{clean(t.stintNeedMore(3 - files.length))}</span>
           )}
         </div>
+      </Panel>
+
+      {result && (
+        <>
+          <Panel flush>
+            <div className={css.kpis}>
+              <div className={css.kpi}>
+                <Stat
+                  label={t.stintKpiTotal}
+                  value={racingLaps.length}
+                  hint={result.n_laps > racingLaps.length
+                    ? t.stintExcluded(result.n_laps - racingLaps.length)
+                    : t.stintRacing}
+                />
+              </div>
+              <div className={css.kpi}><Stat label={t.stintKpiBest} value={fmtLaptime(bestTime)} tone="accent" /></div>
+              <div className={css.kpi}><Stat label={t.stintKpiMean} value={fmtLaptime(meanTime)} /></div>
+              <div className={css.kpi}>
+                <Stat
+                  label={t.stintKpiDeg}
+                  value={tasa != null ? `${tasa > 0 ? '+' : ''}${tasa.toFixed(3)}s` : '—'}
+                  hint={t.perLap}
+                  tone={tasa != null ? (tasa > 0.1 ? 'bad' : tasa > 0 ? 'warn' : 'ok') : undefined}
+                />
+              </div>
+              <div className={css.kpi}>
+                <Stat
+                  label={t.stintKpiSigma}
+                  value={sigma != null ? `${sigma.toFixed(3)}s` : '—'}
+                  hint={sigma == null ? undefined : sigma < 0.3 ? t.stintConsistencyVery : sigma < 0.8 ? t.stintConsistencyNormal : t.stintConsistencyHigh}
+                  tone={sigmaTone}
+                />
+              </div>
+            </div>
+          </Panel>
+
+          <LapTimelineChart
+            degradacion={result.degradacion}
+            montecarlo={result.montecarlo}
+            laps={result.laps}
+          />
+
+          {result.combustible && <PitWindowWidget combustible={result.combustible} />}
+
+          {sigma != null && (
+            <Panel>
+              <div className={css.note}>
+                <Icon name="info" size={16} />
+                <div>
+                  <div className={css.noteMain}><strong className="num">σ = {sigma.toFixed(3)}s</strong> — {sigmaNote(sigma, result.n_laps, t)}</div>
+                  {r2 != null && (
+                    <div className={css.noteSub}>
+                      <Badge tone={r2 > 0.8 ? 'ok' : r2 > 0.5 ? 'warn' : 'bad'}>R²</Badge>
+                      {t.stintRSquared(r2)}
+                      {` ${r2 > 0.8 ? t.stintRSquaredExcellent : r2 > 0.5 ? t.stintRSquaredModerate : t.stintRSquaredPoor}`}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </Panel>
+          )}
+
+          {result.curvas_sesion?.available && (
+            <CornerAnalysisPanel
+              result={{
+                corners: result.curvas_sesion.corners,
+                setup_advisor: result.setup_sesion,
+              }}
+              metadata={{
+                label_a: `${t.timelineLap} ${result.curvas_sesion.reference_lap} (${t.anomalyReference})`,
+                label_b: `${t.timelineLap} ${result.curvas_sesion.n_laps_compared}`,
+              }}
+              sessionMode
+              referenceLap={result.curvas_sesion.reference_lap}
+              nLaps={result.curvas_sesion.n_laps_compared}
+            />
+          )}
+
+          {result.setup_sesion?.available && (
+            <SetupRecommendations setup_advisor={result.setup_sesion} />
+          )}
+        </>
       )}
     </div>
   );

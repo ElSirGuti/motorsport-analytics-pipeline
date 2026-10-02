@@ -209,18 +209,31 @@ def segment_corners(
     throttles = detect_full_throttle_points(df)
     
     corners = []
+    _bk = df["Brake"].values.astype(float)
+    brake_pct = _bk * 100.0 if np.nanmax(_bk) <= 1.05 else _bk
     
     for i, apex in enumerate(apexes):
         apex_d = apex["distance"]
         
+        # Los eventos deben caer entre los apexes vecinos: así una curva sin frenada
+        # propia no "hereda" la frenada de la curva anterior (ni el gas de la siguiente).
+        prev_d = apexes[i - 1]["distance"] if i > 0 else -np.inf
+        next_d = apexes[i + 1]["distance"] if i + 1 < len(apexes) else np.inf
+
         # Encontrar el punto de frenado más cercano ANTES del apex
-        brake_candidates = [b for b in braking if b["distance"] < apex_d]
+        brake_candidates = [b for b in braking if prev_d < b["distance"] < apex_d]
         if not brake_candidates:
             continue
-        brake_point = brake_candidates[-1]  # El más cercano al apex
+        # El inicio de la frenada PRINCIPAL: el primer flanco cuyo pico de freno hasta el
+        # apex sea relevante (>= 60 % del pico de la zona). Tomar simplemente el último
+        # flanco antes del apex elegía toques de freno tardíos y hacía que el mismo
+        # punto de frenada variara ±100 m entre vueltas.
+        peaks = [float(np.nanmax(brake_pct[b["index"]:apex["index"] + 1])) for b in brake_candidates]
+        zone_peak = max(peaks)
+        brake_point = next(b for b, pk in zip(brake_candidates, peaks) if pk >= 0.6 * zone_peak)
         
         # Encontrar el punto de aceleración más cercano DESPUÉS del apex
-        throttle_candidates = [t for t in throttles if t["distance"] > apex_d]
+        throttle_candidates = [t for t in throttles if apex_d < t["distance"] < next_d]
         if not throttle_candidates:
             continue
         throttle_point = throttle_candidates[0]  # El más cercano al apex
@@ -234,3 +247,34 @@ def segment_corners(
     
     logger.info(f"  ✓ Segmentadas {len(corners)} curvas completas")
     return corners
+
+
+PAIR_MAX_APEX_GAP_M = 150.0  # máx. separación entre apexes de dos vueltas para ser "la misma curva"
+
+
+def pair_corners(corners_a: list, corners_b: list,
+                 max_gap_m: float = PAIR_MAX_APEX_GAP_M) -> list[tuple]:
+    """
+    Empareja las curvas de dos vueltas por proximidad del apex (no por posición).
+
+    Emparejar por índice desplazaba todas las curvas siguientes cuando una vuelta
+    no detectaba una curva, produciendo deltas de frenada/gas absurdos (100+ m).
+
+    Returns:
+        Lista de (idx_a, corner_a, corner_b) ordenada por distancia; idx_a es la
+        posición de la curva en `corners_a` (la referencia) y sirve como número de curva.
+    """
+    pairs = []
+    used_b: set = set()
+    for ia, ca in enumerate(corners_a):
+        best_j, best_gap = None, max_gap_m
+        for jb, cb in enumerate(corners_b):
+            if jb in used_b:
+                continue
+            gap = abs(cb["apex"]["distance"] - ca["apex"]["distance"])
+            if gap <= best_gap:
+                best_j, best_gap = jb, gap
+        if best_j is not None:
+            used_b.add(best_j)
+            pairs.append((ia, ca, corners_b[best_j]))
+    return pairs

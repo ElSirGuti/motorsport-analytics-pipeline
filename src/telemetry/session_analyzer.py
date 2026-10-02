@@ -155,7 +155,8 @@ def analyze_session(df: pd.DataFrame) -> dict:
         lap_dfs = segmentar_vueltas_desde_csv(df)
     except ValueError as exc:
         logger.warning("No se pudieron segmentar vueltas: %s", exc)
-        return {"laps": [], "fastest_lap": None, "track_map": [], "total_laps": 0}
+        return {"laps": [], "fastest_lap": None, "track_map": [], "total_laps": 0,
+                "message": str(exc)}
 
     laps_data = []
     for i, lap_df in enumerate(lap_dfs, start=1):

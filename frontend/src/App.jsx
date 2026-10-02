@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { useLanguage } from './context/LanguageContext';
 import SpeedChart from './components/SpeedChart';
 import BrakeThrottleChart from './components/BrakeThrottleChart';
@@ -26,10 +26,14 @@ import TyreDegradationPanel from './components/TyreDegradationPanel';
 import RacingLinePanel from './components/RacingLinePanel';
 import ThermalManagementPanel from './components/ThermalManagementPanel';
 import HealthDashboard from "./components/HealthDashboard";
-import PilotEngineerToggle, { usePilotMode } from "./components/PilotEngineerToggle";
+import PilotEngineerToggle from "./components/PilotEngineerToggle";
+import { usePilotMode } from './components/usePilotMode';
 import Sidebar from './components/Sidebar';
+import { sectionLabel } from './components/navSections';
+import { Icon, Panel, Stat, Badge } from './components/ui';
+import './styles/shell.css';
 
-const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
+const LAP_COLORS = ['var(--lap-a)', 'var(--lap-b)', 'var(--lap-c)', 'var(--lap-d)', 'var(--lap-e)', 'var(--lap-f)'];
 
 function fmtTime(s) {
   if (s == null || isNaN(s) || s <= 0) return '—';
@@ -38,12 +42,60 @@ function fmtTime(s) {
   return `${m}:${sec.padStart(6, '0')}`;
 }
 
-function KpiCard({ label, value, sub, accent }) {
+// Existing i18n strings carry decorative glyphs/emoji (lightning, hourglass...).
+// Strip leading/trailing non-alphanumeric symbols so the UI stays glyph-free.
+function clean(s) {
+  return String(s ?? '')
+    .replace(/^[^\p{L}\p{N}]+/u, '')
+    .replace(/[^\p{L}\p{N}.)%]+$/u, '');
+}
+
+// Bilingual fallback for strings that are not in the i18n files yet.
+function useTx() {
+  const { t, lang } = useLanguage();
+  return useCallback((key, en, es) => t[key] ?? (lang === 'es' ? es : en), [t, lang]);
+}
+
+function SectionHeader({ icon, title, sub, actions }) {
   return (
-    <div className="stint-kpi">
-      <div className="stint-kpi__label">{label}</div>
-      <div className="stint-kpi__value" style={accent ? { color: accent } : undefined}>{value}</div>
-      {sub && <div className="stint-kpi__sub">{sub}</div>}
+    <div className="shell-section__head">
+      {icon && <Icon name={icon} size={18} className="shell-section__icon" />}
+      <div>
+        <h2 className="shell-section__title">{title}</h2>
+        {sub && <div className="shell-section__sub">{sub}</div>}
+      </div>
+      {actions && <div className="shell-section__actions">{actions}</div>}
+    </div>
+  );
+}
+
+function Alert({ tone = 'info', title, children, role, flush }) {
+  const icon = tone === 'info' ? 'info' : 'alert';
+  return (
+    <div className={`shell-alert shell-alert--${tone}${flush ? ' shell-alert--flush' : ''}`} role={role}>
+      <Icon name={icon} size={16} />
+      <div>
+        {title && <div className="shell-alert__title">{title}</div>}
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function NoData({ title }) {
+  const tx = useTx();
+  return (
+    <div className="shell-nodata">
+      <Icon name="info" size={14} />
+      <span>{title ? `${title}: ` : ''}{tx('noDataAvailable', 'No data available', 'Sin datos disponibles')}</span>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, tone }) {
+  return (
+    <div className="shell-kpi">
+      <Stat label={label} value={value} hint={sub} tone={tone} />
     </div>
   );
 }
@@ -61,12 +113,8 @@ function SessionKPIs({ sessionResult, stintResult }) {
   const tasa = stintResult?.degradacion?.available ? stintResult.degradacion.tasa_s_per_lap : null;
 
   return (
-    <div className="card" style={{ marginBottom: 'var(--s4)' }}>
-      <div className="card__title">
-        <span className="card__title-icon">▦</span>
-        {t.sessionSummary}
-      </div>
-      <div className="stint-kpi-grid">
+    <Panel icon="grid" title={t.sessionSummary}>
+      <div className="shell-kpis">
         <KpiCard
           label={t.validLaps}
           value={sessionResult.total_laps}
@@ -76,7 +124,7 @@ function SessionKPIs({ sessionResult, stintResult }) {
           label={t.bestLap}
           value={sessionResult.fastest_lap ? `#${sessionResult.fastest_lap.lap_number}` : '—'}
           sub={fmtTime(bestTime)}
-          accent="var(--cyan)"
+          tone="accent"
         />
         <KpiCard label={t.avgTime} value={fmtTime(meanTime)} />
         <KpiCard
@@ -89,72 +137,75 @@ function SessionKPIs({ sessionResult, stintResult }) {
             label={t.degradation}
             value={`${tasa > 0 ? '+' : ''}${tasa.toFixed(3)}s`}
             sub={t.perLap}
-            accent={tasa > 0.1 ? 'var(--red)' : tasa > 0 ? 'var(--amber)' : 'var(--green)'}
+            tone={tasa > 0.1 ? 'bad' : tasa > 0 ? 'warn' : 'ok'}
           />
         )}
       </div>
-    </div>
+    </Panel>
   );
 }
 
-function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, compareLoading, compareError, compareResult }) {
+function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, onCompareBestWorst, compareLoading, compareError }) {
   const { t } = useLanguage();
+  const tx = useTx();
   const [lapA, lapB] = selectedLaps;
   const canCompare = selectedLaps.length === 2 && !compareLoading;
 
   return (
-    <div className="card" style={{ marginBottom: 'var(--s4)' }}>
-      <div className="card__title" style={{ flexWrap: 'wrap', gap: 8 }}>
-        <span className="card__title-icon">▤</span>
-        {t.lapTableTitle}
-        {selectedLaps.length === 2 && (
-          <button
-            className="btn-analyze"
-            style={{ marginLeft: 'auto', padding: '6px 18px', fontSize: '0.78rem', minHeight: 32 }}
-            onClick={onCompare}
-            disabled={!canCompare}
-          >
-            {compareLoading
-              ? <><div className="spinner" style={{ width: 12, height: 12 }} /> {t.compareLoading}</>
-              : `⚡ ${t.compareLaps(lapA, lapB)}`
-            }
+    <Panel icon="stopwatch" title={t.lapTableTitle} flush>
+      <div className="shell-lapbar">
+        <div className="shell-lapbar__sel" aria-live="polite">
+          {selectedLaps.length === 0 && (
+            <span>{tx('lapSelectHint', 'Click two laps to compare them (A and B).', 'Haz clic en dos vueltas para compararlas (A y B).')}</span>
+          )}
+          {selectedLaps.length === 1 && (
+            <>
+              <span className="shell-lapchip"><i>A</i>{t.lapCol} {lapA}</span>
+              <span>{t.sessionSelectLap(lapA)}</span>
+            </>
+          )}
+          {selectedLaps.length === 2 && (
+            <>
+              <span className="shell-lapchip"><i>A</i>{t.lapCol} {lapA}</span>
+              <span className="shell-lapchip"><i>B</i>{t.lapCol} {lapB}</span>
+            </>
+          )}
+        </div>
+        <div className="shell-lapbar__actions">
+          <button type="button" className="ui-btn ui-btn--sm" onClick={onCompareBestWorst} disabled={compareLoading}>
+            {compareLoading ? <span className="shell-spin" /> : <Icon name="trend" size={14} />}
+            {compareLoading ? clean(t.appComparing) : clean(t.appCompareBestWorst)}
           </button>
-        )}
+          <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" onClick={onCompare} disabled={!canCompare}>
+            {compareLoading
+              ? <><span className="shell-spin" /> {t.compareLoading}</>
+              : selectedLaps.length === 2 ? t.compareLaps(lapA, lapB) : clean(t.analyzeCompare)}
+          </button>
+        </div>
       </div>
 
       {compareError && (
-        <div className="error-banner" role="alert" style={{ marginBottom: 'var(--s3)' }}>
-          <span className="error-banner__icon">✕</span>
-          <div className="error-banner__text">{compareError}</div>
+        <div style={{ padding: '0 18px' }}>
+          <Alert tone="bad" role="alert" flush>{compareError}</Alert>
         </div>
       )}
 
-      {selectedLaps.length === 1 && (
-        <div style={{
-          fontSize: '0.72rem', color: 'var(--cyan)', fontFamily: "'JetBrains Mono', monospace",
-          padding: '4px 8px', marginBottom: 8,
-          background: 'var(--cyan-dim)', borderRadius: 4, border: '1px solid var(--cyan-border)',
-        }}>
-          {t.sessionSelectLap(lapA)}
-        </div>
-      )}
-
-      <div style={{ overflowX: 'auto' }}>
-        <table className="session-lap-table">
+      <div className="shell-tablewrap">
+        <table className="ui-table">
           <thead>
             <tr>
-              <th style={{ width: 36, textAlign: 'center' }}>{t.selCol}</th>
+              <th style={{ width: 48, textAlign: 'center' }}>{t.selCol}</th>
               <th>{t.lapCol}</th>
-              <th>{t.timeCol}</th>
-              <th>{t.maxSpeedCol}</th>
-              <th>{t.distanceCol}</th>
-              <th>{t.deltaCol}</th>
+              <th className="is-num">{t.timeCol}</th>
+              <th className="is-num">{t.maxSpeedCol}</th>
+              <th className="is-num">{t.distanceCol}</th>
+              <th className="is-num">{t.deltaCol}</th>
             </tr>
           </thead>
           <tbody>
             {laps.map(lap => {
-              const isSelected = selectedLaps.includes(lap.lap_number);
               const selIdx = selectedLaps.indexOf(lap.lap_number);
+              const isSelected = selIdx !== -1;
               const delta = fastestLap && !lap.is_fastest
                 ? lap.lap_time - fastestLap.lap_time
                 : null;
@@ -164,51 +215,31 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
                 <tr
                   key={lap.lap_number}
                   onClick={() => !isPit && onToggleLap(lap.lap_number)}
-                  className={lap.is_fastest ? 'row-fastest' : ''}
-                  style={{
-                    cursor: isPit ? 'default' : 'pointer',
-                    opacity: isPit ? 0.45 : 1,
-                    background: isSelected ? 'rgba(0,212,255,0.07)' : undefined,
-                    outline: isSelected ? '1px solid rgba(0,212,255,0.25)' : undefined,
-                    transition: 'background 0.12s, opacity 0.12s',
-                  }}
+                  className={`shell-laprow${isPit ? ' is-pit' : ''}${isSelected ? ' is-selected' : ''}${lap.is_fastest ? ' is-fastest' : ''}`}
                 >
-                  <td style={{ textAlign: 'center', padding: '6px 8px' }}>
-                    {isPit ? (
-                      <span style={{ color: '#FF3D3D', fontSize: '0.8rem' }}>🔧</span>
-                    ) : (
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        width: 18, height: 18, borderRadius: 3, border: '2px solid',
-                        borderColor: isSelected ? 'var(--cyan)' : 'rgba(255,255,255,0.18)',
-                        background: isSelected
-                          ? (selIdx === 0 ? 'var(--cyan)' : 'rgba(0,212,255,0.35)')
-                          : 'transparent',
-                        fontSize: '0.6rem', color: selIdx === 0 ? '#000' : 'var(--cyan)',
-                        fontWeight: 700, transition: 'all 0.12s',
-                      }}>
-                        {isSelected ? (selIdx === 0 ? 'A' : 'B') : ''}
-                      </span>
-                    )}
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className={`shell-pick${selIdx === 1 ? ' is-b' : ''}`}
+                      aria-pressed={isSelected}
+                      aria-label={`${t.lapCol} ${lap.lap_number}`}
+                      disabled={isPit}
+                      onClick={e => { e.stopPropagation(); onToggleLap(lap.lap_number); }}
+                    >
+                      {isSelected ? (selIdx === 0 ? 'A' : 'B') : ''}
+                    </button>
                   </td>
-                  <td className="td-lap-num">
-                    {lap.lap_number}
-                    {lap.is_fastest && (
-                      <span style={{ marginLeft: 6, color: 'var(--cyan)', fontSize: '0.7rem' }}>{t.lapBadgeBest}</span>
-                    )}
-                    {isPit && (
-                      <span style={{ marginLeft: 6, color: '#FF3D3D', fontSize: '0.65rem' }}>{t.lapBadgePit}</span>
-                    )}
+                  <td>
+                    <span className="num">{lap.lap_number}</span>
+                    {lap.is_fastest && <span style={{ marginLeft: 8 }}><Badge tone="ok">{t.lapBadgeBest}</Badge></span>}
+                    {isPit && <span style={{ marginLeft: 8 }}><Badge tone="warn">{t.lapBadgePit}</Badge></span>}
                   </td>
-                  <td className="td-time">{fmtTime(lap.lap_time)}</td>
-                  <td>{lap.max_speed?.toFixed(1) ?? '—'} km/h</td>
-                  <td style={{ color: 'var(--text-3)' }}>
-                    {lap.lap_distance != null && lap.lap_distance > 0
-                      ? `${lap.lap_distance.toFixed(0)} m`
-                      : '—'
-                    }
+                  <td className="is-num shell-time">{fmtTime(lap.lap_time)}</td>
+                  <td className="is-num">{lap.max_speed != null ? `${lap.max_speed.toFixed(1)} km/h` : '— km/h'}</td>
+                  <td className="is-num" style={{ color: 'var(--ink-3)' }}>
+                    {lap.lap_distance != null && lap.lap_distance > 0 ? `${lap.lap_distance.toFixed(0)} m` : '—'}
                   </td>
-                  <td style={{ color: delta != null && delta > 0 ? 'var(--red)' : 'var(--text-3)' }}>
+                  <td className="is-num" style={{ color: delta != null && delta > 0 ? 'var(--bad)' : 'var(--ink-3)' }}>
                     {delta != null && delta > 0 ? `+${delta.toFixed(3)}s` : '—'}
                   </td>
                 </tr>
@@ -217,15 +248,15 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
           </tbody>
         </table>
       </div>
-    </div>
+    </Panel>
   );
 }
 
 function ModuleWithHelp({ children, title, helpContent }) {
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="shell-help-slot">
       {children}
-      <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10 }}>
+      <div className="shell-help-slot__btn">
         <InfoButton title={title} content={helpContent} />
       </div>
     </div>
@@ -233,7 +264,7 @@ function ModuleWithHelp({ children, title, helpContent }) {
 }
 
 function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const meta = result?.metadata;
   const title = comparingLaps
     ? t.compareSectionTitle(comparingLaps[0], comparingLaps[1])
@@ -250,45 +281,33 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
     };
   }, [meta, t]);
 
+  const head = (id, icon, sub) => (
+    <SectionHeader icon={icon} title={sectionLabel(id, lang)} sub={sub} />
+  );
+
   return (
-    <div className="fade-up">
-      <div style={{
-        padding: 'var(--s4) 0',
-        borderTop: '2px solid var(--border-1)',
-        marginBottom: 'var(--s4)',
-      }}>
-        <div className="hero__eyebrow" style={{ marginBottom: 4 }}>
-          <span>⚡</span> {t.compareTitle}
-        </div>
-        <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-1)' }}>{title}</div>
-        {meta?.venue && (
-          <div style={{ color: 'var(--text-3)', fontSize: '0.8rem', marginTop: 4 }}>{meta.venue}</div>
-        )}
+    <div>
+      <div className="shell-cmphead">
+        <div className="ui-eyebrow">{t.compareTitle}</div>
+        <h2 className="shell-cmphead__title">{title}</h2>
+        {meta?.venue && <div className="shell-cmphead__sub">{meta.venue}</div>}
       </div>
 
       {meta?.distance_synthetic && (
-        <div style={{
-          background: 'rgba(255,120,0,0.10)',
-          border: '1px solid rgba(255,140,0,0.5)',
-          borderRadius: 8,
-          padding: '10px 16px',
-          marginBottom: 'var(--s3)',
-          fontSize: '0.8rem',
-          color: '#FF9040',
-          lineHeight: 1.5,
-        }}>
-          <strong>{t.precisionWarning}</strong> {t.precisionDistance} <code>Distance</code> {t.precisionNotAvailable}
+        <Alert tone="warn" flush>
+          <strong>{clean(t.precisionWarning)}:</strong> {t.precisionDistance} <code>Distance</code> {t.precisionNotAvailable}
           {' '}{t.precisionLine1} {t.precisionLine2} {t.precisionLine3}
-        </div>
+        </Alert>
       )}
 
       {result && result.health_summary && <HealthDashboard health_summary={result.health_summary} />}
 
       <SummaryCard summary={result.summary} metadata={result.metadata} rawTimeDelta={rawTimeDelta} />
 
-      <div id="section-core-lap">
+      <section id="section-core-lap" className="shell-section shell-gap" style={{ marginTop: 32 }}>
+        {head('section-core-lap', 'stopwatch')}
         {result.track_map?.length > 0 && (
-          <div className="fade-up fade-up--d1" style={{ marginTop: 'var(--s4)' }}>
+          <div>
             <TrackMap
               trackData={result.track_map}
               fixedDistance={fixedDistance}
@@ -298,16 +317,19 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
         )}
 
         {zoomDomain && (
-          <div className="zoom-bar">
-            <span className="zoom-bar__label">
-              {t.zoomLap(zoomDomain[0], zoomDomain[1])}
-              {activeCorner != null && ` ${t.zoomCorner(activeCorner)}`}
+          <div className="shell-zoom">
+            <Icon name="target" size={14} />
+            <span>
+              {clean(t.zoomLap(zoomDomain[0], zoomDomain[1]))}
+              {activeCorner != null && ` · ${t.eventCorner(activeCorner)}`}
             </span>
-            <button className="zoom-reset-btn" onClick={onResetZoom}>{t.zoomReset}</button>
+            <button type="button" className="ui-btn ui-btn--sm" onClick={onResetZoom}>
+              <Icon name="x" size={12} /> {clean(t.zoomReset)}
+            </button>
           </div>
         )}
 
-        <div className="charts-section fade-up fade-up--d2" style={{ marginTop: 'var(--s4)' }}>
+        <div className="charts-section" style={{ marginTop: 16 }}>
           <SpeedChart
             data={{ ...result.speed_comparison, lap_labels: lapLabels }}
             zoomDomain={zoomDomain}
@@ -336,43 +358,37 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
         />
 
         {result.dynamic_events && result.dynamic_events.length > 0 && (
-          <div className="card fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-            <div className="card__title">
-              <span className="card__title-icon">⚠</span>
-              {t.eventsTitle}
-              <span style={{
-                marginLeft: 'auto', fontSize: '0.68rem', padding: '3px 8px',
-                background: 'rgba(255,61,61,0.1)', color: 'var(--red)',
-                border: '1px solid rgba(255,61,61,0.25)', borderRadius: 4,
-                fontFamily: "'JetBrains Mono', monospace",
-              }}>
-                {t.eventsCount(result.dynamic_events.length)}
-              </span>
-            </div>
-            <div className="dynamic-events-list">
-              {result.dynamic_events.map((ev, i) => (
-                <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
-                  <div className="dynamic-event__header">
-                    <span className="dynamic-event__tipo">
-                      {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
-                    </span>
-                    <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
-                    <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
-                    <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
-                      {ev.severidad?.toUpperCase()}
-                    </span>
+          <div className="shell-gap">
+            <Panel
+              icon="alert"
+              title={clean(t.eventsTitle)}
+              actions={<Badge tone="bad">{t.eventsCount(result.dynamic_events.length)}</Badge>}
+            >
+              <div className="dynamic-events-list">
+                {result.dynamic_events.map((ev, i) => (
+                  <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
+                    <div className="dynamic-event__header">
+                      <span className="dynamic-event__tipo">
+                        {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
+                      </span>
+                      <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
+                      <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
+                      <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
+                        {ev.severidad?.toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
                   </div>
-                  <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </Panel>
           </div>
         )}
 
         {!isPilotMode && (
           result.curvatura?.length > 0
             ? (
-              <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
+              <div className="shell-gap">
                 <ModuleWithHelp
                   title="Circuit Curvature Signature"
                   helpContent={"Shows lateral G intensity (|LateralG|) across the lap. Peaks correspond to corners — numbered dots mark the apex positions. A higher peak means a tighter or faster corner. Compare the profile shape between fast and slow laps to identify where the reference lap carries more or less lateral load."}
@@ -381,24 +397,25 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 </ModuleWithHelp>
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="Circuit Curvature" />
         )}
 
         {!isPilotMode && result.sectores?.length > 0 && (
-          <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
+          <div className="shell-gap">
             <SectorTable
               sectores={result.sectores}
               totalDelta={result.metadata?.delta_total_s ?? result.summary?.total_time_delta}
             />
           </div>
         )}
-      </div>
+      </section>
 
       {!isPilotMode && (
-        <div id="section-dynamics">
+        <section id="section-dynamics" className="shell-section">
+          {head('section-dynamics', 'gauge')}
           {(result.gg_diagram || result.g_limit)
             ? (
-              <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+              <div>
                 <ModuleWithHelp
                   title="GG Diagram — Grip Utilization"
                   helpContent={"Plots lateral G vs longitudinal G for every telemetry sample. Points near the outer edge of the circle = using the car's full grip. Sparse center = under-driving. The efficiency % shows how each sample compares to the car's grip limit. A well-driven lap fills the outer ring evenly."}
@@ -407,21 +424,21 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 </ModuleWithHelp>
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="GG Diagram" />
           }
 
           {result.anomaly
             ? (
-              <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
+              <div className="shell-gap">
                 <AnomalyReport anomaly={result.anomaly} />
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="Anomaly" />
           }
 
           {result.slip_angle?.available
             ? (
-              <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
+              <div className="shell-gap">
                 <ModuleWithHelp
                   title="Slip Angle — Chassis Sideslip"
                   helpContent={"Body sideslip angle β: difference between car heading and velocity direction. High β = sliding. US% = time spent understeering (front slides more). OS% = oversteering (rear slides more). Balance mean > 0 → understeer tendency; < 0 → oversteer. Target: <10% combined US+OS in fast corners."}
@@ -430,12 +447,12 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 </ModuleWithHelp>
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="Slip Angle" />
           }
 
           {result.suspension?.available
             ? (
-              <div className="fade-up fade-up--d8" style={{ marginTop: 'var(--s4)' }}>
+              <div className="shell-gap">
                 <ModuleWithHelp
                   title="Suspension Analysis — Pitch & Roll"
                   helpContent={"Shows suspension travel in mm. Roll = left/right difference (load transfer in corners). Pitch = front/rear difference (load under braking/acceleration). Bottoming events = damper at full compression — consider raising ride height or increasing bump stiffness. High roll ratio F/R → ARB imbalance."}
@@ -444,16 +461,17 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 </ModuleWithHelp>
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="Suspension" />
           }
-        </div>
+        </section>
       )}
 
       {!isPilotMode && (
-        <div id="section-inputs">
+        <section id="section-inputs" className="shell-section">
+          {head('section-inputs', 'steering')}
           {result.tyre_analysis?.available
             ? (
-              <div className="fade-up fade-up--d6" style={{ marginTop: 'var(--s4)' }}>
+              <div>
                 <ModuleWithHelp
                   title="Tyre Temperature Analysis"
                   helpContent={"Shows inner / middle / outer tyre temperature per corner. Optimal window: 80–100 °C. Inner hotter than outer → too much negative camber. Outer hotter → too little. Even distribution → camber is well set. Front much hotter than rear → understeer bias or need more rear downforce."}
@@ -462,12 +480,12 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 </ModuleWithHelp>
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="Tyre Temperature" />
           }
 
           {result.brake_analysis?.available
             ? (
-              <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
+              <div className="shell-gap">
                 <ModuleWithHelp
                   title="Brake Efficiency — Fade Analysis"
                   helpContent={"Ratio of generated deceleration to applied brake pressure. Baseline = 1.0. A progressive drop means thermal fade — the pads/discs are overheating. Highlighted zones fell >15% below baseline. Fix: more brake duct opening, harder compound, or reduce brake bias slightly."}
@@ -476,12 +494,12 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 </ModuleWithHelp>
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="Brake Efficiency" />
           }
 
           {result.driver_inputs?.available
             ? (
-              <div className="fade-up fade-up--d7" style={{ marginTop: 'var(--s4)' }}>
+              <div className="shell-gap">
                 <ModuleWithHelp
                   title="Driver Inputs — Smoothness Analysis"
                   helpContent={"Nervousness index measures steering micro-corrections via FFT. High-frequency spikes (>5 Hz) → damper rebound too stiff. Mid-frequency (2–5 Hz) → spring rate issue. Brake-throttle overlap target: 8–18% for proper trail braking. Low overlap → driver lifting brake too early before apex."}
@@ -490,14 +508,15 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 </ModuleWithHelp>
               </div>
             )
-            : <div style={{ color: '#666', fontSize: 12, padding: '8px 0' }}>No data available</div>
+            : <NoData title="Driver Inputs" />
           }
-        </div>
+        </section>
       )}
 
-      <div id="section-strategy">
+      <section id="section-strategy" className="shell-section">
+        {head('section-strategy', 'flag')}
         {result.tiempo_potencial && (
-          <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <div>
             <PotentialLapCard
               tiempoPotencial={result.tiempo_potencial}
               xgboostPred={result.xgboost_pred}
@@ -507,13 +526,13 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
         )}
 
         {result.thermal_analysis?.available && (
-          <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <div className="shell-gap">
             <ThermalManagementPanel thermal_analysis={result.thermal_analysis} />
           </div>
         )}
 
         {result.setup_advisor?.available && (
-          <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
+          <div className="shell-gap">
             <SetupRecommendations
               setup_advisor={result.setup_advisor}
               source="compare"
@@ -523,41 +542,50 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
         )}
 
         {result.text_report && (
-          <div className="card report-card fade-up fade-up--d5">
-            <div className="report-header">
-              <div className="report-title">
-                <span>▤</span>
-                {t.reportTitle}
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  className={`copy-btn ${copied ? 'copy-btn--copied' : ''}`}
-                  onClick={onCopyReport}
-                  aria-label={t.reportCopyAria}
-                >
-                  {copied ? `✓ ${t.copied}` : `⎘ ${t.copyReport}`}
-                </button>
-                <button
-                  className="copy-btn"
-                  onClick={onPdfDownload}
-                  disabled={pdfLoading}
-                  aria-label={t.reportDownloadAria}
-                  style={{ opacity: pdfLoading ? 0.6 : 1 }}
-                >
-                  {pdfLoading ? '⏳' : `⬇ ${t.pdfDownload}`}
-                </button>
-              </div>
-            </div>
-            <pre className="text-report">{result.text_report}</pre>
+          <div className="shell-gap">
+            <Panel
+              icon="file"
+              title={t.reportTitle}
+              actions={
+                <>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn--sm"
+                    onClick={onCopyReport}
+                    aria-label={t.reportCopyAria}
+                  >
+                    <Icon name={copied ? 'check' : 'file'} size={14} />
+                    {copied ? t.copied : t.copyReport}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn--sm"
+                    onClick={onPdfDownload}
+                    disabled={pdfLoading}
+                    aria-label={t.reportDownloadAria}
+                  >
+                    {pdfLoading ? <span className="shell-spin" /> : <Icon name="download" size={14} />}
+                    {t.pdfDownload}
+                  </button>
+                </>
+              }
+            >
+              <pre className="shell-report">{result.text_report}</pre>
+            </Panel>
           </div>
         )}
-      </div>
+        {!result.tiempo_potencial && !result.thermal_analysis?.available && !result.setup_advisor?.available && !result.text_report && (
+          <NoData />
+        )}
+      </section>
     </div>
   );
 }
 
 export default function App() {
   const { t, lang, setLang } = useLanguage();
+  const tx = useTx();
+  const [step, setStep] = useState('session');
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
@@ -626,6 +654,7 @@ export default function App() {
   const handleAnalyze = async () => {
     if (!files.length || loading) return;
     setLoading(true);
+    setStep('session');
     setError(null);
     setSessionResult(null);
     setStintResult(null);
@@ -645,6 +674,7 @@ export default function App() {
         } catch (e) {
           sessSettled = { status: 'rejected', reason: e };
         }
+        setStep('stint');
         try {
           stintSettled = { status: 'fulfilled', value: await analyzeStint([files[0]], lang) };
         } catch (e) {
@@ -659,6 +689,7 @@ export default function App() {
           setStintResult(stintSettled.value);
         }
       } else {
+        setStep('compare');
         const [basicSettled, advancedSettled] = await Promise.allSettled([
           compareLaps(files[0], files[1], lang),
           analyzeTelemetry(files[0], files[1], 5, lang),
@@ -783,278 +814,361 @@ export default function App() {
     }
   };
 
+
+  const resetAll = () => {
+    setFiles([]);
+    setError(null);
+    setSessionResult(null);
+    setStintResult(null);
+    setCompareResult(null);
+    setCompareError(null);
+    setComparingLaps(null);
+    setSelectedLaps([]);
+    setZoomDomain(null);
+    setActiveCorner(null);
+    setFixedDistance(null);
+    window.scrollTo({ top: 0 });
+  };
+
+  const hasResults = !!(sessionResult || compareResult);
+  const fmtMB = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;
+
+  const modeBadge = files.length > 0 && (
+    <Badge tone={isSessionMode ? 'accent' : 'ok'}>
+      {isSessionMode ? t.modeSession : clean(t.modeBadgeCount(files.length))}
+    </Badge>
+  );
+
+  const progressText = step === 'stint'
+    ? tx('shellStepStint', 'Analyzing stint: degradation, fuel and corners', 'Analizando stint: degradación, combustible y curvas')
+    : step === 'compare'
+      ? tx('shellStepCompare', 'Comparing laps and running advanced analysis', 'Comparando vueltas y ejecutando análisis avanzado')
+      : tx('shellStepSession', 'Reading session and segmenting laps', 'Leyendo la sesión y segmentando vueltas');
+  const progressStep = isSessionMode ? (step === 'stint' ? 2 : 1) : null;
+
+  const analyzeLabel = isSessionMode ? clean(t.appAnalyzeSession) : clean(t.appAnalyzeCompare(files.length));
+
   return (
-    <div className="app">
-      {/* Topbar */}
-      <div className="topbar">
-        <div className="topbar__brand">
-          <div className="topbar__logo">⚡</div>
-          <span className="topbar__name">{t.appBrand}</span>
-          <span className="topbar__version">{t.appVersion}</span>
+    <>
+      <header className="shell-appbar">
+        <div className="shell-brand">
+          <div className="shell-brand__mark"><Icon name="gauge" size={16} /></div>
+          <span className="shell-brand__name">{t.appBrand}</span>
+          <span className="shell-brand__ver">{t.appVersion}</span>
         </div>
-        <div className="topbar__status">
-          <div className="topbar__status-dot" />
-          {t.systemReady}
-        </div>
-        <button
-          onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
-          style={{
-            background: 'rgba(0,212,255,0.08)',
-            border: '1px solid rgba(0,212,255,0.25)',
-            borderRadius: 6,
-            color: '#00D4FF',
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: 1,
-            padding: '4px 12px',
-            transition: 'background 0.15s',
-          }}
-          title={t.langSwitchTo}
-        >
-          {t.langCurrent}
-        </button>
-        <PilotEngineerToggle isPilotMode={isPilotMode} onToggle={togglePilotMode} />
-      </div>
-
-      {/* Hero */}
-      <div className="hero">
-        <div className="hero__eyebrow">
-          <span>◉</span>
-          {t.telemetryEyebrow}
-        </div>
-        <h1 className="hero__title">{t.appName}</h1>
-        <p className="hero__subtitle">
-          {t.appSubtitle}
-        </p>
-      </div>
-
-      {/* ── Upload Zone ── */}
-      <section className="section card" aria-label={t.uploadAria}>
-        <div className="card__title">
-          <span className="card__title-icon">▤</span>
-          {t.uploadTitle}
-          {files.length > 0 && (
-            <span style={{
-              marginLeft: 'auto', fontSize: '0.68rem', padding: '3px 9px',
-              background: isSessionMode ? 'var(--cyan-dim)' : 'rgba(0,230,118,0.08)',
-              color: isSessionMode ? 'var(--cyan)' : 'var(--green)',
-              border: `1px solid ${isSessionMode ? 'var(--cyan-border)' : 'rgba(0,230,118,0.2)'}`,
-              borderRadius: 4, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
-            }}>
-              {isSessionMode ? `◎ ${t.modeSession}` : t.modeBadgeCount(files.length)}
-            </span>
-          )}
-        </div>
-
-        <div
-          onDrop={handleDrop}
-          onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onClick={() => fileInputRef.current?.click()}
-          className="dropzone"
-          style={{
-            borderColor: isDragging ? 'var(--green)' : undefined,
-            background: isDragging ? 'var(--green-dim)' : undefined,
-            cursor: 'pointer',
-            marginBottom: files.length ? 'var(--s3)' : 0,
-          }}
-        >
-          <div className="dropzone__icon">◎</div>
-          <div className="dropzone__label">{t.dropzoneLabel}</div>
-          <div className="dropzone__sub">
-            {t.dropzoneSub}
+        <div className="shell-appbar__spacer" />
+        <div className="shell-appbar__tools">
+          <span className="shell-status">
+            <span className="shell-status__dot" aria-hidden="true" />
+            {t.systemReady}
+          </span>
+          <div className="ui-seg" role="group" aria-label={t.langSwitchTo} title={t.langSwitchTo}>
+            <button type="button" className="ui-seg__item" aria-pressed={lang === 'es'} onClick={() => setLang('es')}>ES</button>
+            <button type="button" className="ui-seg__item" aria-pressed={lang !== 'es'} onClick={() => setLang('en')}>EN</button>
           </div>
+          <PilotEngineerToggle isPilotMode={isPilotMode} onToggle={togglePilotMode} />
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv"
-          multiple
-          style={{ display: 'none' }}
-          onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
-        />
+      </header>
 
-        {files.length > 0 && (
-          <div className="stint-file-list">
-            {files.map((f, i) => (
-              <div key={i} className="stint-file-row">
-                <span className="stint-file-row__num" style={{ color: LAP_COLORS[i % LAP_COLORS.length] }}>
-                  {t.appFileRowNum(isSessionMode, i)}
-                </span>
-                <span className="stint-file-row__name" title={f.name}>{f.name}</span>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-3)', fontFamily: "'JetBrains Mono', monospace" }}>
-                  {(f.size / 1048576).toFixed(1)} MB
-                </span>
-                <button
-                  className="stint-file-row__remove"
-                  onClick={e => { e.stopPropagation(); removeFile(i); }}
-                  aria-label={t.removeFile(f.name)}
-                >×</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {error && (
-          <div className="error-banner" role="alert">
-            <span className="error-banner__icon">✕</span>
-            <div className="error-banner__text">
-              <div className="error-banner__title">{t.errorTitle}</div>
-              {error}
-            </div>
-          </div>
-        )}
-
-        <button
-          className="btn-analyze"
-          onClick={handleAnalyze}
-          disabled={!files.length || loading}
-        >
-          {loading
-            ? <><div className="spinner" /> {t.appAnalyzeProcessing}</>
-            : isSessionMode
-              ? t.appAnalyzeSession
-              : t.appAnalyzeCompare(files.length)
-          }
-        </button>
-      </section>
-
-      {(sessionResult || compareResult) && (
-        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+      <div className={`shell-body${hasResults ? ' shell-body--rail' : ''}`}>
+        {hasResults && (
           <Sidebar
             mode={!compareResult ? 'session' : sessionResult ? 'both' : 'compare'}
             isPilotMode={isPilotMode}
             resultKey={`${!!sessionResult}-${!!stintResult}-${!!compareResult}`}
           />
-          <div style={{ flex: 1, minWidth: 0 }}>
+        )}
 
-            {/* ── Session Results ── */}
-            {sessionResult && (
-              <div className="fade-up">
-                <div id="section-overview" className="section">
-                  <SessionKPIs sessionResult={sessionResult} stintResult={stintResult} />
+        <main className={`shell-main${hasResults ? '' : ' shell-main--narrow'}`}>
+          {!hasResults && (
+            <Panel
+              icon="upload"
+              title={t.uploadTitle}
+              subtitle={t.appName}
+              actions={modeBadge}
+              className="shell-upload"
+            >
+              <section aria-label={t.uploadAria}>
+                <div
+                  role="button"
+                  tabIndex={loading ? -1 : 0}
+                  aria-label={t.dropzoneLabel}
+                  aria-disabled={loading}
+                  onDrop={e => { if (loading) { e.preventDefault(); return; } handleDrop(e); }}
+                  onDragOver={e => { e.preventDefault(); if (!loading) setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onClick={() => !loading && fileInputRef.current?.click()}
+                  onKeyDown={e => {
+                    if ((e.key === 'Enter' || e.key === ' ') && !loading) {
+                      e.preventDefault();
+                      fileInputRef.current?.click();
+                    }
+                  }}
+                  className={`shell-drop${files.length ? ' shell-drop--compact' : ''}${isDragging ? ' is-dragging' : ''}`}
+                  style={loading ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+                >
+                  <Icon name="upload" size={files.length ? 18 : 24} className="shell-drop__icon" />
+                  <div className="shell-drop__label">{t.dropzoneLabel}</div>
+                  {!files.length && (
+                    <div className="shell-drop__sub">
+                      {tx('shellDropHint', 'or click to browse. Only .csv files.', 'o haz clic para buscar. Solo archivos .csv.')}
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  multiple
+                  hidden
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onChange={e => { addFiles(e.target.files); e.target.value = ''; }}
+                />
+
+                <div className="shell-modes">
+                  <div className={`shell-mode${isSessionMode ? ' is-active' : ''}`}>
+                    <div className="shell-mode__head">
+                      <Icon name="layers" size={16} /> {t.modeSession}
+                      <span className="shell-mode__req">{tx('shellOneCsv', '1 CSV', '1 CSV')}</span>
+                    </div>
+                    <div className="shell-mode__desc">
+                      {tx('shellModeSessionDesc',
+                        'One CSV with the whole session. Laps are segmented automatically, the stint is analysed and you can pick any two laps to compare.',
+                        'Un CSV con toda la sesión. Las vueltas se segmentan automáticamente, se analiza el stint y puedes elegir dos vueltas para comparar.')}
+                    </div>
+                  </div>
+                  <div className={`shell-mode${files.length >= 2 ? ' is-active' : ''}`}>
+                    <div className="shell-mode__head">
+                      <Icon name="activity" size={16} /> {clean(t.analyzeCompare)}
+                      <span className="shell-mode__req">{tx('shellTwoCsv', '2 CSV', '2 CSV')}</span>
+                    </div>
+                    <div className="shell-mode__desc">
+                      {tx('shellModeCompareDesc',
+                        'Two single-lap CSVs (reference first, then comparison). Time delta, corners and detailed telemetry between both laps.',
+                        'Dos CSV de una vuelta (primero la referencia, luego la comparación). Delta de tiempo, curvas y telemetría detallada entre ambas.')}
+                    </div>
+                  </div>
                 </div>
 
+                {files.length > 0 && (
+                  <ul className="shell-files" aria-label={t.uploadTitle}>
+                    {files.map((f, i) => (
+                      <li key={f.name + f.size} className="shell-file">
+                        <span className="shell-file__tag" style={{ color: LAP_COLORS[i % LAP_COLORS.length] }}>
+                          {isSessionMode ? 'S' : `V${i + 1}`}
+                        </span>
+                        <Icon name="file" size={16} className="shell-file__icon" />
+                        <span className="shell-file__name shell-trunc" title={f.name}>{f.name}</span>
+                        {!isSessionMode && i >= 2 && (
+                          <Badge tone="warn">{tx('shellNotUsed', 'not used', 'sin usar')}</Badge>
+                        )}
+                        <span className="shell-file__size">{fmtMB(f.size)}</span>
+                        <button
+                          type="button"
+                          className="shell-iconbtn"
+                          onClick={() => removeFile(i)}
+                          disabled={loading}
+                          aria-label={t.removeFile(f.name)}
+                          title={t.removeFile(f.name)}
+                        >
+                          <Icon name="x" size={14} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {error && (
+                  <Alert tone="bad" role="alert" title={t.errorTitle}>{error}</Alert>
+                )}
+
+                {loading && (
+                  <div className="shell-progress" role="status" aria-live="polite">
+                    <div className="shell-progress__bar" />
+                    <div className="shell-progress__text">
+                      <span className="shell-spin" />
+                      <span>
+                        {progressText}
+                        {progressStep && ` (${progressStep}/2)`}
+                      </span>
+                    </div>
+                    <div className="shell-progress__hint">
+                      {tx('shellProgressHint', 'Large files can take a few minutes. Keep this tab open.', 'Los archivos grandes pueden tardar varios minutos. Mantén esta pestaña abierta.')}
+                    </div>
+                  </div>
+                )}
+
+                <div className="shell-actions">
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn--primary ui-btn--lg"
+                    onClick={handleAnalyze}
+                    disabled={!files.length || loading}
+                  >
+                    {loading
+                      ? <><span className="shell-spin" /> {clean(t.appAnalyzeProcessing)}</>
+                      : <><Icon name="activity" size={16} /> {files.length ? analyzeLabel : clean(t.analyzeSession)}</>
+                    }
+                  </button>
+                  {!files.length && (
+                    <span className="shell-actions__note">
+                      {tx('shellAddFile', 'Add at least one CSV to start.', 'Añade al menos un CSV para empezar.')}
+                    </span>
+                  )}
+                  {files.length > 2 && !loading && (
+                    <span className="shell-actions__note">
+                      {tx('shellExtraFiles', 'Only the first two files are compared.', 'Solo se comparan los dos primeros archivos.')}
+                    </span>
+                  )}
+                </div>
+              </section>
+            </Panel>
+          )}
+
+          {hasResults && (
+            <div className="shell-filebar" role="region" aria-label={t.uploadTitle}>
+              <div className="shell-filebar__files">
+                {modeBadge}
+                {files.map((f, i) => (
+                  <span key={f.name + f.size} className="shell-chip" title={f.name}>
+                    <span className="shell-chip__tag" style={{ color: LAP_COLORS[i % LAP_COLORS.length] }}>
+                      {isSessionMode ? 'S' : `V${i + 1}`}
+                    </span>
+                    <span className="shell-trunc">{f.name}</span>
+                    <span className="shell-chip__size">{fmtMB(f.size)}</span>
+                  </span>
+                ))}
+              </div>
+              <button type="button" className="ui-btn ui-btn--sm" onClick={resetAll} disabled={loading || compareLoading}>
+                <Icon name="upload" size={14} />
+                {tx('shellNewAnalysis', 'New analysis', 'Nuevo análisis')}
+              </button>
+            </div>
+          )}
+
+          {/* ── Session results ── */}
+          {sessionResult && (
+            <div>
+              <section id="section-overview" className="shell-section">
+                <SectionHeader
+                  icon="grid"
+                  title={sectionLabel('section-overview', lang)}
+                  sub={tx('shellOverviewSub', 'Key figures, circuit map and lap list. Select two laps to compare them.', 'Cifras clave, mapa del circuito y lista de vueltas. Selecciona dos vueltas para compararlas.')}
+                />
+                <SessionKPIs sessionResult={sessionResult} stintResult={stintResult} />
+
                 {sessionResult.track_map?.length > 0 && (
-                  <div className="section fade-up fade-up--d1">
+                  <div className="shell-gap">
                     <TrackMap trackData={sessionResult.track_map} />
                   </div>
                 )}
 
-                <div className="section fade-up fade-up--d2">
+                <div className="shell-gap">
                   <SessionLapTable
                     laps={sessionResult.laps}
                     fastestLap={sessionResult.fastest_lap}
                     selectedLaps={selectedLaps}
                     onToggleLap={toggleLapSelection}
                     onCompare={handleCompareLaps}
+                    onCompareBestWorst={handleCompareBestWorst}
                     compareLoading={compareLoading}
                     compareError={compareError}
-                    compareResult={compareResult}
                   />
-                  <div style={{ marginTop: 'var(--s3)', display: 'flex', gap: 'var(--s2)' }}>
-                    <button
-                      className="btn-analyze"
-                      onClick={handleCompareBestWorst}
-                      disabled={compareLoading}
-                      style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '0.8rem', padding: '6px 14px' }}
-                    >
-                      {compareLoading ? t.appComparing : t.appCompareBestWorst}
-                    </button>
-                  </div>
                 </div>
+              </section>
 
-                {stintResult && (
-                  <div id="section-stint" className="section fade-up fade-up--d3">
-                    {stintResult.health_summary && <HealthDashboard health_summary={stintResult.health_summary} />}
-                    {stintResult.track_evolution?.available && (
-                      <div style={{color:"#9CA3AF",fontSize:"0.8rem",marginBottom:"8px",padding:"4px 8px"}}>Track evolution: {stintResult.track_evolution.note}</div>
-                    )}
-                    <LapTimelineChart
-                      degradacion={stintResult.degradacion}
-                      montecarlo={stintResult.montecarlo}
-                      laps={stintResult.laps}
-                    />
-                    {stintResult.combustible?.available && (
-                      <div style={{ marginTop: 'var(--s4)' }}>
-                        <PitWindowWidget combustible={stintResult.combustible} />
-                      </div>
-                    )}
-                    {stintResult.curvas_sesion?.available && (
-                      <div style={{ marginTop: 'var(--s4)' }}>
-                        <CornerAnalysisPanel
-                          result={{
-                            corners: stintResult.curvas_sesion.corners,
-                            setup_advisor: stintResult.setup_sesion,
-                          }}
-                          metadata={{
-                            label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
-                            label_b: `${t.avgTime} ${stintResult.curvas_sesion.n_laps_compared} ${t.timelineLap}`,
-                          }}
-                          sessionMode
-                          referenceLap={stintResult.curvas_sesion.reference_lap}
-                          nLaps={stintResult.curvas_sesion.n_laps_compared}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+              {stintResult && (
+                <section id="section-stint" className="shell-section">
+                  <SectionHeader icon="trend" title={sectionLabel('section-stint', lang)} />
+                  {stintResult.health_summary && <HealthDashboard health_summary={stintResult.health_summary} />}
+                  {stintResult.track_evolution?.available && (
+                    <Alert tone="info" flush>
+                      {tx('shellTrackEvolution', 'Track evolution', 'Evolución de pista')}: {stintResult.track_evolution.note}
+                    </Alert>
+                  )}
+                  <LapTimelineChart
+                    degradacion={stintResult.degradacion}
+                    montecarlo={stintResult.montecarlo}
+                    laps={stintResult.laps}
+                  />
+                  {stintResult.combustible?.available && (
+                    <div className="shell-gap">
+                      <PitWindowWidget combustible={stintResult.combustible} />
+                    </div>
+                  )}
+                  {stintResult.curvas_sesion?.available && (
+                    <div className="shell-gap">
+                      <CornerAnalysisPanel
+                        result={{
+                          corners: stintResult.curvas_sesion.corners,
+                          setup_advisor: stintResult.setup_sesion,
+                        }}
+                        metadata={{
+                          label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
+                          label_b: `${t.avgTime} ${stintResult.curvas_sesion.n_laps_compared} ${t.timelineLap}`,
+                        }}
+                        sessionMode
+                        referenceLap={stintResult.curvas_sesion.reference_lap}
+                        nLaps={stintResult.curvas_sesion.n_laps_compared}
+                      />
+                    </div>
+                  )}
+                </section>
+              )}
 
-                {stintResult && (stintResult.thermal_analysis?.available || stintResult.setup_sesion?.available || stintResult.degradacion_neumatico?.available || stintResult.racing_line_rl?.available) && (
-                  <div id="section-setup" className="section fade-up fade-up--d3">
-                    {stintResult.thermal_analysis?.available && (
-                      <div style={{ marginTop: 'var(--s4)' }}>
-                        <ThermalManagementPanel thermal_analysis={stintResult.thermal_analysis} />
-                      </div>
-                    )}
-                    {stintResult.setup_sesion?.available && (
-                      <div style={{ marginTop: 'var(--s4)' }}>
-                        <SetupRecommendations setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
-                      </div>
-                    )}
-                    {stintResult.degradacion_neumatico?.available && (
-                      <div style={{ marginTop: 'var(--s4)' }}>
-                        <TyreDegradationPanel data={stintResult.degradacion_neumatico} />
-                      </div>
-                    )}
-                    {stintResult.racing_line_rl?.available && (
-                      <div style={{ marginTop: 'var(--s4)' }}>
-                        <RacingLinePanel data={stintResult.racing_line_rl} />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+              {stintResult && (stintResult.thermal_analysis?.available || stintResult.setup_sesion?.available || stintResult.degradacion_neumatico?.available || stintResult.racing_line_rl?.available) && (
+                <section id="section-setup" className="shell-section">
+                  <SectionHeader icon="wrench" title={sectionLabel('section-setup', lang)} />
+                  {stintResult.thermal_analysis?.available && (
+                    <div>
+                      <ThermalManagementPanel thermal_analysis={stintResult.thermal_analysis} />
+                    </div>
+                  )}
+                  {stintResult.setup_sesion?.available && (
+                    <div className="shell-gap">
+                      <SetupRecommendations setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
+                    </div>
+                  )}
+                  {stintResult.degradacion_neumatico?.available && (
+                    <div className="shell-gap">
+                      <TyreDegradationPanel data={stintResult.degradacion_neumatico} />
+                    </div>
+                  )}
+                  {stintResult.racing_line_rl?.available && (
+                    <div className="shell-gap">
+                      <RacingLinePanel data={stintResult.racing_line_rl} />
+                    </div>
+                  )}
+                </section>
+              )}
+            </div>
+          )}
 
-            {/* ── Comparison Results ── */}
-            {compareResult && (
-              <div className="section" style={{ marginTop: sessionResult ? 'var(--s6)' : 0 }}>
-                <ComparisonSection
-                  result={compareResult}
-                  rawTimeDelta={rawTimeDelta}
-                  comparingLaps={comparingLaps}
-                  onCornerClick={handleCornerClick}
-                  activeCorner={activeCorner}
-                  zoomDomain={zoomDomain}
-                  fixedDistance={fixedDistance}
-                  onClearFixed={handleClearFixed}
-                  onChartClick={handleChartClick}
-                  onResetZoom={resetZoom}
-                  copied={copied}
-                  onCopyReport={handleCopyReport}
-                  onPdfDownload={handlePdfDownload}
-                  pdfLoading={pdfLoading}
-                  isPilotMode={isPilotMode}
-                />
-              </div>
-            )}
-
-          </div>
-        </div>
-      )}
-
-    </div>
+          {/* ── Comparison results ── */}
+          {compareResult && (
+            <div style={{ marginTop: sessionResult ? 16 : 0 }}>
+              <ComparisonSection
+                result={compareResult}
+                rawTimeDelta={rawTimeDelta}
+                comparingLaps={comparingLaps}
+                onCornerClick={handleCornerClick}
+                activeCorner={activeCorner}
+                zoomDomain={zoomDomain}
+                fixedDistance={fixedDistance}
+                onClearFixed={handleClearFixed}
+                onChartClick={handleChartClick}
+                onResetZoom={resetZoom}
+                copied={copied}
+                onCopyReport={handleCopyReport}
+                onPdfDownload={handlePdfDownload}
+                pdfLoading={pdfLoading}
+                isPilotMode={isPilotMode}
+              />
+            </div>
+          )}
+        </main>
+      </div>
+    </>
   );
 }

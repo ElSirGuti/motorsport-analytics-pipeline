@@ -1,0 +1,26 @@
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-bottom: 8px; }
+.legendItem { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-2); }
+.spacer { flex: 1; }
+.swatch { width: 8px; height: 8px; border-radius: 50%; }
+.dotFilled { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-2); }
+.dotHollow { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink-2); box-sizing: border-box; }
+
+.canvasWrap { position: relative; width: 100%; background: var(--surface-0); border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; }
+
+.tip {
+  position: absolute; pointer-events: none; z-index: 10;
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-pop); padding: 8px 10px; min-width: 120px;
+  font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-3);
+}
+.tipHead { font-family: var(--font-sans); color: var(--ink-1); font-weight: 600; margin-bottom: 4px; }
+.tipRow { display: flex; justify-content: space-between; gap: 12px; line-height: 1.6; }
+.tipRow b { color: var(--ink-1); font-weight: 600; }
+
+.stats { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.quads { display: flex; flex-wrap: wrap; gap: 8px; }
+.recs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.rec { display: flex; gap: 12px; align-items: baseline; margin: 0; padding: 2px 0 2px 12px; border-left: 2px solid var(--line-strong); }
+.recLabel { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-1); min-width: 76px; }
+.recText { font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.5; }
+.recOk { border-left-color: var(--ok); font-size: var(--fs-sm); color: var(--ink-2); }

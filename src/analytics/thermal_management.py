@@ -127,7 +127,9 @@ def _analyse_fluid(dfs: list, candidates: list, warn: float, crit: float,
         if v is not None:
             per_lap.append({"lap": lap_idx + 1, "mean_c": round(v, 1)})
     if not per_lap:
-        return {"available": False}
+        return {"available": False,
+                "reason": f"{name} temperature channel not found in the telemetry "
+                          f"(looked for: {', '.join(candidates[:3])}…)"}
     temps = [r["mean_c"] for r in per_lap]
     peak  = max(temps)
     trend = None
@@ -184,9 +186,22 @@ def _analyse_brake_temps(dfs: list) -> dict:
                     "lap":    lap_idx + 1,
                     "mean_c": round(float(vals.mean()), 1),
                     "max_c":  round(float(vals.max()), 1),
+                    "min_c":  round(float(vals.min()), 1),
                 })
     if not found:
-        return {"available": False}
+        return {"available": False,
+                "reason": "Brake temperature channels (Brake Temp FL/FR/RL/RR) not found in the telemetry"}
+
+    # A channel that never moves (e.g. pinned at the ambient 26 °C) is a placeholder the
+    # sim did not fill in, not a real reading: judging it would flag every brake as
+    # "too cold" and recommend closing the ducts.
+    all_means = [r["mean_c"] for laps in corners_data.values() for r in laps]
+    all_maxes = [r["max_c"] for laps in corners_data.values() for r in laps]
+    all_mins = [r.get("min_c", r["mean_c"]) for laps in corners_data.values() for r in laps]
+    if all_means and (max(all_maxes) - min(all_mins)) < 1.0:
+        return {"available": False,
+                "reason": f"Brake temperature channels are constant ({all_means[0]:.0f} °C) — "
+                          "the sim/export did not record real disc temperatures"}
 
     summary = {}
     for corner, laps in corners_data.items():
@@ -273,11 +288,10 @@ def _analyse_tyre_pressure(dfs: list) -> dict:
                 cold_vals  = _to_bar(pd.to_numeric(df[cold_ch], errors="coerce").dropna())
                 cold_mean  = float(cold_vals.mean()) if not cold_vals.empty else None
             else:
-                # Estimate cold from the first 5% of the lap (tyre not yet heated)
-                n5 = max(1, len(hot_vals) // 20)
-                cold_mean = float(_to_bar(
-                    pd.to_numeric(df[hot_ch], errors="coerce")
-                ).dropna().iloc[:n5].mean())
+                # No cold-pressure channel: the start of a lap in a continuous stint is
+                # already hot, so it is NOT a cold reference. Reporting it as "cold"
+                # gave delta≈0 and bogus "raise cold pressure" advice.
+                cold_mean = None
 
             delta = (hot_mean - cold_mean) if cold_mean is not None else None
 
@@ -290,7 +304,8 @@ def _analyse_tyre_pressure(dfs: list) -> dict:
             })
 
     if not found:
-        return {"available": False}
+        return {"available": False,
+                "reason": "Tyre pressure channels (Tyre Press FL/FR/RL/RR) not found in the telemetry"}
 
     summary = {}
     recommendations = []
@@ -317,6 +332,9 @@ def _analyse_tyre_pressure(dfs: list) -> dict:
             "per_lap": laps,
             "status":  status,
         }
+        if avg_cold is None:
+            entry["note"] = ("No cold-pressure channel in the telemetry — hot-cold delta "
+                             "and cold-pressure advice are not available")
         if avg_cold is not None:
             entry["cold"] = _pbar(avg_cold)
         if avg_delta is not None:
@@ -372,7 +390,8 @@ def _analyse_brake_bias(dfs: list, brake_temps: dict | None = None) -> dict:
             values.append(round(float(vals.mean()), 1))
 
     if not values:
-        return {"available": False}
+        return {"available": False,
+                "reason": "Brake bias channel (BrakeBias) not found in the telemetry"}
 
     current_pct = round(float(np.mean(values)), 1)
     recommendation = None

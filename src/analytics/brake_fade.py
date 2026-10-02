@@ -34,28 +34,34 @@ def _efficiency_series(brake: pd.Series, lon_g: pd.Series) -> pd.Series:
 
 
 def _fade_zones(distance: pd.Series, eff: pd.Series, baseline: float) -> list[dict]:
-    """Detect contiguous zones where efficiency drops >FADE_DROP below baseline."""
+    """
+    Detect contiguous braking zones where efficiency drops >FADE_DROP below baseline.
+
+    `eff` must keep NaN outside braking: NaN samples are never "low" (a NaN→0 fill
+    used to create a bogus 100 %-severity zone from the lap start to the first braking).
+    Severity is the worst drop inside the zone, clipped to [0, 1].
+    """
+    base = max(baseline, EFFICIENCY_FLOOR)
     threshold = baseline * (1 - FADE_DROP)
-    low = eff < threshold
-    zones, in_zone, start = [], False, 0.0
+    low = (eff < threshold) & eff.notna()
+    zones, in_zone, start_i = [], False, 0
+
+    def _close(i_start: int, i_end: int):
+        seg = eff.iloc[i_start:i_end + 1]
+        zones.append({
+            "start":    round(float(distance.iloc[i_start]), 0),
+            "end":      round(float(distance.iloc[i_end]), 0),
+            "severity": round(float(np.clip(1 - seg.min() / base, 0.0, 1.0)), 3),
+        })
 
     for i in range(len(low)):
         if low.iloc[i] and not in_zone:
-            in_zone = True
-            start   = float(distance.iloc[i])
+            in_zone, start_i = True, i
         elif not low.iloc[i] and in_zone:
             in_zone = False
-            zones.append({
-                "start":    round(start, 0),
-                "end":      round(float(distance.iloc[i - 1]), 0),
-                "severity": round(float(1 - eff.iloc[i - 1] / max(baseline, EFFICIENCY_FLOOR)), 3),
-            })
+            _close(start_i, i - 1)
     if in_zone:
-        zones.append({
-            "start":    round(start, 0),
-            "end":      round(float(distance.iloc[-1]), 0),
-            "severity": round(float(1 - eff.iloc[-1] / max(baseline, EFFICIENCY_FLOOR)), 3),
-        })
+        _close(start_i, len(low) - 1)
     return zones
 
 
@@ -97,7 +103,7 @@ def analizar_eficiencia_frenado(df: pd.DataFrame) -> dict:
 
         result[f"score_{label}"]    = round(mean_eff, 4)
         result[f"baseline_{label}"] = round(baseline, 4)
-        result[f"fade_zones_{label}"] = _fade_zones(dist, eff.ffill().fillna(0), baseline)
+        result[f"fade_zones_{label}"] = _fade_zones(dist, eff.ffill(limit=10), baseline)
 
         per_dist[f"efficiency_{label}"] = [
             round(float(eff.iloc[i]), 4) if not pd.isna(eff.iloc[i]) else None

@@ -10,8 +10,9 @@ import CornerReport from './CornerReport';
 import GGDiagramChart from './GGDiagramChart';
 import AnomalyReport from './AnomalyReport';
 import PotentialLapCard from './PotentialLapCard';
-
-const LAP_COLORS = ['#00D4FF', '#FF3D3D'];
+import { Panel, Stat, Badge, Icon } from './ui';
+import { LAP_COLORS, clean } from './chartTheme';
+import styles from './AdvancedComparePanel.module.css';
 
 function FileSlot({ label, color, file, onChange, t }) {
   const [warn, setWarn] = useState(null);
@@ -28,19 +29,20 @@ function FileSlot({ label, color, file, onChange, t }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div className="lap-row" style={{ border: file ? `1px solid ${color}44` : undefined }}>
-        <span className="lap-dot" style={{ background: color, boxShadow: `0 0 8px ${color}66` }} />
-        <span className="lap-label">{label}</span>
-        <span className={`lap-filename ${file ? '' : 'lap-filename--empty'}`}>
+    <div className={styles.slotWrap}>
+      <div className={`${styles.slot} ${file ? styles.slotFilled : ''}`} style={{ '--slot-color': color }}>
+        <span className={styles.slotDot} />
+        <span className={styles.slotLabel}>{clean(label)}</span>
+        <span className={`${styles.slotFile} ${file ? '' : styles.slotEmpty}`} title={file?.name}>
           {file ? file.name : t.advNoFile}
         </span>
-        <label htmlFor={id} className="lap-choose-btn">
+        <label htmlFor={id} className={`ui-btn ui-btn--sm ${styles.slotBtn}`}>
+          <Icon name={file ? 'file' : 'upload'} size={14} />
           {file ? t.advChange : t.advChoose}
         </label>
-        <input id={id} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleChange} />
+        <input id={id} type="file" accept=".csv" className={styles.srOnly} onChange={handleChange} />
       </div>
-      {warn && <div className="validation-warn"><span>⚠</span>{warn}</div>}
+      {warn && <div className={styles.warn} role="alert"><Icon name="alert" size={14} />{warn}</div>}
     </div>
   );
 }
@@ -51,38 +53,26 @@ function MetaCards({ meta, t }) {
           venue, delta_total_s, apexes_detected, samples_fast, samples_slow } = meta;
 
   const sign = delta_total_s > 0 ? '+' : '';
-  const deltaColor = delta_total_s > 0 ? 'var(--red)' : 'var(--green)';
 
   return (
-    <div className="summary-grid" style={{ marginBottom: 0 }}>
-      <div className="summary-card summary-card--highlight">
-        <div className="summary-card__label">{t.advTimeDelta}</div>
-        <div className="summary-card__value" style={{ color: deltaColor, fontSize: '2rem' }}>
-          {sign}{delta_total_s?.toFixed(3)}s
-        </div>
-        <div className="summary-card__sub">
-          {delta_total_s > 0 ? t.advSlowLoses : t.advSlowGains}
-        </div>
-      </div>
-      <div className="summary-card">
-        <div className="summary-card__label">{t.advCircuit}</div>
-        <div className="summary-card__value" style={{ fontSize: '1.1rem' }}>{venue || '—'}</div>
-        <div className="summary-card__sub">{t.advCornersDetected(apexes_detected)}</div>
-      </div>
-      <div className="summary-card">
-        <div className="summary-card__label">{t.advFastLap}</div>
-        <div className="summary-card__value" style={{ fontSize: '1rem', color: LAP_COLORS[0] }}>
-          {driver_fast}
-        </div>
-        <div className="summary-card__sub">{t.advSamples(vehicle_fast, samples_fast)}</div>
-      </div>
-      <div className="summary-card">
-        <div className="summary-card__label">{t.advSlowLap}</div>
-        <div className="summary-card__value" style={{ fontSize: '1rem', color: LAP_COLORS[1] }}>
-          {driver_slow}
-        </div>
-        <div className="summary-card__sub">{t.advSamples(vehicle_slow, samples_slow)}</div>
-      </div>
+    <div className="ui-grid ui-grid--4">
+      <Panel>
+        <Stat
+          label={clean(t.advTimeDelta)}
+          tone={delta_total_s > 0 ? 'bad' : 'ok'}
+          value={`${sign}${delta_total_s?.toFixed(3)} s`}
+          hint={delta_total_s > 0 ? t.advSlowLoses : t.advSlowGains}
+        />
+      </Panel>
+      <Panel>
+        <Stat label={clean(t.advCircuit)} value={<span className={styles.statText}>{venue || '—'}</span>} hint={t.advCornersDetected(apexes_detected)} />
+      </Panel>
+      <Panel className={styles.lapA}>
+        <Stat label={clean(t.advFastLap)} value={<span className={styles.statText}>{driver_fast}</span>} hint={t.advSamples(vehicle_fast, samples_fast)} />
+      </Panel>
+      <Panel className={styles.lapB}>
+        <Stat label={clean(t.advSlowLap)} value={<span className={styles.statText}>{driver_slow}</span>} hint={t.advSamples(vehicle_slow, samples_slow)} />
+      </Panel>
     </div>
   );
 }
@@ -90,38 +80,43 @@ function MetaCards({ meta, t }) {
 function ApexTable({ apexes, t }) {
   if (!apexes || apexes.length === 0) return null;
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title"><span>📍</span> {t.advApexMap}</div>
+    <Panel icon="map" title={clean(t.advApexMap)} flush>
+      <div className={styles.tableScroll}>
+        <table className="ui-table">
+          <thead>
+            <tr>
+              <th>{t.advApexNumber}</th>
+              <th className="is-num">{t.advApexDistance}</th>
+              <th className="is-num">{t.advApexSpeed}</th>
+              <th className="is-num">{t.advApexThrottle}</th>
+              <th className="is-num">{t.advApexRadius}</th>
+              <th>{t.advApexType}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {apexes.map((a, i) => {
+              const radio = a.Curvature > 0 ? 1 / a.Curvature : Infinity;
+              const tipo = radio > 90 ? t.advCornerTypeFast : radio > 40 ? t.advCornerTypeMedium : t.advCornerTypeSlow;
+              const tone = radio > 90 ? 'ok' : radio > 40 ? 'warn' : 'bad';
+              return (
+                <tr key={i}>
+                  <td className={styles.muted}>{i + 1}</td>
+                  <td className="is-num">{a.Distance?.toFixed(0)} m</td>
+                  <td className="is-num">{a.Speed?.toFixed(1)} km/h</td>
+                  <td className="is-num">{a.Throttle?.toFixed(1)} %</td>
+                  <td className="is-num">{isFinite(radio) ? `${radio.toFixed(0)} m` : '∞'}</td>
+                  <td><Badge tone={tone}>{tipo}</Badge></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-      <div className="sector-table">
-        <div className="sector-table__head">
-          <span>{t.advApexNumber}</span>
-          <span>{t.advApexDistance}</span>
-          <span>{t.advApexSpeed}</span>
-          <span>{t.advApexThrottle}</span>
-          <span>{t.advApexRadius}</span>
-          <span>{t.advApexType}</span>
-        </div>
-        {apexes.map((a, i) => {
-          const radio = a.Curvature > 0 ? 1 / a.Curvature : Infinity;
-          const tipo = radio > 90 ? t.advCornerTypeFast : radio > 40 ? t.advCornerTypeMedium : t.advCornerTypeSlow;
-          const tipoColor = radio > 90 ? 'var(--green)' : radio > 40 ? '#FFB300' : 'var(--red)';
-          return (
-            <div key={i} className="sector-row">
-              <span className="sector-row__num">{i + 1}</span>
-              <span className="sector-row__desc">{a.Distance?.toFixed(0)}m</span>
-              <span className="sector-row__dist">{a.Speed?.toFixed(1)} km/h</span>
-              <span className="sector-row__dist">{a.Throttle?.toFixed(1)}%</span>
-              <span className="sector-row__dist">{isFinite(radio) ? radio.toFixed(0) + 'm' : '∞'}</span>
-              <span className="sector-row__delta" style={{ color: tipoColor }}>{tipo}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    </Panel>
   );
 }
+
+const SEV_TONE = { leve: 'ok', media: 'warn', critico: 'bad' };
 
 const AdvancedComparePanel = () => {
   const { t } = useLanguage();
@@ -160,6 +155,9 @@ const AdvancedComparePanel = () => {
     }
   };
 
+  const fastName = clean(t.advFastLap);
+  const slowName = clean(t.advSlowLap);
+
   const deltaData = results
     ? {
         distance: (results.telemetria || []).map((r) => r.Distance),
@@ -181,7 +179,7 @@ const AdvancedComparePanel = () => {
         distance:    (results.telemetria || []).map((r) => r.Distance),
         brake_a:     (results.telemetria || []).map((r) => r.Brake_Fast),
         brake_b:     (results.telemetria || []).map((r) => r.Brake_Slow),
-        lap_labels: { brake_a: `${t.brakeThrottleBrake} — ${results.metadata?.driver_fast || t.advFastLap}`, brake_b: `${t.brakeThrottleBrake} — ${results.metadata?.driver_slow || t.advSlowLap}` },
+        lap_labels: { brake_a: `${t.brakeThrottleBrake} — ${results.metadata?.driver_fast || fastName}`, brake_b: `${t.brakeThrottleBrake} — ${results.metadata?.driver_slow || slowName}` },
       }
     : null;
 
@@ -190,15 +188,9 @@ const AdvancedComparePanel = () => {
         distance:      (results.telemetria || []).map((r) => r.Distance),
         throttle_a:    (results.telemetria || []).map((r) => r.Throttle_Fast),
         throttle_b:    (results.telemetria || []).map((r) => r.Throttle_Slow),
-        lap_labels: { throttle_a: `${t.brakeThrottleThrottle} — ${results.metadata?.driver_fast || t.advFastLap}`, throttle_b: `${t.brakeThrottleThrottle} — ${results.metadata?.driver_slow || t.advSlowLap}` },
+        lap_labels: { throttle_a: `${t.brakeThrottleThrottle} — ${results.metadata?.driver_fast || fastName}`, throttle_b: `${t.brakeThrottleThrottle} — ${results.metadata?.driver_slow || slowName}` },
       }
     : null;
-
-  const handleApexClick = useCallback((apex) => {
-    const dist = apex?.Distance;
-    if (!dist) return;
-    setZoomDomain([Math.max(0, dist - 200), dist + 200]);
-  }, []);
 
   const handleCornerClick = useCallback((domain, cornerNum) => {
     setZoomDomain(domain);
@@ -206,155 +198,132 @@ const AdvancedComparePanel = () => {
   }, []);
 
   return (
-    <div>
-      {/* ── Upload ── */}
-      <section className="section card" aria-label={t.uploadAria}>
-        <div className="card__title">
-          <span className="card__title-icon">⚡</span>
-          {t.advTitle}
-        </div>
-        <p style={{ color: 'var(--text-2)', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.6 }}>
-          {t.advDescription}
-        </p>
+    <div className={styles.root}>
+      {/* Upload */}
+      <Panel icon="upload" title={clean(t.advTitle)} id="adv-upload" className={styles.upload}>
+        <p className={styles.lead}>{t.advDescription}</p>
 
-        <div className="lap-list">
+        <div className={styles.slots}>
           <FileSlot label={t.advFastLabel} color={LAP_COLORS[0]} file={lapFast} onChange={setLapFast} t={t} />
           <FileSlot label={t.advSlowLabel} color={LAP_COLORS[1]} file={lapSlow} onChange={setLapSlow} t={t} />
         </div>
 
         {loading && step >= 0 && (
-          <div className="progress-steps" aria-live="polite">
+          <ol className={styles.steps} aria-live="polite">
             {steps.map((s, i) => (
-              <div
+              <li
                 key={s}
-                className={`progress-step ${i < step ? 'progress-step--done' : i === step ? 'progress-step--active' : ''}`}
+                className={`${styles.step} ${i < step ? styles.stepDone : i === step ? styles.stepActive : ''}`}
+                aria-current={i === step ? 'step' : undefined}
               >
-                <span className={`progress-step__dot ${i === step ? 'progress-step__dot--pulse' : ''}`} />
-                {i < step ? '✓' : ''} {s}
-              </div>
+                <span className={styles.stepMark}>
+                  {i < step ? <Icon name="check" size={12} strokeWidth={2.5} /> : i === step ? <span className={styles.spinner} /> : null}
+                </span>
+                {s}
+              </li>
             ))}
-          </div>
+          </ol>
         )}
 
         {error && (
-          <div className="error-banner" role="alert">
-            <span className="error-banner__icon">✕</span>
-            <div className="error-banner__text">
-              <div className="error-banner__title">{t.advErrorTitle}</div>
+          <div className={styles.error} role="alert">
+            <Icon name="alert" size={16} />
+            <div>
+              <div className={styles.errorTitle}>{t.advErrorTitle}</div>
               {error}
             </div>
           </div>
         )}
 
-        <button
-          className="btn-analyze"
-          onClick={handleAnalyze}
-          disabled={!lapFast || !lapSlow || loading}
-          aria-label={loading ? t.advAnalyzing : t.advRunAnalysis}
-        >
-          {loading
-            ? <><div className="spinner" /> {t.advProcessing}</>
-            : t.advRunAnalysis
-          }
-        </button>
-      </section>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className="ui-btn ui-btn--primary"
+            onClick={handleAnalyze}
+            disabled={!lapFast || !lapSlow || loading}
+            aria-label={loading ? t.advAnalyzing : clean(t.advRunAnalysis)}
+          >
+            {loading
+              ? <><span className={styles.spinner} /> {t.advProcessing}</>
+              : <><Icon name="activity" size={16} />{clean(t.advRunAnalysis)}</>}
+          </button>
+        </div>
+      </Panel>
 
-      {/* ── Resultados ── */}
+      {/* Results */}
       {results && (
-        <div className="fade-up">
-          <section className="section">
-            <MetaCards meta={results.metadata} t={t} />
-          </section>
+        <div className={`${styles.results} fade-up`}>
+          <MetaCards meta={results.metadata} t={t} />
 
-          <section className="section">
-            <CurvatureMap curvatura={results.curvatura} apexes={results.apexes} />
-          </section>
+          <CurvatureMap curvatura={results.curvatura} apexes={results.apexes} />
 
-          <section className="section">
-            <ApexTable apexes={results.apexes} t={t} />
-          </section>
+          <ApexTable apexes={results.apexes} t={t} />
 
-          <section className="section">
-            <SectorTable
-              sectores={results.sectores}
-              totalDelta={results.metadata?.delta_total_s}
-            />
-          </section>
+          <SectorTable
+            sectores={results.sectores}
+            totalDelta={results.metadata?.delta_total_s}
+          />
 
-          <section className="section">
-            <CornerReport
-              corners={results.corners}
-              onCornerClick={handleCornerClick}
-              activeCorner={activeCorner}
-              dynamicEvents={results.dynamic_events}
-              cornerClusters={results.corner_clusters}
-              xgboostPred={results.xgboost_pred}
-            />
-          </section>
+          <CornerReport
+            corners={results.corners}
+            onCornerClick={handleCornerClick}
+            activeCorner={activeCorner}
+            dynamicEvents={results.dynamic_events}
+            cornerClusters={results.corner_clusters}
+            xgboostPred={results.xgboost_pred}
+          />
 
           {(results.gg_diagram || results.g_limit) && (
-            <section className="section">
-              <GGDiagramChart ggData={results.gg_diagram} gLimit={results.g_limit} />
-            </section>
+            <GGDiagramChart ggData={results.gg_diagram} gLimit={results.g_limit} />
           )}
 
           {results.dynamic_events && results.dynamic_events.length > 0 && (
-            <section className="section">
-              <div className="chart-card">
-                <div className="chart-header">
-                  <div className="chart-title"><span>⚠</span> {t.advUndersteerOversteer}</div>
-                  <div className="chart-zoom-badge">{t.advEvents(results.dynamic_events.length)}</div>
-                </div>
-                <div className="dynamic-events-list">
-                  {results.dynamic_events.map((ev, i) => (
-                    <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
-                      <div className="dynamic-event__header">
-                        <span className="dynamic-event__tipo">
-                          {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
-                        </span>
-                        <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
-                        <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
-                        <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
-                          {ev.severidad?.toUpperCase()}
-                        </span>
-                      </div>
-                      <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
+            <Panel
+              icon="alert"
+              title={clean(t.advUndersteerOversteer)}
+              actions={<Badge>{t.advEvents(results.dynamic_events.length)}</Badge>}
+            >
+              <ul className={styles.events}>
+                {results.dynamic_events.map((ev, i) => (
+                  <li key={i} className={styles.event} style={{ borderLeftColor: `var(--${SEV_TONE[ev.severidad] || 'warn'})` }}>
+                    <div className={styles.eventHead}>
+                      <strong>{ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}</strong>
+                      <span className={styles.muted}>{t.eventCorner(ev.curva)}</span>
+                      <span className={styles.mono}>{ev.distancia?.toFixed(0)} m</span>
+                      <Badge tone={SEV_TONE[ev.severidad]}>{ev.severidad?.toUpperCase()}</Badge>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </section>
+                    <div className={styles.eventDiag}>{ev.diagnostico}</div>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
           )}
 
-          {results.anomaly && (
-            <section className="section">
-              <AnomalyReport anomaly={results.anomaly} />
-            </section>
-          )}
+          {results.anomaly && <AnomalyReport anomaly={results.anomaly} />}
 
           {results.tiempo_potencial && (
-            <section className="section">
-              <PotentialLapCard
-                tiempoPotencial={results.tiempo_potencial}
-                xgboostPred={results.xgboost_pred}
-                historySamples={results.metadata?.history_samples}
-              />
-            </section>
+            <PotentialLapCard
+              tiempoPotencial={results.tiempo_potencial}
+              xgboostPred={results.xgboost_pred}
+              historySamples={results.metadata?.history_samples}
+            />
           )}
 
           {zoomDomain && (
-            <div className="zoom-bar">
-              <span className="zoom-bar__label">
+            <div className={styles.zoomBar} role="status">
+              <Icon name="target" size={16} />
+              <span className={styles.zoomLabel}>
                 {t.advZoom(zoomDomain[0], zoomDomain[1])}
                 {activeCorner != null && ` ${t.advZoomCorner(zoomDomain[0], zoomDomain[1], activeCorner)}`}
               </span>
-              <button className="zoom-reset-btn" onClick={() => { setZoomDomain(null); setActiveCorner(null); }}>
+              <button type="button" className="ui-btn ui-btn--sm" onClick={() => { setZoomDomain(null); setActiveCorner(null); }}>
+                <Icon name="x" size={14} />
                 {t.advFullLap}
               </button>
             </div>
           )}
 
-          <div className="charts-section">
+          <div className={styles.charts}>
             <TimeDeltaChart data={deltaData} zoomDomain={zoomDomain} />
             {speedData && <SpeedChart data={speedData} zoomDomain={zoomDomain} />}
             {brakeData && throttleData && (

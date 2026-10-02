@@ -1,47 +1,34 @@
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Stat, Badge, EmptyState, Icon } from './ui';
+import css from './PitWindowWidget.module.css';
+
+const AXIS_TICK = { fill: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)' };
+const clean = (s) => String(s ?? '').replace(/^[^\p{L}\p{N}(]+/u, '');
 
 const FuelTooltip = ({ active, payload, label, t }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: 'rgba(10,15,30,0.97)',
-      border: '1px solid rgba(255,255,255,0.07)',
-      borderRadius: 8,
-      padding: '8px 12px',
-      fontSize: '0.72rem',
-      fontFamily: "'JetBrains Mono', monospace",
-    }}>
-      <div style={{ color: 'var(--text-2)', marginBottom: 4 }}>{t.pitWindowLap(label)}</div>
-      <div style={{ color: 'var(--amber)' }}>{payload[0]?.value?.toFixed(3)} L</div>
+    <div className={css.tip}>
+      <div className={css.tipHead}>{t.pitWindowLap(label)}</div>
+      <div className={css.tipVal}>{payload[0]?.value?.toFixed(3)} L</div>
     </div>
   );
 };
 
 export default function PitWindowWidget({ combustible }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   if (!combustible) return null;
+  const L = (en, es) => (lang === 'es' ? es : en);
+  const title = clean(t.pitWindowTitle);
 
   if (!combustible.available) {
     return (
-      <div className="chart-card" style={{ marginBottom: 'var(--s4)' }}>
-        <div className="chart-header">
-          <div className="chart-title">⛽ {t.pitWindowTitle}</div>
-        </div>
-        <div style={{
-          background: 'rgba(255,255,255,0.025)',
-          border: '1px solid var(--border-1)',
-          borderRadius: 8,
-          padding: '16px 20px',
-          fontSize: '0.78rem',
-          color: 'var(--text-3)',
-          lineHeight: 1.6,
-        }}>
-          {t.pitWindowNoFuel}
-        </div>
-      </div>
+      <Panel icon="fuel" title={title}>
+        <EmptyState icon="fuel">{t.pitWindowNoFuel}</EmptyState>
+      </Panel>
     );
   }
 
@@ -51,10 +38,10 @@ export default function PitWindowWidget({ combustible }) {
   const [open, close] = pit_window || [0, 0];
   const lapsLeft = vueltas_restantes_min;
 
-  let bannerMod = '';
-  let bannerIcon = '⚠';
-  if (lapsLeft >= 5) { bannerMod = 'pit-window-banner--safe'; bannerIcon = '✓'; }
-  else if (lapsLeft <= 2) { bannerMod = 'pit-window-banner--urgent'; bannerIcon = '🔴'; }
+  let tone = 'warn';
+  let status = L('Prepare pit stop', 'Preparar parada');
+  if (lapsLeft >= 5) { tone = 'ok'; status = L('Fuel on target', 'Combustible OK'); }
+  else if (lapsLeft <= 2) { tone = 'bad'; status = L('Box now', 'Entrar a boxes ya'); }
 
   const barData = (fuel_per_lap || []).map(r => ({
     lap: r.lap_number,
@@ -62,116 +49,61 @@ export default function PitWindowWidget({ combustible }) {
   }));
 
   const needsMoreLaps = (fuel_per_lap?.length ?? 0) < 3;
+  const fmt = (v, d) => (v == null || isNaN(v) ? '—' : v.toFixed(d));
 
   return (
-    <div className="chart-card" style={{ marginBottom: 'var(--s4)' }}>
-      <div className="chart-header">
-        <div className="chart-title">⛽ {t.pitWindowTitle}</div>
-        <span style={{
-          fontSize: '0.7rem',
-          fontFamily: "'JetBrains Mono', monospace",
-          color: 'var(--text-3)',
-        }}>
-          {t.pitFuelRemaining(combustible_actual_l)}
-        </span>
-      </div>
-
+    <Panel
+      icon="fuel"
+      title={title}
+      actions={<Badge>{t.pitFuelRemaining(combustible_actual_l)}</Badge>}
+    >
       {needsMoreLaps ? (
-        <div style={{
-          background: 'rgba(255,179,0,0.06)',
-          border: '1px solid rgba(255,179,0,0.2)',
-          borderRadius: 8,
-          padding: '12px 16px',
-          fontSize: '0.78rem',
-          color: 'var(--text-2)',
-        }}>
-          {t.pitWindowNeedMore}
+        <div className={css.notice}>
+          <Icon name="info" size={16} />
+          <div>{t.pitWindowNeedMore}</div>
         </div>
       ) : (
-        <div className={`pit-window-banner ${bannerMod}`}>
-          <span className="pit-window-banner__icon">{bannerIcon}</span>
-          <div className="pit-window-banner__text">
-            <div className="pit-window-banner__title">{t.pitWindowLabel}</div>
-            <div className="pit-window-banner__laps">
-              {t.pitWindowLap(open)} – {t.pitWindowLap(close)}
+        <div className={`${css.call} ${css[tone]}`} role="status">
+          <div className={css.callMain}>
+            <div className={css.callTitle}>
+              {clean(t.pitWindowLabel)}
+              <Badge tone={tone}>{status}</Badge>
+            </div>
+            <div className={css.callLaps}>{t.pitWindowLap(open)} – {t.pitWindowLap(close)}</div>
+            <div className={css.callAction}>
+              {L('Plan the stop inside this window.', 'Planifica la parada dentro de esta ventana.')}
             </div>
           </div>
-          <div style={{
-            textAlign: 'right',
-            fontSize: '0.65rem',
-            fontFamily: "'JetBrains Mono', monospace",
-            color: 'var(--text-3)',
-            lineHeight: 1.8,
-          }}>
-            <div>{t.pitWindowLapsRange(vueltas_restantes_min, vueltas_restantes_max)}</div>
-            <div>{consumo_medio_l?.toFixed(3)} {t.pitFuelPerLapShort} ±{consumo_std_l?.toFixed(3)}</div>
+          <div className={css.callSide}>
+            <span>{t.pitWindowLapsRange(vueltas_restantes_min, vueltas_restantes_max)}</span>
+            <span>{fmt(consumo_medio_l, 3)} {t.pitFuelPerLapShort} ±{fmt(consumo_std_l, 3)}</span>
           </div>
         </div>
       )}
 
       {barData.length > 0 && (
-        <div style={{ marginTop: 'var(--s3)' }}>
-          <div style={{
-            fontSize: '0.62rem',
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--text-3)',
-            marginBottom: 8,
-          }}>
-            {t.pitWindowConsumptionTitle}
-          </div>
-          <ResponsiveContainer width="100%" height={120}>
+        <>
+          <div className={`ui-eyebrow ${css.sub}`}>{t.pitWindowConsumptionTitle} (L)</div>
+          <ResponsiveContainer width="100%" height={140}>
             <BarChart data={barData} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-              <XAxis dataKey="lap" tick={{ fill: 'var(--text-3)', fontSize: 10 }} />
-              <YAxis
-                tick={{ fill: 'var(--text-3)', fontSize: 10 }}
-                tickFormatter={v => `${v}L`}
-                width={36}
-              />
-              <Tooltip content={<FuelTooltip t={t} />} />
-              <Bar
-                dataKey="burned"
-                fill="var(--amber)"
-                fillOpacity={0.7}
-                radius={[3, 3, 0, 0]}
-                isAnimationActive={false}
-              />
+              <CartesianGrid stroke="var(--line)" strokeOpacity={0.6} vertical={false} />
+              <XAxis dataKey="lap" tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: 'var(--line-strong)' }} />
+              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={v => `${v}`} width={40} />
+              <Tooltip content={<FuelTooltip t={t} />} cursor={{ fill: 'var(--surface-3)', fillOpacity: 0.5 }} />
+              {consumo_medio_l != null && (
+                <ReferenceLine y={consumo_medio_l} stroke="var(--ink-3)" strokeDasharray="4 4" />
+              )}
+              <Bar dataKey="burned" fill="var(--lap-d)" fillOpacity={0.8} radius={[2, 2, 0, 0]} maxBarSize={28} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        </>
       )}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: 8,
-        marginTop: 'var(--s3)',
-      }}>
-        {[
-          { label: t.pitValueFuel, value: `${combustible_actual_l?.toFixed(1)} L` },
-          { label: t.pitValueConsumption, value: `${consumo_medio_l?.toFixed(3)} L/v` },
-          { label: t.pitValueStd, value: `±${consumo_std_l?.toFixed(3)} L` },
-        ].map(({ label, value }) => (
-          <div key={label} style={{
-            background: 'var(--bg-glass)',
-            border: '1px solid var(--border-1)',
-            borderRadius: 6,
-            padding: '8px 10px',
-            textAlign: 'center',
-          }}>
-            <div style={{ fontSize: '0.6rem', color: 'var(--text-3)', fontWeight: 600,
-              textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              {label}
-            </div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--amber)',
-              fontFamily: "'JetBrains Mono', monospace" }}>
-              {value}
-            </div>
-          </div>
-        ))}
+      <div className={css.stats}>
+        <Stat label={t.pitValueFuel} value={`${fmt(combustible_actual_l, 1)} L`} />
+        <Stat label={t.pitValueConsumption} value={`${fmt(consumo_medio_l, 3)} L/v`} />
+        <Stat label={t.pitValueStd} value={`±${fmt(consumo_std_l, 3)} L`} />
       </div>
-    </div>
+    </Panel>
   );
 }

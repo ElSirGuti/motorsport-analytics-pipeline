@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useLanguage } from '../context/LanguageContext';
+import { Icon } from './ui';
 
 const MAX_SIZE = 100 * 1024 * 1024;
 
@@ -21,32 +22,30 @@ const FileUploader = ({ label, selectedFile, onFileSelect }) => {
   });
 
   let stateClass = '';
-  if (isDragActive && isDragAccept) stateClass = 'dropzone--active';
-  if (selectedFile)                 stateClass = 'dropzone--accepted';
-  if (isDragReject)                 stateClass = '';
+  if (isDragActive && isDragAccept) stateClass = 'shell-drop--active';
+  if (selectedFile)                 stateClass = 'shell-drop--accepted';
+  if (isDragReject)                 stateClass = 'shell-drop--reject';
 
   return (
     <div
       {...getRootProps()}
-      className={`dropzone ${stateClass}`}
+      className={`shell-drop ${stateClass}`}
       aria-label={label}
       role="button"
       tabIndex={0}
     >
       <input {...getInputProps()} aria-hidden="true" />
-      <div className="dropzone__icon">
-        {selectedFile ? '✓' : isDragActive ? '⬇' : '▤'}
-      </div>
-      <div className="dropzone__label">
+      <Icon name={selectedFile ? 'check' : isDragActive ? 'download' : 'upload'} size={22} className="shell-drop__icon" />
+      <div className="shell-drop__label">
         {selectedFile ? selectedFile.name : (isDragActive ? t.fileDropHere : label)}
       </div>
       {!selectedFile && (
-        <div className="dropzone__sub">
+        <div className="shell-drop__sub">
           {t.fileLabel.replace('{max}', MAX_SIZE / 1024 / 1024)}
         </div>
       )}
       {selectedFile && (
-        <div className="dropzone__filename">
+        <div className="shell-drop__sub">
           {(selectedFile.size / 1024).toFixed(0)} KB
         </div>
       )}

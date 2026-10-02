@@ -37,6 +37,40 @@ _LAP_CHANNELS  = ["Session Lap Count", "SessionLapCount", "Lap", "LapNumber",
 _DIST_CHANNELS = ["Distance", "Dist", "LapDistance", "lap_distance"]
 
 
+MIN_LAP_SEGMENT_S = 30.0   # segments shorter than this are partial laps (end of log, pit stub)
+
+_TIME_CHANNELS = ["LapTime", "Time", "SessionTime", "Session Time",
+                  "LR Sample Clock", "HR Sample Clock", "MR Sample Clock"]
+
+
+def _segment_duration_s(seg: pd.DataFrame) -> float:
+    """Duration of a lap segment in seconds (NaN if no usable time channel)."""
+    for c in _TIME_CHANNELS:
+        if c not in seg.columns:
+            continue
+        t = pd.to_numeric(seg[c], errors="coerce").dropna()
+        if len(t) < 2:
+            continue
+        t0, t1 = float(t.iloc[0]), float(t.iloc[-1])
+        if c == "LapTime" and t0 < 10 and t1 > 5:
+            return t1
+        if t1 > t0:
+            return t1 - t0
+    return float("nan")
+
+
+def descartar_segmentos_parciales(dfs: list, min_s: float = MIN_LAP_SEGMENT_S) -> list:
+    """Drop partial segments (< min_s seconds) so every endpoint sees the same laps.
+
+    Segments whose duration cannot be measured are kept. If dropping would leave
+    fewer than 2 laps, the original list is returned unchanged.
+    """
+    kept = [d for d in dfs if not (_segment_duration_s(d) < min_s)]
+    if len(kept) < len(dfs):
+        logger.info("Segmentos parciales descartados (<%.0fs): %d", min_s, len(dfs) - len(kept))
+    return kept if len(kept) >= 2 else dfs
+
+
 def segmentar_vueltas_desde_csv(df: pd.DataFrame) -> list:
     """
     Splits a single multi-lap session DataFrame into a list of per-lap DataFrames.
@@ -86,6 +120,7 @@ def segmentar_vueltas_desde_csv(df: pd.DataFrame) -> list:
             dfs = [_reset_distance(df[lap_nums == n].reset_index(drop=True)) for n in unique_laps]
             dfs = [d for d in dfs if len(d) >= 10]
             if len(dfs) >= 2:
+                dfs = descartar_segmentos_parciales(dfs)
                 logger.info("Segmentación por canal '%s': %d vueltas", lap_col, len(dfs))
                 return dfs
         except Exception as exc:
@@ -107,6 +142,7 @@ def segmentar_vueltas_desde_csv(df: pd.DataFrame) -> list:
         ]
         dfs = [d for d in dfs if len(d) >= 10]
         if len(dfs) >= 2:
+            dfs = descartar_segmentos_parciales(dfs)
             logger.info("Segmentación por reset de distancia: %d vueltas", len(dfs))
             return dfs
 
@@ -389,13 +425,21 @@ def simular_tiempos_stint(df_laps, degradacion, seed=42):
 
 def calcular_evolucion_pista(df_laps: pd.DataFrame) -> dict:
     if df_laps is None or df_laps.empty:
-        return {"available": False}
-    time_col = next((c for c in ["LapTime", "Lap Time", "lap_time", "Time"] if c in df_laps.columns), None)
+        return {"available": False, "reason": "no laps"}
+    # extraer_metricas_por_vuelta() names the column 'lap_time_s'; older callers used LapTime.
+    time_col = next((c for c in ["lap_time_s", "LapTime", "Lap Time", "lap_time", "Time"]
+                     if c in df_laps.columns), None)
     if time_col is None:
-        return {"available": False}
-    times = df_laps[time_col].dropna()
+        return {"available": False, "reason": "no lap-time column"}
+    # Only representative laps: pit/out/in laps would swamp the grip trend.
+    sel = df_laps
+    if time_col == "lap_time_s" and "is_pit_lap" in df_laps.columns:
+        sel = df_laps[_racing_laps_mask(df_laps)]
+    times = sel[time_col].dropna()
     if len(times) < 4:
-        return {"available": False}
+        return {"available": False, "reason": "fewer than 4 representative laps"}
+    lap_ids = (sel.loc[times.index, "lap_number"].astype(int).tolist()
+               if "lap_number" in sel.columns else list(range(1, len(times) + 1)))
     window = min(3, len(times))
     rolling_min = times.rolling(window, min_periods=1).min()
     x = np.arange(len(rolling_min))
@@ -407,7 +451,8 @@ def calcular_evolucion_pista(df_laps: pd.DataFrame) -> dict:
         else ("Track losing grip: " + str(round(abs(total_gain), 2)) + "s over session") if direction == "degrading"
         else "Track conditions stable throughout session"
     )
-    per_lap = [{"lap": int(i + 1), "rolling_min_s": round(float(v), 3)} for i, v in enumerate(rolling_min)]
+    per_lap = [{"lap": int(l), "rolling_min_s": round(float(v), 3)}
+               for l, v in zip(lap_ids, rolling_min)]
     return {
         "available": True,
         "direction": direction,

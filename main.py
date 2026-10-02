@@ -142,15 +142,28 @@ def _sanitize(obj):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+def _module_ok(result: dict, *keys: str) -> bool:
+    """True if any of the (stint / session-compare / legacy) result keys holds usable data."""
+    for k in keys:
+        v = result.get(k)
+        if isinstance(v, dict) and v.get("available"):
+            return True
+        if isinstance(v, list) and v:
+            return True
+    return False
+
+
 def _build_health_summary(result: dict) -> dict:
-    thermal_ok = result.get("thermal_analysis", {}).get("available", False)
+    # The same summary is attached to /stint/analyze and /compare-session-laps, which
+    # name their sections differently — accept both (plus the legacy names).
     modules = {
-        "thermal": "ok" if thermal_ok else "unavailable",
-        "setup": "ok" if result.get("setup_sesion") else "unavailable",
-        "tyre_degradation": "ok" if result.get("tyre_degradation", {}).get("available") else "unavailable",
-        "racing_line": "ok" if result.get("racing_line", {}).get("available") else "unavailable",
-        "slip": "ok" if result.get("slip_analysis", {}).get("available") else "unavailable",
-        "corners": "ok" if result.get("corner_analysis") else "unavailable",
+        "thermal": "ok" if _module_ok(result, "thermal_analysis") else "unavailable",
+        "setup": "ok" if _module_ok(result, "setup_sesion", "setup_advisor") else "unavailable",
+        "tyre_degradation": "ok" if _module_ok(result, "degradacion_neumatico", "tyre_degradation", "tyre_analysis") else "unavailable",
+        "racing_line": "ok" if _module_ok(result, "racing_line_rl", "racing_line") else "unavailable",
+        "slip": "ok" if (_module_ok(result, "slip_angle", "slip_analysis")
+                         or bool((result.get("telemetria_sesion") or {}).get("balance"))) else "unavailable",
+        "corners": "ok" if _module_ok(result, "curvas_sesion", "corners", "corner_analysis") else "unavailable",
     }
     unavail = sum(1 for v in modules.values() if v == "unavailable")
     overall = "critical" if unavail >= 3 else "warning" if unavail >= 1 else "ok"
@@ -768,6 +781,20 @@ async def compare_session_laps_endpoint(
             result["apexes"]         = apexes.where(apexes.notna(), None).to_dict(orient="records")
             result["sectores"]       = df_sectores.to_dict(orient="records") if not df_sectores.empty else []
             result["corners"]        = insights_curvas   # richer corners override basic ones
+            # Corner windows are disjoint, so their sum never exceeds the total delta;
+            # the remainder is time lost/gained on straights and between corners.
+            if insights_curvas:
+                # summary was computed from the basic corners; keep it consistent with
+                # the (richer) corner list that replaces them.
+                _worst = max(insights_curvas, key=lambda c: c["time_loss_seconds"])
+                result["summary"]["worst_corner"] = _worst["corner_number"]
+                result["summary"]["worst_corner_loss"] = round(max(0.0, _worst["time_loss_seconds"]), 3)
+                result["summary"]["num_corners_analyzed"] = len(insights_curvas)
+            _corner_sum = round(sum(c["time_loss_seconds"] for c in insights_curvas), 3)
+            result["summary"]["corners_time_delta_s"] = _corner_sum
+            result["summary"]["outside_corners_delta_s"] = round(
+                result["summary"]["total_time_delta"] - _corner_sum, 3
+            )
             result["gg_diagram"]     = gg_points
             result["g_limit"]        = round(float(g_limit), 3)
             result["dynamic_events"] = eventos

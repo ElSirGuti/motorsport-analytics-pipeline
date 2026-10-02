@@ -45,13 +45,13 @@ _STEER_CH   = ["SteeringWheelAngle", "Steering Wheel Angle",
 #   Centre = middle strip        → LFtempCM / RFtempCM
 #   Outer  = kerb side           → LFtempCL / RFtempCR
 _TYRE_SURF  = {   # best single-channel summary per corner (middle strip / average)
-    "FL": ["Tyre Temp FL Centre", "LFtempCM", "LFtempM",
+    "FL": ["TyreTempMiddleFL", "Tyre Temp FL Centre", "LFtempCM", "LFtempM",
            "TyreTemp_FL", "Tyre Temp FL", "TyreTempFL"],
-    "FR": ["Tyre Temp FR Centre", "RFtempCM", "RFtempM",
+    "FR": ["TyreTempMiddleFR", "Tyre Temp FR Centre", "RFtempCM", "RFtempM",
            "TyreTemp_FR", "Tyre Temp FR", "TyreTempFR"],
-    "RL": ["Tyre Temp RL Centre", "LRtempCM", "LRtempM",
+    "RL": ["TyreTempMiddleRL", "Tyre Temp RL Centre", "LRtempCM", "LRtempM",
            "TyreTemp_RL", "Tyre Temp RL", "TyreTempRL"],
-    "RR": ["Tyre Temp RR Centre", "RRtempCM", "RRtempM",
+    "RR": ["TyreTempMiddleRR", "Tyre Temp RR Centre", "RRtempCM", "RRtempM",
            "TyreTemp_RR", "Tyre Temp RR", "TyreTempRR"],
 }
 _TYRE_INNER = {   # inner edge (towards centre of car)
@@ -75,13 +75,13 @@ _TYRE_OUTER = {   # outer edge (towards kerb)
            "TyreTempOuterRR", "Tyre Temp Outer RR"],
 }
 _TYRE_PRES = {    # tyre pressure (kPa in iRacing native, psi in MoTeC export)
-    "FL": ["Tyre Pres FL", "LFpressure", "LFcoldPressure",
+    "FL": ["TyrePressFL", "Tyre Pres FL", "LFpressure", "LFcoldPressure",
            "TyrePres_FL", "Tyre Pressure FL"],
-    "FR": ["Tyre Pres FR", "RFpressure", "RFcoldPressure",
+    "FR": ["TyrePressFR", "Tyre Pres FR", "RFpressure", "RFcoldPressure",
            "TyrePres_FR", "Tyre Pressure FR"],
-    "RL": ["Tyre Pres RL", "LRpressure", "LRcoldPressure",
+    "RL": ["TyrePressRL", "Tyre Pres RL", "LRpressure", "LRcoldPressure",
            "TyrePres_RL", "Tyre Pressure RL"],
-    "RR": ["Tyre Pres RR", "RRpressure", "RRcoldPressure",
+    "RR": ["TyrePressRR", "Tyre Pres RR", "RRpressure", "RRcoldPressure",
            "TyrePres_RR", "Tyre Pressure RR"],
 }
 _BRAKE_TEMP = {   # iRacing does not export brake disc temps; ACTI does
@@ -91,14 +91,14 @@ _BRAKE_TEMP = {   # iRacing does not export brake disc temps; ACTI does
     "RR": ["BrakeTemp_RR", "Brake Temp RR", "BrakeTempRR", "Brake Disc Temp RR"],
 }
 _SUSP = {         # shock deflection / suspension travel
-    "FL": ["LFshockDefl", "Susp Pos FL", "Ride Height FL",
-           "SuspTravelFL", "Susp Travel FL", "SuspensionTravelFL"],
-    "FR": ["RFshockDefl", "Susp Pos FR", "Ride Height FR",
-           "SuspTravelFR", "Susp Travel FR", "SuspensionTravelFR"],
-    "RL": ["LRshockDefl", "Susp Pos RL", "Ride Height RL",
-           "SuspTravelRL", "Susp Travel RL", "SuspensionTravelRL"],
-    "RR": ["RRshockDefl", "Susp Pos RR", "Ride Height RR",
-           "SuspTravelRR", "Susp Travel RR", "SuspensionTravelRR"],
+    "FL": ["SuspTravelFL", "Susp Travel FL", "SuspensionTravelFL",
+           "LFshockDefl", "Susp Pos FL", "Ride Height FL"],
+    "FR": ["SuspTravelFR", "Susp Travel FR", "SuspensionTravelFR",
+           "RFshockDefl", "Susp Pos FR", "Ride Height FR"],
+    "RL": ["SuspTravelRL", "Susp Travel RL", "SuspensionTravelRL",
+           "LRshockDefl", "Susp Pos RL", "Ride Height RL"],
+    "RR": ["SuspTravelRR", "Susp Travel RR", "SuspensionTravelRR",
+           "RRshockDefl", "Susp Pos RR", "Ride Height RR"],
 }
 
 # Tyre operating window (°C)
@@ -175,7 +175,8 @@ def _analyse_tyres_lap(df: pd.DataFrame) -> dict:
 
         if btemp_col:
             bt = _num(df, btemp_col).dropna()
-            if len(bt) >= 10:
+            # a pinned channel (e.g. constant ambient 26 °C) is a placeholder, not a reading
+            if len(bt) >= 10 and (float(bt.max()) - float(bt.min())) >= 1.0:
                 vals["brake_temp_mean"] = float(bt.mean())
                 vals["brake_temp_max"]  = float(bt.max())
 
@@ -357,6 +358,11 @@ def _analyse_balance_lap(df: pd.DataFrame) -> dict:
         yaw_actual = yaw.copy()
         if yaw_actual.abs().max() > 5:  # likely °/s
             yaw_actual = yaw_actual * (np.pi / 180)
+
+        # Lateral-accel / yaw-rate sign conventions differ per sim; without this the
+        # classification just reflects corner direction (e.g. 63 % "understeer").
+        from src.analytics.slip_angle import lateral_sign_convention
+        yaw_kin = yaw_kin * lateral_sign_convention(lat_ms2, yaw_actual, speed_ms)
 
         # Body slip rate proxy: difference between actual and kinematic yaw
         delta_yaw = (yaw_actual - yaw_kin)[cornering]

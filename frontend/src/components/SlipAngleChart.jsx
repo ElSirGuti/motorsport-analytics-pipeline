@@ -4,77 +4,63 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Badge } from './ui';
+import styles from './Analysis.module.css';
+import {
+  COLOR_A, COLOR_B, COLOR_E, COLOR_D, AXIS_TICK, AXIS_LINE, GRID_PROPS, REF_ZERO,
+  CHART_MARGIN, fmtDist, makeTooltip, Legend,
+} from './analysisKit';
 
-const renderTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{
-      background: 'rgba(10,15,30,0.97)', border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 8, padding: '8px 12px', fontSize: '0.72rem',
-      fontFamily: "'JetBrains Mono', monospace",
-    }}>
-      <div style={{ color: 'var(--text-3)', marginBottom: 4 }}>{Number(label).toFixed(0)}m</div>
-      {payload.map((p) => p.value != null && (
-        <div key={p.dataKey} style={{ color: p.color }}>
-          {p.name}: {p.value > 0 ? '+' : ''}{p.value.toFixed(2)}°
-        </div>
-      ))}
-    </div>
-  );
-};
+const COLOR_US = '#4da3ff';
+const COLOR_OS = '#f0616d';
+
+const tooltip = makeTooltip((v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}°`);
 
 const BalanceBar = ({ us, os, neutral }) => {
   const { t } = useLanguage();
   if (us == null) return null;
   return (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', gap: 1 }}>
-        <div style={{ width: `${us}%`, background: '#4FC3F7' }} title={`${t.slipAngleSub} ${us}%`} />
-        <div style={{ width: `${neutral}%`, background: 'rgba(255,255,255,0.15)' }} title={`${t.slipAngleNeutral} ${neutral}%`} />
-        <div style={{ width: `${os}%`, background: '#FF3D3D' }} title={`${t.slipAngleOver} ${os}%`} />
+    <div>
+      <div className={styles.bar} role="img" aria-label={`${t.slipAngleSub} ${us}%, ${t.slipAngleNeutral} ${neutral}%, ${t.slipAngleOver} ${os}%`}>
+        <div style={{ width: `${us}%`, background: COLOR_US }} />
+        <div style={{ width: `${neutral}%`, background: 'var(--ink-4)' }} />
+        <div style={{ width: `${os}%`, background: COLOR_OS }} />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-3)', marginTop: 3 }}>
-        <span style={{ color: '#4FC3F7' }}>{t.slipAngleSub} {us?.toFixed(0)}%</span>
+      <div className={styles.barLabels}>
+        <span style={{ color: COLOR_US }}>{t.slipAngleSub} {us?.toFixed(0)}%</span>
         <span>{t.slipAngleNeutral} {neutral?.toFixed(0)}%</span>
-        <span style={{ color: '#FF3D3D' }}>{t.slipAngleOver} {os?.toFixed(0)}%</span>
+        <span style={{ color: COLOR_OS }}>{t.slipAngleOver} {os?.toFixed(0)}%</span>
       </div>
     </div>
   );
 };
 
+const Metric = ({ label, value, color }) => (
+  <div className={styles.metric}>
+    <span className={styles.mLabel}>{label}</span>
+    <span className={styles.mValue} style={color ? { color } : undefined}>{value}</span>
+  </div>
+);
+
 const LapSummaryCard = ({ summary, label, color }) => {
   const { t } = useLanguage();
   if (!summary) return null;
   const { beta_max, beta_p95, understeer_pct, oversteer_pct, neutral_pct, balance_mean } = summary;
+  const balColor = balance_mean > 1 ? COLOR_US : balance_mean < -1 ? COLOR_OS : 'var(--ok)';
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 8, padding: '12px 14px', flex: '1 1 180px',
-    }}>
-      <div style={{ fontSize: '0.78rem', color, fontWeight: 600, marginBottom: 8 }}>{label}</div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>{t.slipAngleMax}</div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 700, color }}>
-            {beta_max != null ? `${beta_max.toFixed(1)}°` : '—'}
-          </div>
-        </div>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>{t.slipAngleP95}</div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-2)' }}>
-            {beta_p95 != null ? `${beta_p95.toFixed(1)}°` : '—'}
-          </div>
-        </div>
+    <div className={styles.card}>
+      <div className={styles.cardHead}>
+        <span className={styles.lapName}><span className={styles.swatch} style={{ background: color }} />{label}</span>
+      </div>
+      <div className={styles.metrics}>
+        <Metric label={t.slipAngleMax} value={beta_max != null ? `${beta_max.toFixed(1)}°` : '—'} />
+        <Metric label={t.slipAngleP95} value={beta_p95 != null ? `${beta_p95.toFixed(1)}°` : '—'} />
         {balance_mean != null && (
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: '0.62rem', color: 'var(--text-3)' }}>{t.slipAngleBalanceLabel}</div>
-            <div style={{
-              fontSize: '1.0rem', fontWeight: 700,
-              color: balance_mean > 1 ? '#4FC3F7' : balance_mean < -1 ? '#FF3D3D' : '#00E676',
-            }}>
-              {balance_mean > 0 ? '+' : ''}{balance_mean.toFixed(1)}°
-            </div>
-          </div>
+          <Metric
+            label={t.slipAngleBalanceLabel}
+            value={`${balance_mean > 0 ? '+' : ''}${balance_mean.toFixed(1)}°`}
+            color={balColor}
+          />
         )}
       </div>
       <BalanceBar us={understeer_pct} os={oversteer_pct} neutral={neutral_pct} />
@@ -85,15 +71,11 @@ const LapSummaryCard = ({ summary, label, color }) => {
 const SlipAngleChart = ({ slip_angle, metadata }) => {
   const { t } = useLanguage();
   const data = slip_angle;
-  if (!data?.available) return null;
 
-  const labelA = metadata?.label_a || 'A';
-  const labelB = metadata?.label_b || 'B';
-
-  const hasA = data.available_a;
-  const hasB = data.available_b;
-  const pdA  = hasA ? data.per_distance_a : null;
-  const pdB  = hasB ? data.per_distance_b : null;
+  const hasA = !!data?.available_a;
+  const hasB = !!data?.available_b;
+  const pdA = hasA ? data.per_distance_a : null;
+  const pdB = hasB ? data.per_distance_b : null;
 
   const betaData = useMemo(() => {
     const src = pdA || pdB;
@@ -115,94 +97,91 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
     }));
   }, [pdA, pdB]);
 
+  if (!data?.available) return null;
+
+  const labelA = metadata?.label_a || 'A';
+  const labelB = metadata?.label_b || 'B';
   const hasBalance = !!pdA?.balance;
 
-  return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title"><span>◈</span> {t.slipAngleTitle}</div>
-        <span className="chart-zoom-badge">{t.slipAngleModel}</span>
-      </div>
+  const geometry = t.slipAngleGeometry
+    .replace('{wheelbase}', data.wheelbase_m?.toFixed(2))
+    .replace('{ratio}', data.steer_ratio);
 
-      <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginBottom: 'var(--s4)', lineHeight: 1.5 }}>
-        {t.slipAngleDescription}
-          <span style={{ opacity: 0.6 }}> {t.slipAngleGeometry.replace('{wheelbase}', data.wheelbase_m?.toFixed(2)).replace('{ratio}', data.steer_ratio)}</span>
+  return (
+    <Panel icon="steering" title={t.slipAngleTitle} actions={<Badge>{t.slipAngleModel}</Badge>}>
+      <p className={styles.desc}>
+        {t.slipAngleDescription} <span className={styles.descMuted}>{geometry}</span>
       </p>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        {hasA && <LapSummaryCard summary={data.summary_a} label={labelA} color="#00D4FF" />}
-        {hasB && <LapSummaryCard summary={data.summary_b} label={labelB} color="#FF6B6B" />}
+      <div className={styles.cards}>
+        {hasA && <LapSummaryCard summary={data.summary_a} label={labelA} color={COLOR_A} />}
+        {hasB && <LapSummaryCard summary={data.summary_b} label={labelB} color={COLOR_B} />}
       </div>
 
       {betaData.length > 0 && (
-        <>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', marginBottom: 6 }}>
-            {t.slipAngleChassis}
+        <div className={styles.chartBox}>
+          <div className={styles.chartTitle}>
+            <span className={styles.chartLabel}>{t.slipAngleChassis} (°)</span>
+            <Legend items={[
+              ...(hasA ? [{ label: labelA, color: COLOR_A }] : []),
+              ...(hasB ? [{ label: labelB, color: COLOR_B }] : []),
+            ]} />
           </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <ComposedChart data={betaData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
+          <ResponsiveContainer width="100%" height={190}>
+            <ComposedChart data={betaData} margin={CHART_MARGIN}>
               <defs>
                 <linearGradient id="betaGradA" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#00D4FF" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#00D4FF" stopOpacity={0.01} />
+                  <stop offset="5%" stopColor={COLOR_A} stopOpacity={0.18} />
+                  <stop offset="95%" stopColor={COLOR_A} stopOpacity={0.01} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
-              <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Number(v).toFixed(0)}m`} />
-              <YAxis tick={{ fontSize: 10 }} unit="°" width={36} domain={['auto', 'auto']} />
-              <Tooltip content={renderTooltip} />
-              <ReferenceLine y={0} stroke="rgba(255,255,255,0.15)" />
+              <CartesianGrid {...GRID_PROPS} />
+              <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
+              <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit="°" width={40} domain={['auto', 'auto']} />
+              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              <ReferenceLine y={0} stroke={REF_ZERO} />
               {hasA && (
-                <Area
-                  type="monotone" dataKey="beta_a" name={`β ${labelA}`}
-                  stroke="#00D4FF" strokeWidth={1.5} fill="url(#betaGradA)"
-                  isAnimationActive={false} dot={false} connectNulls
-                />
+                <Area type="monotone" dataKey="beta_a" name={`β ${labelA}`} stroke={COLOR_A} strokeWidth={1.5}
+                  fill="url(#betaGradA)" isAnimationActive={false} dot={false} connectNulls />
               )}
               {hasB && (
-                <Line
-                  type="monotone" dataKey="beta_b" name={`β ${labelB}`}
-                  stroke="#FF6B6B" strokeWidth={1.5}
-                  isAnimationActive={false} dot={false} connectNulls
-                />
+                <Line type="monotone" dataKey="beta_b" name={`β ${labelB}`} stroke={COLOR_B} strokeWidth={1.5}
+                  isAnimationActive={false} dot={false} connectNulls />
               )}
             </ComposedChart>
           </ResponsiveContainer>
-        </>
+        </div>
       )}
 
       {hasBalance && balanceData.length > 0 && (
-        <>
-          <div style={{ fontSize: '0.68rem', color: 'var(--text-3)', marginTop: 12, marginBottom: 6 }}>
-            {t.slipAngleBalance}
+        <div className={styles.chartBox}>
+          <div className={styles.chartTitle}>
+            <span className={styles.chartLabel}>{t.slipAngleBalance} (°)</span>
+            <Legend items={[
+              { label: labelA, color: COLOR_E },
+              ...(hasB ? [{ label: labelB, color: COLOR_D }] : []),
+            ]} />
           </div>
-          <ResponsiveContainer width="100%" height={140}>
-            <ComposedChart data={balanceData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.04)" strokeDasharray="3 3" />
-              <XAxis dataKey="distance" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Number(v).toFixed(0)}m`} />
-              <YAxis tick={{ fontSize: 10 }} unit="°" width={36} domain={['auto', 'auto']} />
-              <Tooltip content={renderTooltip} />
-              <ReferenceLine y={0} stroke="rgba(255,255,255,0.2)" />
-              <ReferenceLine y={2}  stroke="rgba(79,195,247,0.3)"  strokeDasharray="3 3" />
-              <ReferenceLine y={-2} stroke="rgba(255,61,61,0.3)"   strokeDasharray="3 3" />
-              <Area
-                type="monotone" dataKey="balance_a" name={`Balance ${labelA}`}
-                stroke="#A78BFA" strokeWidth={1.5}
-                fill="transparent"
-                isAnimationActive={false} dot={false} connectNulls
-              />
+          <ResponsiveContainer width="100%" height={150}>
+            <ComposedChart data={balanceData} margin={CHART_MARGIN}>
+              <CartesianGrid {...GRID_PROPS} />
+              <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
+              <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit="°" width={40} domain={['auto', 'auto']} />
+              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              <ReferenceLine y={0} stroke={REF_ZERO} />
+              <ReferenceLine y={2} stroke={COLOR_US} strokeOpacity={0.4} strokeDasharray="3 3" />
+              <ReferenceLine y={-2} stroke={COLOR_OS} strokeOpacity={0.4} strokeDasharray="3 3" />
+              <Area type="monotone" dataKey="balance_a" name={`Balance ${labelA}`} stroke={COLOR_E} strokeWidth={1.5}
+                fill="transparent" isAnimationActive={false} dot={false} connectNulls />
               {hasB && (
-                <Line
-                  type="monotone" dataKey="balance_b" name={`Balance ${labelB}`}
-                  stroke="#FFD93D" strokeWidth={1}
-                  isAnimationActive={false} dot={false} connectNulls
-                />
+                <Line type="monotone" dataKey="balance_b" name={`Balance ${labelB}`} stroke={COLOR_D} strokeWidth={1.25}
+                  isAnimationActive={false} dot={false} connectNulls />
               )}
             </ComposedChart>
           </ResponsiveContainer>
-        </>
+        </div>
       )}
-    </div>
+    </Panel>
   );
 };
 

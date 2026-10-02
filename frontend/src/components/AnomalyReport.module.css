@@ -1,0 +1,14 @@
+.desc { margin: 0 0 12px; font-size: var(--fs-sm); color: var(--ink-3); line-height: 1.5; max-width: 80ch; }
+
+.zones { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 16px; }
+.zone { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius-md); }
+.zoneHead { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.range { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--ink-1); }
+.len { font-size: var(--fs-xs); color: var(--ink-3); }
+.zoneDesc { margin: 0; font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.5; }
+
+.barMeta { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; font-size: var(--fs-xs); color: var(--ink-3); }
+.barNums { font-family: var(--font-mono); font-weight: 600; }
+.barTrack { position: relative; height: 6px; background: var(--surface-0); border-radius: 3px; }
+.barFill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 3px; opacity: .75; }
+.barPeak { position: absolute; top: -2px; width: 2px; height: 10px; border-radius: 1px; }

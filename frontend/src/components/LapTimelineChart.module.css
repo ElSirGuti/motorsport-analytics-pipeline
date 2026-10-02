@@ -1,0 +1,12 @@
+.tip {
+  background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--radius-md);
+  padding: 10px 12px; box-shadow: var(--shadow-pop); font-size: var(--fs-sm); min-width: 160px;
+}
+.tipHead { display: flex; align-items: center; gap: 8px; color: var(--ink-1); font-weight: 600; margin-bottom: 6px; }
+.tipRow { display: flex; align-items: center; gap: 8px; color: var(--ink-2); line-height: 1.7; }
+.tipRow b { margin-left: auto; padding-left: 16px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-1); font-weight: 600; }
+.sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 12px 0 0; font-size: var(--fs-xs); color: var(--ink-2); }
+.legendItem { display: inline-flex; align-items: center; gap: 7px; }
+.chart { width: 100%; }
+.headBadges { display: flex; gap: 8px; align-items: center; }

@@ -1,8 +1,16 @@
-import { useMemo, useRef, useEffect, useState } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { getCursorDistance } from '../api/cursorStore';
 import { useLanguage } from '../context/LanguageContext';
+import { Panel, Icon } from './ui';
+import { COLOR } from './chartTheme';
+import styles from './TrackMap.module.css';
 
 const PADDING = 32;
+
+const LABEL = {
+  fontSize: 11, stroke: '#0d1014', strokeWidth: 3, paintOrder: 'stroke',
+  fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
+};
 
 function getInterpolatedPosition(points, distances, targetDist) {
   if (points.length === 0 || targetDist == null) return null;
@@ -59,14 +67,13 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
     return { points: pts, distances: dists, viewBox: `0 0 ${W} ${H}` };
   }, [trackData]);
 
-  const [fixedPos, setFixedPos] = useState(null);
+  const fixedPos = useMemo(
+    () => getInterpolatedPosition(points, distances, fixedDistance),
+    [points, distances, fixedDistance],
+  );
   const cursorRingRef = useRef(null);
   const cursorDotRef = useRef(null);
   const cursorLabelRef = useRef(null);
-
-  useEffect(() => {
-    setFixedPos(getInterpolatedPosition(points, distances, fixedDistance));
-  }, [points, distances, fixedDistance]);
 
   useEffect(() => {
     if (!points.length) return;
@@ -76,31 +83,22 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
       const dist = getCursorDistance();
       const pos = dist != null ? getInterpolatedPosition(points, distances, dist) : null;
 
-      if (cursorRingRef.current) {
+      [cursorRingRef.current, cursorDotRef.current].forEach((el) => {
+        if (!el) return;
         if (pos) {
-          cursorRingRef.current.setAttribute('cx', pos.x);
-          cursorRingRef.current.setAttribute('cy', pos.y);
-          cursorRingRef.current.style.display = '';
+          el.setAttribute('cx', pos.x);
+          el.setAttribute('cy', pos.y);
+          el.style.display = '';
         } else {
-          cursorRingRef.current.style.display = 'none';
+          el.style.display = 'none';
         }
-      }
-      if (cursorDotRef.current) {
-        if (pos) {
-          cursorDotRef.current.setAttribute('cx', pos.x);
-          cursorDotRef.current.setAttribute('cy', pos.y);
-          cursorDotRef.current.style.display = '';
-        } else {
-          cursorDotRef.current.style.display = 'none';
-        }
-      }
+      });
       if (cursorLabelRef.current) {
         if (pos && dist != null) {
-          const lbl = `${dist.toFixed(0)}m`;
-          const labelOffsetX = pos.x > 540 ? -45 : 10;
+          const labelOffsetX = pos.x > 540 ? -45 : 12;
           cursorLabelRef.current.setAttribute('x', pos.x + labelOffsetX);
           cursorLabelRef.current.setAttribute('y', pos.y + 4);
-          cursorLabelRef.current.textContent = lbl;
+          cursorLabelRef.current.textContent = `${dist.toFixed(0)}m`;
           cursorLabelRef.current.style.display = '';
         } else {
           cursorLabelRef.current.style.display = 'none';
@@ -125,87 +123,29 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
   const midPt = points[startPct];
 
   return (
-    <div className="card track-map-card">
-      <div className="card__title">
-        <span className="card__title-icon">◎</span>
-        {t.trackMapTitle}
-        {fixedDistance != null && (
-          <button
-            className="track-map-clear-btn"
-            onClick={onClearFixed}
-            title={t.trackMapClear}
-            aria-label={t.trackMapClear}
-          >
-            ✕
-          </button>
-        )}
-      </div>
-      <div className="track-map-container">
-        <svg
-          viewBox={viewBox}
-          width="100%"
-          height="100%"
-          style={{ display: 'block' }}
-          aria-label={t.trackMapAria}
+    <Panel
+      icon="map"
+      title={t.trackMapTitle}
+      actions={fixedDistance != null && (
+        <button
+          type="button"
+          className="ui-btn ui-btn--sm ui-btn--ghost"
+          onClick={onClearFixed}
+          title={t.trackMapClear}
+          aria-label={t.trackMapClear}
         >
-          <defs>
-            <filter id="trackGlow">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="cursorGlow">
-              <feGaussianBlur stdDeviation="4" result="blur" />
-              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="fixedGlow">
-              <feGaussianBlur stdDeviation="5" result="blur" />
-              <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <linearGradient id="trackGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%"   stopColor="#00D4FF" />
-              <stop offset="50%"  stopColor="#7C3AED" />
-              <stop offset="100%" stopColor="#00D4FF" />
-            </linearGradient>
-          </defs>
+          <Icon name="x" size={14} />
+          {fixedDistance.toFixed(0)} m
+        </button>
+      )}
+    >
+      <div className={styles.container}>
+        <svg viewBox={viewBox} width="100%" height="100%" style={{ display: 'block' }} role="img" aria-label={t.trackMapAria}>
+          <path d={pathD} fill="none" stroke="#323b48" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={pathD} fill="none" stroke="#a3adbb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
-          <path
-            d={pathD}
-            fill="none"
-            stroke="rgba(0,212,255,0.08)"
-            strokeWidth="12"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-
-          <path
-            d={pathD}
-            fill="none"
-            stroke="url(#trackGrad)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter="url(#trackGlow)"
-          />
-
-          {startPt && (
-            <>
-              <circle cx={startPt.x} cy={startPt.y} r="8" fill="rgba(0,230,118,0.15)" />
-              <circle cx={startPt.x} cy={startPt.y} r="4" fill="#00E676" />
-              <text
-                x={startPt.x + 12}
-                y={startPt.y + 5}
-                fontSize="11"
-                fill="#00E676"
-                stroke="rgba(6,10,20,0.85)"
-                strokeWidth="3"
-                paintOrder="stroke"
-                fontFamily="JetBrains Mono, monospace"
-                fontWeight="700"
-              >
-                S/F
-              </text>
-            </>
-          )}
+          <circle cx={startPt.x} cy={startPt.y} r="5" fill={COLOR.ok} stroke="#0d1014" strokeWidth="2" />
+          <text x={startPt.x + 10} y={startPt.y + 4} fill={COLOR.ok} {...LABEL}>S/F</text>
 
           {midPt && points[startPct + 1] && (() => {
             const nx = points[startPct + 1].x - midPt.x;
@@ -216,7 +156,7 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
             return (
               <polygon
                 points={`${midPt.x + ux},${midPt.y + uy} ${midPt.x - uy * 0.5 - ux * 0.4},${midPt.y + ux * 0.5 - uy * 0.4} ${midPt.x + uy * 0.5 - ux * 0.4},${midPt.y - ux * 0.5 - uy * 0.4}`}
-                fill="rgba(0,212,255,0.7)"
+                fill="#e8ecf2"
               />
             );
           })()}
@@ -224,31 +164,21 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
           {/* Fixed position marker */}
           {fixedPos && (
             <>
-              <circle cx={fixedPos.x} cy={fixedPos.y} r="12" fill="rgba(255,61,61,0.15)" />
-              <circle cx={fixedPos.x} cy={fixedPos.y} r="6" fill="#FF3D3D" filter="url(#fixedGlow)" />
-              <text
-                x={fixedPos.x + (fixedPos.x > 540 ? -48 : 12)}
-                y={fixedPos.y + 5}
-                fontSize="11"
-                fill="#FF3D3D"
-                stroke="rgba(6,10,20,0.85)"
-                strokeWidth="3"
-                paintOrder="stroke"
-                fontFamily="JetBrains Mono, monospace"
-                fontWeight="700"
-              >
+              <circle cx={fixedPos.x} cy={fixedPos.y} r="10" fill="none" stroke={COLOR.warn} strokeWidth="1.5" />
+              <circle cx={fixedPos.x} cy={fixedPos.y} r="4" fill={COLOR.warn} />
+              <text x={fixedPos.x + (fixedPos.x > 540 ? -48 : 14)} y={fixedPos.y + 4} fill={COLOR.warn} {...LABEL}>
                 {fixedDistance?.toFixed(0)}m
               </text>
             </>
           )}
 
-          {/* Cursor position marker — manipulated directly by rAF */}
-          <circle ref={cursorRingRef} className="track-cursor-ring" r="14" fill="rgba(0,212,255,0.1)" style={{ display: 'none' }} />
-          <circle ref={cursorDotRef} className="track-cursor-dot" r="5" fill="#00D4FF" filter="url(#cursorGlow)" style={{ display: 'none' }} />
-          <text ref={cursorLabelRef} fontSize="11" fill="#00D4FF" stroke="rgba(6,10,20,0.85)" strokeWidth="3" paintOrder="stroke" fontFamily="JetBrains Mono, monospace" fontWeight="700" style={{ display: 'none' }} />
+          {/* Cursor position marker, driven directly by rAF */}
+          <circle ref={cursorRingRef} r="11" fill="none" stroke={COLOR.accent} strokeWidth="1.5" style={{ display: 'none' }} />
+          <circle ref={cursorDotRef} r="4.5" fill={COLOR.accent} stroke="#0d1014" strokeWidth="1.5" style={{ display: 'none' }} />
+          <text ref={cursorLabelRef} fill={COLOR.accent} {...LABEL} style={{ display: 'none' }} />
         </svg>
       </div>
-    </div>
+    </Panel>
   );
 };
 

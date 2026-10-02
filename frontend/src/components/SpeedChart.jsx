@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useCursorWriter } from '../hooks/useCursorWriter';
-
-const COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
+import { Panel } from './ui';
+import { LAP_COLORS, TICK, AXIS_LINE, GRID_PROPS, CURSOR, ACTIVE_DOT, fmtDist } from './chartTheme';
+import { ChartTooltip, ZoomBadge, SeriesLegend, ChartEmpty } from './chartKit';
 
 // labels: translations object passed from parent
 const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
@@ -25,77 +25,51 @@ const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
   }, [data, zoomDomain]);
 
   if (!chartData.length) {
-    return (
-      <div className="chart-card">
-        <div className="chart-empty">
-          <span className="chart-empty__icon">◌</span>
-          {labels?.speedNoData ?? ''}
-        </div>
-      </div>
-    );
+    return <ChartEmpty icon="gauge" title={labels?.speedTitle}>{labels?.speedNoData ?? ''}</ChartEmpty>;
   }
 
-  const speedKeys  = Object.keys(data).filter((k) => k.startsWith('speed_'));
-  const lapLabels  = data?.lap_labels || {};
+  const speedKeys = Object.keys(data).filter((k) => k.startsWith('speed_'));
+  const lapLabels = data?.lap_labels || {};
+  const legend = speedKeys.map((k, i) => ({ key: k, label: lapLabels[k] || k, color: LAP_COLORS[i % LAP_COLORS.length] }));
 
   return (
-    <div className="chart-card">
-      <div className="chart-header">
-        <div className="chart-title">
-          <span>⚡</span>
-          {labels?.speedTitle ?? ''}
-        </div>
-        {zoomDomain && (
-          <span className="chart-zoom-badge">
-            ZOOM {zoomDomain[0].toFixed(0)}m → {zoomDomain[1].toFixed(0)}m
-          </span>
-        )}
-      </div>
+    <Panel icon="gauge" title={labels?.speedTitle ?? ''} subtitle="km/h" actions={<ZoomBadge domain={zoomDomain} />}>
+      <SeriesLegend items={legend} />
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer>
           <LineChart
             data={chartData}
-            margin={{ top: 6, right: 12, left: -16, bottom: 0 }}
+            margin={{ top: 6, right: 12, left: 0, bottom: 0 }}
             syncId="distanceSync"
             {...cursorHandlers}
             onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid {...GRID_PROPS} />
             <XAxis
-              dataKey="distance"
-              type="number"
-              domain={['dataMin', 'dataMax']}
-              tickFormatter={(v) => `${v.toFixed(0)}m`}
+              dataKey="distance" type="number" domain={['dataMin', 'dataMax']}
+              tick={TICK} axisLine={AXIS_LINE} tickLine={false}
+              tickFormatter={fmtDist} unit=" m" minTickGap={28}
             />
             <YAxis
-              domain={['auto', 'auto']}
-              tickFormatter={(v) => `${v.toFixed(0)}`}
-              unit=" km/h"
+              domain={['auto', 'auto']} tick={TICK} axisLine={false} tickLine={false}
+              tickFormatter={(v) => v.toFixed(0)} width={40}
             />
             <Tooltip
-              formatter={(value, name) => [`${Number(value).toFixed(1)} km/h`, lapLabels[name] || name]}
-              labelFormatter={(l) => `${Number(l).toFixed(0)} m`}
-            />
-            <Legend
-              formatter={(name) => lapLabels[name] || name}
-              wrapperStyle={{ paddingTop: '8px', fontSize: '0.78rem' }}
+              cursor={CURSOR}
+              content={<ChartTooltip unit=" km/h" nameMap={lapLabels} />}
             />
             {speedKeys.map((key, idx) => (
               <Line
-                key={key}
-                type="monotone"
-                dataKey={key}
-                name={key}
-                stroke={COLORS[idx % COLORS.length]}
-                strokeWidth={1.8}
-                dot={false}
-                activeDot={{ r: 3, strokeWidth: 0 }}
+                key={key} type="monotone" dataKey={key} name={key}
+                stroke={LAP_COLORS[idx % LAP_COLORS.length]}
+                strokeWidth={1.75} dot={false} activeDot={ACTIVE_DOT}
+                isAnimationActive={false}
               />
             ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Panel>
   );
 };
 

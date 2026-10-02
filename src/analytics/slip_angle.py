@@ -48,6 +48,24 @@ def _yaw_to_rad(yaw: pd.Series) -> pd.Series:
     return np.deg2rad(yaw)  # deg/s → rad/s
 
 
+def lateral_sign_convention(ay, yaw_rad_s, vx_ms) -> float:
+    """
+    Returns +1 or -1: the factor to apply to lateral acceleration so that it has the
+    same sign as the yaw rate in steady cornering (ay ≈ r·Vx).
+
+    The sign convention differs between sims/exports (Assetto Corsa logs lateral
+    accel anti-correlated with yaw rate: corr ≈ -0.96). Using the raw sign makes the
+    kinematic β integral diverge (β of 30°+) and swaps understeer/oversteer.
+    """
+    ay_v = np.asarray(ay, dtype=float)
+    ry = np.asarray(yaw_rad_s, dtype=float) * np.asarray(vx_ms, dtype=float)
+    moving = (np.asarray(vx_ms, dtype=float) > 10.0) & np.isfinite(ry) & np.isfinite(ay_v)
+    if moving.sum() > 20 and np.std(ay_v[moving]) > 0 and np.std(ry[moving]) > 0:
+        if np.corrcoef(ay_v[moving], ry[moving])[0, 1] < -0.3:
+            return -1.0
+    return 1.0
+
+
 def _integrate_slip(speed_kmh: pd.Series,
                     lat_g: pd.Series,
                     yaw_rad_s: pd.Series) -> pd.Series:
@@ -61,6 +79,7 @@ def _integrate_slip(speed_kmh: pd.Series,
     dt = (1.0 / vx).clip(lower=0, upper=2.0)  # segundos por metro
 
     ay = lat_g * G_MS2  # m/s²
+    ay = ay * lateral_sign_convention(ay, yaw_rad_s, vx)
     vy_dot = ay - yaw_rad_s * vx
 
     # Integración + corrección de deriva lineal

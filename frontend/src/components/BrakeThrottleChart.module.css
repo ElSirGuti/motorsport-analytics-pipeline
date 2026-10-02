@@ -1,0 +1,4 @@
+.lane {
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-3); margin: 8px 0 4px;
+}
