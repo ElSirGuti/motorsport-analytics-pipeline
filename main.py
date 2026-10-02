@@ -38,7 +38,19 @@ _project_tmp = os.getenv("TEMP_DIR", os.path.join(os.path.dirname(os.path.abspat
 os.makedirs(_project_tmp, exist_ok=True)
 tempfile.tempdir = _project_tmp
 
-# Límite de tamaño por archivo eliminado
+# Límite de tamaño por archivo subido (MB). Se aplica en _save_upload (por chunks) y,
+# de forma temprana, por Content-Length en un middleware.
+def _read_max_upload_mb() -> int:
+    try:
+        return max(1, int(os.getenv("MAX_UPLOAD_MB", "2048")))
+    except ValueError:
+        return 2048
+
+
+MAX_UPLOAD_MB = _read_max_upload_mb()
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+# Un request puede llevar hasta 2 archivos (comparar 2 CSV) + overhead multipart.
+_MAX_FILES_PER_REQUEST = 2
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -50,7 +62,9 @@ logger = logging.getLogger("motorsport-api")
 # ── Módulos del pipeline ──────────────────────────────────────────────────────
 from src.io.loaders import load_telemetry_data, read_motec_metadata, DataLoaderException
 from src.io.exporters import export_report_text
-from src.io.pdf_exporter import export_report_pdf
+from src.io.pdf_exporter import (
+    export_report_pdf, export_session_report_pdf, build_report_filename, read_session_header,
+)
 from src.processing.alignment import align_pair
 from src.processing.filters import apply_standard_filters
 from src.telemetry.lap_comparator import compare_laps
@@ -83,6 +97,7 @@ from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 from src.analytics.tyre_degradation import predecir_degradacion_neumatico
 from src.analytics.racing_line_rl import optimizar_trazada_rl
 from src.analytics.thermal_management import analizar_termica, analizar_termica_comparativa
+from src.analytics.data_quality import safe_assess as safe_assess_dq, build_meta as build_dq_meta
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -91,13 +106,38 @@ app = FastAPI(
     version="1.1.0",
 )
 
+@app.middleware("http")
+async def _limit_content_length(request: Request, call_next):
+    """Rechaza temprano (413) los requests cuyo Content-Length ya excede el límite."""
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit():
+        limit = MAX_UPLOAD_BYTES * _MAX_FILES_PER_REQUEST + 1024 * 1024
+        if int(declared) > limit:
+            set_language(_detect_lang(request))
+            return JSONResponse(
+                status_code=413,
+                content={"detail": _("api_err_upload_too_large", max_mb=MAX_UPLOAD_MB)},
+            )
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
+
+from src.api.library import router as library_router  # biblioteca de sesiones
+app.include_router(library_router)
+
+from src.api import setups as setups_api  # integración de setups de Assetto Corsa
+app.include_router(setups_api.router)
+
+from src.api import optimal_lap as optimal_lap_api  # vuelta óptima por microsectores
+app.include_router(optimal_lap_api.router)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -105,8 +145,26 @@ import shutil
 
 async def _save_upload(upload: UploadFile, dest_path: str):
     """Guarda un UploadFile directamente a disco usando chunks para no saturar la RAM."""
-    with open(dest_path, "wb") as buffer:
-        shutil.copyfileobj(upload.file, buffer)
+    written = 0
+    try:
+        with open(dest_path, "wb") as buffer:
+            while True:
+                chunk = upload.file.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=_("api_err_upload_too_large", max_mb=MAX_UPLOAD_MB),
+                    )
+                buffer.write(chunk)
+    except HTTPException:
+        try:
+            os.remove(dest_path)  # no dejar el archivo parcial en disco
+        except OSError:
+            pass
+        raise
 
 
 import math
@@ -203,6 +261,41 @@ async def generate_pdf_from_json(
         raise HTTPException(status_code=500, detail=_("api_err_pdf", err=str(e)))
 
 
+@app.post("/api/report/session-pdf-from-json")
+async def generate_session_pdf_from_json(
+    request: Request,
+    payload: dict = Body(...),
+):
+    """
+    Informe PDF de una sesión completa a partir del JSON ya calculado en el frontend.
+    Cuerpo: {"session": <analyze-session>, "stint": <stint/analyze>|null,
+             "comparison": <compare>|null, "metadata": {...}|null}.
+    """
+    from starlette.concurrency import run_in_threadpool
+
+    lang = _detect_lang(request)
+    set_language(lang)
+    session = payload.get("session")
+    if not isinstance(session, dict) or not isinstance(session.get("laps"), list):
+        raise HTTPException(status_code=422, detail=_("api_err_pdf_payload"))
+    stint = payload.get("stint") if isinstance(payload.get("stint"), dict) else None
+    comparison = payload.get("comparison") if isinstance(payload.get("comparison"), dict) else None
+    extra = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else None
+    try:
+        pdf_bytes = await run_in_threadpool(
+            export_session_report_pdf, session, stint, comparison, extra, None, lang)
+        meta = {**(session.get("metadata") or {}), **(extra or {})}
+        filename = build_report_filename(meta)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        logger.error("Error generando PDF de sesión: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail=_("api_err_pdf", err=str(e)))
+
+
 @app.post("/api/report/pdf")
 async def generate_pdf_report(
     request: Request,
@@ -271,7 +364,7 @@ async def generate_pdf_report(
                 "BrakeTempFL", "BrakeTempFR", "BrakeTempRL", "BrakeTempRR", "YawRate",
             ]
             df_adv = alinear_vueltas_y_calcular_delta(df_a, df_b, paso_metros=1.0, canales_extra=canales_extra)
-            df_adv, _ = calcular_limites_dinamicos(df_adv)
+            df_adv, _lim = calcular_limites_dinamicos(df_adv)
             df_sectores    = resumir_delta_por_sector(df_adv, apexes, lang=lang)
             insights_curvas = analizar_errores_por_curva(df_adv, apexes, lang=lang)
 
@@ -561,6 +654,9 @@ async def analyze_session_endpoint(
 
         logger.info("Paso 2/2: Analizando vueltas...")
         result = analyze_session(df)
+        result["metadata"] = read_session_header(path, session_file.filename)
+        result["data_quality"] = safe_assess_dq(
+            df, build_dq_meta(path, session_file.filename, "session"), result, lang)
 
         return JSONResponse(content=_sanitize(result))
 
@@ -875,6 +971,9 @@ async def compare_session_laps_endpoint(
             result["setup_advisor"] = {"available": False}
         result["text_report"] = export_report_text(result, lang=lang)
         result["health_summary"] = _build_health_summary(result)
+        result["data_quality"] = safe_assess_dq(
+            df, build_dq_meta(path, session_file.filename, "compare",
+                              n_laps_detected=n, n_laps_compared=2), result, lang)
         logger.info("✓ Comparación de vueltas de sesión completada")
         return JSONResponse(content=_sanitize(result))
 
@@ -1133,6 +1232,9 @@ async def analyze_telemetry_endpoint(
             "tiempo_potencial": tiempo_potencial,
             "xgboost_pred":     xgboost_pred,
         }
+        payload["data_quality"] = safe_assess_dq(
+            [df_fast_raw, df_slow_raw],
+            build_dq_meta(path_fast, lap_fast.filename, "compare"), payload, lang)
 
         logger.info(f"✓ Pipeline completo: {len(apexes)} curvas, delta={delta_total:+.3f}s, "
                     f"G_max={g_limit:.2f}, {len(eventos_dinamica)} eventos, "
@@ -1177,12 +1279,14 @@ async def analyze_stint_endpoint(
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
         dfs = []
+        dq_src = None  # full session frame when available (data-quality panel)
 
         if len(laps) == 1:
             # Session CSV mode — auto-segment into individual laps
             path = os.path.join(tmp_dir, "session.csv")
             await _save_upload(laps[0], path)
             df_session = load_telemetry_data(path)
+            dq_src = df_session
             logger.info(f"Modo sesión única: segmentando '{laps[0].filename}' ({len(df_session)} filas)...")
             try:
                 dfs = segmentar_vueltas_desde_csv(df_session)
@@ -1291,6 +1395,9 @@ async def analyze_stint_endpoint(
             "track_evolution":       track_evolution,
         }
         stint_result["health_summary"] = _build_health_summary(stint_result)
+        stint_result["data_quality"] = safe_assess_dq(
+            dq_src if dq_src is not None else dfs,
+            build_dq_meta(path, laps[0].filename, "stint"), stint_result, lang)
         return JSONResponse(content=_sanitize(stint_result))
 
     except HTTPException:

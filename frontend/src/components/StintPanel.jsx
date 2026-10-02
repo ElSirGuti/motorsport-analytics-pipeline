@@ -6,6 +6,8 @@ import PitWindowWidget from './PitWindowWidget';
 import CornerAnalysisPanel from './CornerAnalysisPanel';
 import SetupRecommendations from './SetupRecommendations';
 import { Icon, Panel, Stat, Badge } from './ui';
+import FormatBadge from './FormatBadge';
+import { isSupportedFile, ACCEPT_ATTR } from '../utils/formats';
 import css from './StintPanel.module.css';
 
 function sigmaNote(sigma, laps, t) {
@@ -36,7 +38,7 @@ export default function StintPanel() {
   const fileInputRef = useRef(null);
 
   const addFiles = useCallback((newFiles) => {
-    const csvs = [...newFiles].filter(f => f.name.toLowerCase().endsWith('.csv'));
+    const csvs = [...newFiles].filter(isSupportedFile);
     setFiles(prev => {
       const existing = new Set(prev.map(f => f.name + f.size));
       const fresh = csvs.filter(f => !existing.has(f.name + f.size));
@@ -124,7 +126,7 @@ export default function StintPanel() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv"
+          accept={ACCEPT_ATTR}
           multiple
           className={css.hidden}
           onChange={handleFileInput}
@@ -140,6 +142,7 @@ export default function StintPanel() {
                 <div key={f.name + f.size} className={css.fileRow}>
                   <span className={css.fileTag}>{isSessionMode ? 'CSV' : `V${i + 1}`}</span>
                   <span className={css.fileName} title={f.name}>{f.name}</span>
+                  <FormatBadge file={f} />
                   <span className={css.fileSize}>{(f.size / 1024).toFixed(0)} KB</span>
                   <button type="button" className={css.remove} onClick={() => removeFile(i)} aria-label={t.stintRemoveAria(isSessionMode, i)}>
                     <Icon name="x" size={14} />

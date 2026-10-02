@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon, EmptyState } from './ui';
+import { SetupChips, SetupDetail, ConflictBanner, SetupUsedPanel } from './SetupLink';
 import s from './RecPanels.module.css';
 
 const TONE = { alta: 'bad', media: 'warn', baja: 'ok', nominal: undefined };
@@ -23,6 +24,7 @@ function RecCard({ rec, isPilotMode }) {
               <Badge tone={TONE[prio]}>{labels[prio]}</Badge>
             </div>
             <p className={s.recText} style={{ fontSize: 'var(--fs-md)', fontWeight: 500 }}>{rec.pilot_note || rec.problem}</p>
+            <SetupChips link={rec.setup_link} />
           </div>
           <div className={s.recGain}>
             <div className={s.recGainVal}>{rec.expected_gain}</div>
@@ -42,6 +44,7 @@ function RecCard({ rec, isPilotMode }) {
             <span className={s.recCat}>{rec.category}</span>
           </div>
           <p className={s.recText}>{rec.problem}</p>
+          <SetupChips link={rec.setup_link} />
         </div>
         <div className={s.recGain}>
           <div className={s.recGainVal}>{rec.expected_gain}</div>
@@ -62,6 +65,7 @@ function RecCard({ rec, isPilotMode }) {
               <p className={`${s.fieldTxt} ${s.strong}`}>{rec.recommendation}</p>
             </div>
           </div>
+          <SetupDetail link={rec.setup_link} />
           {rec.detail && (
             <>
               <div className={s.fieldLbl} style={{ marginTop: 12 }}>{t.setupData}</div>
@@ -82,12 +86,15 @@ function RecCard({ rec, isPilotMode }) {
 
 const AREA_KEY = { nominal: 'areaOk', alta: 'areaHigh', media: 'areaMed', baja: 'areaLow' };
 
-export default function SetupRecommendations({ setup_advisor, source, isPilotMode }) {
+export default function SetupRecommendations({ setup_advisor, source, isPilotMode, setup = null, annotated = null }) {
   const { t } = useLanguage();
   const [filter, setFilter] = useState('all');
 
   if (!setup_advisor?.available && !setup_advisor?.areas_status?.length) return null;
-  const { recommendations = [], areas_status = [], total_gain_range } = setup_advisor;
+  const { areas_status = [], total_gain_range } = setup_advisor;
+  // When a setup is linked, the annotated list carries `setup_link` (current -> suggested) per rec.
+  const recommendations = annotated?.recommendations ?? setup_advisor.recommendations ?? [];
+  const touched = recommendations.flatMap(r => (r.setup_link?.actions ?? []).map(a => a.param));
 
   const counts = {
     all:   recommendations.length,
@@ -116,6 +123,17 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
     <Panel icon="wrench" title={t.setupTitle} subtitle={t.setupSub(recommendations.length)} actions={gain || null}>
       {source === 'compare' && (
         <div style={{ marginBottom: 12 }}><Badge tone="accent">{t.setupPostLap}</Badge></div>
+      )}
+
+      {setup && (
+        <div className={s.section}>
+          <div className={s.sectionHead}>
+            <span className={s.sectionTitle}>{t.acsTitle}</span>
+            {annotated?.n_linked > 0 && <span className={s.right}>{t.acsLinkedCount(annotated.n_linked)}</span>}
+          </div>
+          <ConflictBanner conflicts={annotated?.conflicts} />
+          <SetupUsedPanel setup={setup} touched={touched} />
+        </div>
       )}
 
       {!isPilotMode && areas_status?.length > 0 && (
@@ -152,6 +170,7 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
         {visible.length === 0 && <EmptyState icon="check">{t.setupEmpty}</EmptyState>}
       </div>
 
+      {annotated?.n_linked > 0 && <p className={s.note}>{t.acsStepNote}</p>}
       <p className={s.note}>{t.setupDisclaimer}</p>
     </Panel>
   );

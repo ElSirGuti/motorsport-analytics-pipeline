@@ -1,0 +1,13 @@
+{
+  "fmt_experimental_badge": "Experimental",
+  "fmt_ibt_truncated": "The iRacing .ibt file is truncated or incomplete (header or data records are missing). Re-copy the file from Documents\\iRacing\\telemetry once the session has ended.",
+  "fmt_ibt_bad_header": "The file does not look like a valid iRacing .ibt telemetry file (invalid header).",
+  "fmt_ibt_version_unsupported": "Unsupported iRacing .ibt version ({ver}). Supported versions: 1 and 2.",
+  "fmt_ld_truncated": "The MoTeC .ld file is truncated or incomplete (channel table or data are missing).",
+  "fmt_ld_bad_header": "The file does not look like a valid MoTeC .ld log (invalid header marker).",
+  "fmt_ld_no_channels": "The MoTeC .ld file contains no readable channels.",
+  "fmt_no_speed_channel": "No speed channel was found in the {fmt} file. Channels found: {available}",
+  "fmt_no_data": "The {fmt} file has no usable data samples.",
+  "fmt_too_many_samples": "The {fmt} file is too large to analyse ({n} samples after resampling; limit {max}). Split the session into stints or lower the logging rate.",
+  "fmt_unreadable": "The {fmt} file could not be read: {err}"
+}

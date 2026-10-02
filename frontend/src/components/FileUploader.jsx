@@ -2,8 +2,10 @@ import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useLanguage } from '../context/LanguageContext';
 import { Icon } from './ui';
+import FormatBadge from './FormatBadge';
+import { MAX_FILE_MB } from '../utils/formats';
 
-const MAX_SIZE = 100 * 1024 * 1024;
+const MAX_SIZE = MAX_FILE_MB * 1024 * 1024;
 
 const FileUploader = ({ label, selectedFile, onFileSelect }) => {
   const { t } = useLanguage();
@@ -16,7 +18,7 @@ const FileUploader = ({ label, selectedFile, onFileSelect }) => {
 
   const { getRootProps, getInputProps, isDragActive, isDragAccept, isDragReject } = useDropzone({
     onDrop,
-    accept: { 'text/csv': ['.csv'], 'text/plain': ['.csv'] },
+    accept: { 'text/csv': ['.csv'], 'text/plain': ['.csv'], 'application/octet-stream': ['.ibt', '.ld'] },
     maxSize: MAX_SIZE,
     multiple: false,
   });
@@ -46,7 +48,7 @@ const FileUploader = ({ label, selectedFile, onFileSelect }) => {
       )}
       {selectedFile && (
         <div className="shell-drop__sub">
-          {(selectedFile.size / 1024).toFixed(0)} KB
+          {(selectedFile.size / 1024).toFixed(0)} KB <FormatBadge file={selectedFile} />
         </div>
       )}
     </div>

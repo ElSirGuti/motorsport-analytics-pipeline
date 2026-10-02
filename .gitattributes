@@ -1,1 +1,6 @@
 *.csv filter=lfs diff=lfs merge=lfs -text
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+Dockerfile text eol=lf
+Makefile text eol=lf

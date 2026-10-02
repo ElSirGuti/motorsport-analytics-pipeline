@@ -1,0 +1,12 @@
+# Replace motorsport.example.com and the ClusterIssuer name with your own.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: motorsport
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod   # placeholder: requires cert-manager
+spec:
+  tls:
+    - hosts:
+        - motorsport.example.com
+      secretName: motorsport-tls

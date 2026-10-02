@@ -1,0 +1,16 @@
+{
+  "optlap_reason_few_laps": "Se necesitan al menos {min} vueltas rápidas válidas para construir una vuelta óptima (hay {n}).",
+  "optlap_reason_error": "No se pudo calcular la vuelta óptima: {err}",
+  "optlap_excl_pit": "Vuelta de pit, de salida o con tiempo atípico",
+  "optlap_excl_data": "Datos insuficientes (tiempo, distancia o velocidad)",
+  "optlap_excl_slow": "Demasiado lenta ({pct}% de la mejor vuelta)",
+  "optlap_excl_length": "La vuelta no cubre el circuito completo ({m} m) o su distancia difiere de la longitud del circuito: vuelta parcial",
+  "optlap_corner": "Curva {n}",
+  "optlap_hint_min": "Llevar {dv} km/h más en el punto más lento (como en la vuelta {lap}).",
+  "optlap_hint_exit": "Mejor salida: {dv} km/h más al final de la zona (como en la vuelta {lap}).",
+  "optlap_hint_spread": "Pequeñas ganancias repartidas por la zona, tomadas sobre todo de la vuelta {lap}.",
+  "optlap_warn_synth": "La distancia se sintetizó integrando la velocidad: la alineación de los microsectores es menos precisa y las ganancias son orientativas.",
+  "optlap_warn_few": "Solo hay {n} vueltas: la vuelta óptima es menos fiable que con una muestra mayor.",
+  "optlap_warn_time_synth": "Algunas vueltas no tienen reloj utilizable; el tiempo se derivó de la distancia y la velocidad.",
+  "optlap_explain": "La óptima teórica suma el mejor tiempo de cada microsector ({theo} s más rápida que tu mejor vuelta) y es una cota inferior: ignora que la velocidad con la que sales de un microsector es la que llevas al entrar en el siguiente. La óptima realista solo cambia de vuelta donde ambas llevan la misma velocidad (±{tol} km/h) y mantiene cada vuelta al menos {run} m, así que es físicamente alcanzable ({real} s más rápida, {switches} cambios de vuelta). Los {gap} s de diferencia son tiempo que depende de arrastrar velocidad de un tramo al siguiente, no de microsectores aislados."
+}

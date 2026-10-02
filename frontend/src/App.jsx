@@ -6,6 +6,7 @@ import TimeDeltaChart from './components/TimeDeltaChart';
 import SummaryCard from './components/SummaryCard';
 import CornerReport from './components/CornerReport';
 import TrackMap from './components/TrackMap';
+import OptimalLapPanel from './components/OptimalLapPanel';
 import LapTimelineChart from './components/LapTimelineChart';
 import PitWindowWidget from './components/PitWindowWidget';
 import CurvatureMap from './components/CurvatureMap';
@@ -18,19 +19,26 @@ import BrakeFadeChart from './components/BrakeFadeChart';
 import DriverInputsChart from './components/DriverInputsChart';
 import SuspensionChart from './components/SuspensionChart';
 import SlipAngleChart from './components/SlipAngleChart';
-import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps, downloadPdfReport } from './api/telemetry';
+import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps, downloadPdfReport, downloadSessionPdfReport } from './api/telemetry';
 import CornerAnalysisPanel from './components/CornerAnalysisPanel';
-import SetupRecommendations from './components/SetupRecommendations';
+import SetupSection from './components/SetupSection';
 import InfoButton from './components/InfoButton';
 import TyreDegradationPanel from './components/TyreDegradationPanel';
 import RacingLinePanel from './components/RacingLinePanel';
 import ThermalManagementPanel from './components/ThermalManagementPanel';
 import HealthDashboard from "./components/HealthDashboard";
+import DataQualityPanel from "./components/DataQualityPanel";
 import PilotEngineerToggle from "./components/PilotEngineerToggle";
 import { usePilotMode } from './components/usePilotMode';
 import Sidebar from './components/Sidebar';
 import { sectionLabel } from './components/navSections';
 import { Icon, Panel, Stat, Badge } from './components/ui';
+import SaveToLibrary from './components/library/SaveToLibrary';
+import LibraryView from './components/library/LibraryView';
+import CompareSessionsView from './components/library/CompareSessionsView';
+import { restoreResults } from './api/library';
+import FormatBadge from './components/FormatBadge';
+import { isSupportedFile, ACCEPT_ATTR } from './utils/formats';
 import './styles/shell.css';
 
 const LAP_COLORS = ['var(--lap-a)', 'var(--lap-b)', 'var(--lap-c)', 'var(--lap-d)', 'var(--lap-e)', 'var(--lap-f)'];
@@ -139,10 +147,10 @@ function SessionKPIs({ sessionResult, stintResult }) {
   );
 }
 
-function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, onCompareBestWorst, compareLoading, compareError }) {
+function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, onCompareBestWorst, compareLoading, compareError, csvMissing }) {
   const { t } = useLanguage();
   const [lapA, lapB] = selectedLaps;
-  const canCompare = selectedLaps.length === 2 && !compareLoading;
+  const canCompare = selectedLaps.length === 2 && !compareLoading && !csvMissing;
 
   return (
     <Panel icon="stopwatch" title={t.lapTableTitle} flush>
@@ -165,11 +173,11 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
           )}
         </div>
         <div className="shell-lapbar__actions">
-          <button type="button" className="ui-btn ui-btn--sm" onClick={onCompareBestWorst} disabled={compareLoading}>
+          <button type="button" className="ui-btn ui-btn--sm" onClick={onCompareBestWorst} disabled={compareLoading || csvMissing} title={csvMissing ? t.libCsvRequired : undefined}>
             {compareLoading ? <span className="shell-spin" /> : <Icon name="trend" size={14} />}
             {compareLoading ? clean(t.appComparing) : clean(t.appCompareBestWorst)}
           </button>
-          <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" onClick={onCompare} disabled={!canCompare}>
+          <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" onClick={onCompare} disabled={!canCompare} title={csvMissing ? t.libCsvRequired : undefined}>
             {compareLoading
               ? <><span className="shell-spin" /> {t.compareLoading}</>
               : selectedLaps.length === 2 ? t.compareLaps(lapA, lapB) : clean(t.analyzeCompare)}
@@ -256,7 +264,7 @@ function ModuleWithHelp({ children, title, helpContent }) {
   );
 }
 
-function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode }) {
+function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode, setupFile }) {
   const { t } = useLanguage();
   const meta = result?.metadata;
   const title = comparingLaps
@@ -526,7 +534,8 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
 
         {result.setup_advisor?.available && (
           <div className="shell-gap">
-            <SetupRecommendations
+            <SetupSection
+              file={setupFile}
               setup_advisor={result.setup_advisor}
               source="compare"
               isPilotMode={isPilotMode}
@@ -595,11 +604,17 @@ export default function App() {
 
   const [selectedLaps, setSelectedLaps] = useState([]);
 
+  // Biblioteca de sesiones: vista activa, sesion restaurada y pareja preseleccionada para comparar
+  const [view, setView] = useState('analysis');
+  const [savedSession, setSavedSession] = useState(null);
+  const [compareSeed, setCompareSeed] = useState(null);
+
   const [zoomDomain, setZoomDomain] = useState(null);
   const [activeCorner, setActiveCorner] = useState(null);
   const [fixedDistance, setFixedDistance] = useState(null);
   const [copied, setCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [sessionPdfLoading, setSessionPdfLoading] = useState(false);
 
   const [isPilotMode, togglePilotMode] = usePilotMode();
 
@@ -615,9 +630,7 @@ export default function App() {
   const isSessionMode = files.length === 1;
 
   const addFiles = useCallback((incoming) => {
-    const csvs = [...incoming].filter(f =>
-      f.name.toLowerCase().endsWith('.csv')
-    );
+    const csvs = [...incoming].filter(isSupportedFile);
     setFiles(prev => {
       const seen = new Set(prev.map(f => f.name + f.size));
       return [...prev, ...csvs.filter(f => !seen.has(f.name + f.size))];
@@ -783,6 +796,29 @@ export default function App() {
     }
   };
 
+  const handleSessionPdfDownload = async () => {
+    if (!sessionResult || sessionPdfLoading) return;
+    setSessionPdfLoading(true);
+    try {
+      const { blob, filename } = await downloadSessionPdfReport(
+        { session: sessionResult, stint: stintResult, comparison: compareResult, metadata: { file: files[0]?.name } },
+        lang,
+      );
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading session report:', err);
+    } finally {
+      setSessionPdfLoading(false);
+    }
+  };
+
   const handleCompareBestWorst = async () => {
     if (!files[0] || compareLoading) return;
     setCompareLoading(true);
@@ -807,7 +843,27 @@ export default function App() {
   };
 
 
+  // Abre una sesion guardada: restaura los resultados sin subir el CSV.
+  const handleOpenSaved = (detail) => {
+    const { sessionResult: sess, stintResult: stint } = restoreResults(detail);
+    setFiles([]);
+    setError(null);
+    setSessionResult(sess);
+    setStintResult(stint);
+    setCompareResult(null);
+    setCompareError(null);
+    setComparingLaps(null);
+    setSelectedLaps([]);
+    setZoomDomain(null);
+    setActiveCorner(null);
+    setFixedDistance(null);
+    setSavedSession({ id: detail.id, title: detail.title });
+    setView('analysis');
+    window.scrollTo({ top: 0 });
+  };
+
   const resetAll = () => {
+    setSavedSession(null);
     setFiles([]);
     setError(null);
     setSessionResult(null);
@@ -848,6 +904,11 @@ export default function App() {
           <span className="shell-brand__name">{t.appBrand}</span>
           <span className="shell-brand__ver">{t.appVersion}</span>
         </div>
+        <nav className="ui-seg" aria-label={t.libViewSwitch}>
+          <button type="button" className="ui-seg__item" aria-pressed={view === 'analysis'} onClick={() => setView('analysis')}>{t.libNavAnalysis}</button>
+          <button type="button" className="ui-seg__item" aria-pressed={view === 'library'} onClick={() => setView('library')}>{t.libNavLibrary}</button>
+          <button type="button" className="ui-seg__item" aria-pressed={view === 'compare'} onClick={() => { setCompareSeed(null); setView('compare'); }}>{t.libNavCompare}</button>
+        </nav>
         <div className="shell-appbar__spacer" />
         <div className="shell-appbar__tools">
           <span className="shell-status">
@@ -862,8 +923,22 @@ export default function App() {
         </div>
       </header>
 
-      <div className={`shell-body${hasResults ? ' shell-body--rail' : ''}`}>
-        {hasResults && (
+      <div className={`shell-body${hasResults && view === 'analysis' ? ' shell-body--rail' : ''}`}>
+        {view === 'library' && (
+          <main className="shell-main">
+            <LibraryView
+              onOpen={handleOpenSaved}
+              onCompare={(a, b) => { setCompareSeed({ a, b, k: Date.now() }); setView('compare'); }}
+              openedId={savedSession?.id}
+            />
+          </main>
+        )}
+        {view === 'compare' && (
+          <main className="shell-main">
+            <CompareSessionsView key={compareSeed?.k ?? 'free'} seed={compareSeed} />
+          </main>
+        )}
+        {hasResults && view === 'analysis' && (
           <Sidebar
             mode={!compareResult ? 'session' : sessionResult ? 'both' : 'compare'}
             isPilotMode={isPilotMode}
@@ -871,7 +946,7 @@ export default function App() {
           />
         )}
 
-        <main className={`shell-main${hasResults ? '' : ' shell-main--narrow'}`}>
+        <main className={`shell-main${hasResults ? '' : ' shell-main--narrow'}`} hidden={view !== 'analysis'}>
           {!hasResults && (
             <Panel
               icon="upload"
@@ -910,7 +985,7 @@ export default function App() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept={ACCEPT_ATTR}
                   multiple
                   hidden
                   tabIndex={-1}
@@ -951,6 +1026,7 @@ export default function App() {
                         {!isSessionMode && i >= 2 && (
                           <Badge tone="warn">{t.shellNotUsed}</Badge>
                         )}
+                        <FormatBadge file={f} />
                         <span className="shell-file__size">{fmtMB(f.size)}</span>
                         <button
                           type="button"
@@ -1027,12 +1103,28 @@ export default function App() {
                     <span className="shell-chip__size">{fmtMB(f.size)}</span>
                   </span>
                 ))}
+                {savedSession && (
+                  <span className="shell-chip" title={t.libSavedFromLibrary(savedSession.title)}>
+                    <span style={{ flexShrink: 0, whiteSpace: 'nowrap' }}><Badge tone="accent">{t.libSavedSession}</Badge></span>
+                    <span className="shell-trunc">{savedSession.title}</span>
+                  </span>
+                )}
               </div>
+              {isSessionMode && sessionResult && !savedSession && (
+                <SaveToLibrary file={files[0]} sessionResult={sessionResult} stintResult={stintResult} />
+              )}
               <button type="button" className="ui-btn ui-btn--sm" onClick={resetAll} disabled={loading || compareLoading}>
                 <Icon name="upload" size={14} />
                 {t.shellNewAnalysis}
               </button>
             </div>
+          )}
+
+          {hasResults && (
+            <DataQualityPanel
+              session={stintResult?.data_quality ?? sessionResult?.data_quality}
+              compare={compareResult?.data_quality}
+            />
           )}
 
           {/* ── Session results ── */}
@@ -1043,12 +1135,30 @@ export default function App() {
                   icon="grid"
                   title={sectionLabel('section-overview', t)}
                   sub={t.shellOverviewSub}
+                  actions={(
+                    <button
+                      type="button"
+                      className="ui-btn ui-btn--sm"
+                      onClick={handleSessionPdfDownload}
+                      disabled={sessionPdfLoading}
+                      aria-label={t.pdfSessionDownloadAria}
+                    >
+                      {sessionPdfLoading ? <span className="shell-spin" /> : <Icon name="download" size={14} />}
+                      {t.pdfSessionDownload}
+                    </button>
+                  )}
                 />
                 <SessionKPIs sessionResult={sessionResult} stintResult={stintResult} />
 
                 {sessionResult.track_map?.length > 0 && (
                   <div className="shell-gap">
                     <TrackMap trackData={sessionResult.track_map} />
+                  </div>
+                )}
+
+                {files[0] && (
+                  <div className="shell-gap">
+                    <OptimalLapPanel file={files[0]} />
                   </div>
                 )}
 
@@ -1062,7 +1172,9 @@ export default function App() {
                     onCompareBestWorst={handleCompareBestWorst}
                     compareLoading={compareLoading}
                     compareError={compareError}
+                    csvMissing={!!savedSession}
                   />
+                  {savedSession && <Alert tone="info">{t.libSavedCsvNote}</Alert>}
                 </div>
               </section>
 
@@ -1115,7 +1227,7 @@ export default function App() {
                   )}
                   {stintResult.setup_sesion?.available && (
                     <div className="shell-gap">
-                      <SetupRecommendations setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
+                      <SetupSection file={files[0]} setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
                     </div>
                   )}
                   {(stintResult.degradacion_neumatico?.available || stintResult.degradacion_neumatico?.reason) && (
@@ -1152,6 +1264,7 @@ export default function App() {
                 onPdfDownload={handlePdfDownload}
                 pdfLoading={pdfLoading}
                 isPilotMode={isPilotMode}
+                setupFile={files[0]}
               />
             </div>
           )}

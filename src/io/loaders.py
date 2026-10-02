@@ -171,6 +171,10 @@ def read_motec_metadata(filepath: str) -> dict:
     Estos aparecen en las primeras filas antes del bloque de datos.
     """
     meta = {"driver": None, "vehicle": None, "venue": None}
+    from src.io.native_common import detect_format, read_native_metadata
+    _fmt = detect_format(filepath)
+    if _fmt != "csv":
+        return read_native_metadata(filepath, _fmt)
     keys = {
         "Driver":  "driver",
         "Vehicle": "vehicle",
@@ -346,6 +350,12 @@ def load_telemetry_data(filepath: str,
     
     if os.path.getsize(filepath) == 0:
         raise DataLoaderException(_tr("loader_empty_0"))
+
+    # Formatos nativos (EXPERIMENTAL): iRacing .ibt y MoTeC .ld (por extension o firma binaria)
+    from src.io.native_common import detect_format, load_native
+    _fmt = detect_format(filepath)
+    if _fmt != "csv":
+        return load_native(filepath, _fmt)
 
     # Auto-detectar separador y cabecera
     detected_sep, header_idx, has_units = _detect_separator_and_header(filepath)

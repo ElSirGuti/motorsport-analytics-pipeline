@@ -9,3 +9,7 @@ python-multipart>=0.0.9
 python-dotenv>=1.0.0
 reportlab>=4.0.0
 matplotlib>=3.7.0
+sqlalchemy>=2.0.30
+alembic>=1.13.0
+# Solo necesario con PostgreSQL (se importa de forma perezosa por SQLAlchemy)
+psycopg[binary]>=3.1.18

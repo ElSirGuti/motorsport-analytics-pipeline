@@ -1,0 +1,16 @@
+{
+  "optlap_reason_few_laps": "At least {min} valid flying laps are needed to build an optimal lap (found {n}).",
+  "optlap_reason_error": "The optimal lap could not be computed: {err}",
+  "optlap_excl_pit": "Pit, out-lap or time outlier",
+  "optlap_excl_data": "Not enough usable data (time, distance or speed)",
+  "optlap_excl_slow": "Too slow ({pct}% of the best lap)",
+  "optlap_excl_length": "Distance differs from the circuit length or the lap does not cover the whole circuit ({m} m): partial lap",
+  "optlap_corner": "Corner {n}",
+  "optlap_hint_min": "Carry {dv} km/h more through the slowest point (as in lap {lap}).",
+  "optlap_hint_exit": "Better exit: {dv} km/h more at the end of the zone (as in lap {lap}).",
+  "optlap_hint_spread": "Small gains spread along the zone, best taken from lap {lap}.",
+  "optlap_warn_synth": "Distance was synthesised by integrating speed: microsector alignment is less precise and gains are indicative.",
+  "optlap_warn_few": "Only {n} laps are available: the optimal lap is less reliable than with a larger sample.",
+  "optlap_warn_time_synth": "Some laps have no usable clock; time was derived from distance and speed.",
+  "optlap_explain": "The theoretical optimal adds the best time of every microsector ({theo} s faster than your best lap) and is a lower bound: it ignores that the speed you leave one microsector with is the speed you enter the next with. The realistic optimal only switches laps where both laps run at the same speed (within {tol} km/h) and keeps each lap for at least {run} m, so it stays physically feasible ({real} s faster, {switches} lap changes). The {gap} s between both is time that depends on carrying speed from one section to the next, not on isolated microsectors."
+}

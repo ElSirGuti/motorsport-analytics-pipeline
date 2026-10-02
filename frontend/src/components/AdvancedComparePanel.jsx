@@ -13,6 +13,8 @@ import PotentialLapCard from './PotentialLapCard';
 import { Panel, Stat, Badge, Icon } from './ui';
 import { LAP_COLORS, clean } from './chartTheme';
 import styles from './AdvancedComparePanel.module.css';
+import FormatBadge from './FormatBadge';
+import { isSupportedFile, ACCEPT_ATTR, MAX_FILE_MB } from '../utils/formats';
 
 function FileSlot({ label, color, file, onChange, t }) {
   const [warn, setWarn] = useState(null);
@@ -21,8 +23,8 @@ function FileSlot({ label, color, file, onChange, t }) {
   const handleChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
-    if (!f.name?.toLowerCase().endsWith('.csv')) { setWarn(t.advValidateCsv); e.target.value = ''; return; }
-    if (f.size > 100 * 1024 * 1024) { setWarn(t.advValidateSize); e.target.value = ''; return; }
+    if (!isSupportedFile(f)) { setWarn(t.advValidateCsv); e.target.value = ''; return; }
+    if (f.size > MAX_FILE_MB * 1024 * 1024) { setWarn(t.advValidateSize); e.target.value = ''; return; }
     setWarn(null);
     onChange(f);
     e.target.value = '';
@@ -36,11 +38,12 @@ function FileSlot({ label, color, file, onChange, t }) {
         <span className={`${styles.slotFile} ${file ? '' : styles.slotEmpty}`} title={file?.name}>
           {file ? file.name : t.advNoFile}
         </span>
+        {file && <FormatBadge file={file} />}
         <label htmlFor={id} className={`ui-btn ui-btn--sm ${styles.slotBtn}`}>
           <Icon name={file ? 'file' : 'upload'} size={14} />
           {file ? t.advChange : t.advChoose}
         </label>
-        <input id={id} type="file" accept=".csv" className={styles.srOnly} onChange={handleChange} />
+        <input id={id} type="file" accept={ACCEPT_ATTR} className={styles.srOnly} onChange={handleChange} />
       </div>
       {warn && <div className={styles.warn} role="alert"><Icon name="alert" size={14} />{warn}</div>}
     </div>

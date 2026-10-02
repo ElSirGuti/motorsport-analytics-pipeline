@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Dev: backend directo en :8000. Build de produccion (nginx/Ingress): mismo origen, ruta relativa '/api'.
+const API_URL = import.meta.env.VITE_API_URL
+  || (import.meta.env.PROD ? '/api' : 'http://localhost:8000/api');
 
 import axios from 'axios';
 
@@ -111,6 +113,19 @@ export const downloadPdfReport = async (compareResult, lang = 'en') => {
     params: { lang },
   });
   return response.data;
+};
+
+// Whole-session PDF from the JSON already held by the UI. Returns { blob, filename }
+// (filename comes from the server: motorsport_<circuit>_<car>_<date>.pdf).
+export const downloadSessionPdfReport = async ({ session, stint, comparison, metadata }, lang = 'en') => {
+  const response = await apiClient.post(
+    '/report/session-pdf-from-json',
+    { session, stint: stint ?? null, comparison: comparison ?? null, metadata: metadata ?? null },
+    { responseType: 'blob', headers: { 'Content-Type': 'application/json' }, timeout: 120000, params: { lang } },
+  );
+  const cd = response.headers?.['content-disposition'] || '';
+  const match = /filename="?([^";]+)"?/i.exec(cd);
+  return { blob: response.data, filename: match ? match[1] : 'motorsport_report.pdf' };
 };
 
 export const analyzeStint = async (lapFiles, lang = 'en') => {

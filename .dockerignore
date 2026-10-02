@@ -1,0 +1,42 @@
+# VCS / editor / CI
+.git
+.gitattributes
+.github
+.idea
+.vscode
+.atl
+social
+
+# Python caches / venvs
+__pycache__
+*.py[cod]
+.pytest_cache
+.venv
+venv
+env
+
+# Local data and secrets (never bake into an image)
+data
+tmp
+CSV for Testing
+*.csv
+*.ldx
+*.db
+*.sqlite
+.env
+.env.*
+!.env.example
+
+# Frontend is built by its own image
+frontend
+
+# Dev-only material
+tests
+test_*.py
+requirements-dev.txt
+docs
+scripts
+k8s
+docker-compose*.yml
+Makefile
+*.md

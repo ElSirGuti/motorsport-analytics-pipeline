@@ -1,0 +1,47 @@
+/* "Current -> Suggested" blocks and the "Setup used" parameter panel. Tokens only. */
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Compact chips under the problem text */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: var(--radius-sm); background: var(--accent-soft); border: 1px solid var(--accent-line); font-size: var(--fs-xs); color: var(--ink-2); max-width: 100%; }
+.limit { background: var(--warn-soft); border-color: var(--warn-line); }
+.dir { background: var(--surface-3); border-color: var(--line-strong); }
+.chipLbl { color: var(--ink-3); }
+.arrow { color: var(--ink-3); }
+.cur { color: var(--ink-1); }
+.sug { color: var(--accent); font-weight: 600; }
+
+/* Expanded detail */
+.block { margin-top: 12px; padding: 10px 12px; background: var(--surface-1); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.blockTitle { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.table th { text-align: left; font-size: var(--fs-xs); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: 0 8px 6px 0; }
+.table td { padding: 6px 8px 6px 0; border-top: 1px solid var(--line); color: var(--ink-2); vertical-align: top; }
+.num { white-space: nowrap; }
+.note { display: block; margin-top: 2px; font-size: var(--fs-xs); color: var(--ink-3); line-height: 1.4; }
+.warn { color: var(--warn); }
+.alt { margin-left: 6px; }
+
+/* Conflict banner */
+.conflict { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 12px; padding: 8px 10px; background: var(--warn-soft); border: 1px solid var(--warn-line); border-radius: var(--radius-sm); font-size: var(--fs-sm); color: var(--ink-2); }
+.conflict svg { color: var(--warn); margin-top: 2px; flex-shrink: 0; }
+
+/* Setup used panel */
+.usedHead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.usedName { font-size: var(--fs-sm); color: var(--ink-1); font-weight: 600; }
+.usedMeta { font-size: var(--fs-xs); color: var(--ink-3); }
+.toggle { margin-left: auto; }
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.sumItem { padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); display: flex; flex-direction: column; gap: 2px; }
+.sumLbl { font-size: var(--fs-xs); color: var(--ink-3); }
+.sumVal { font-size: var(--fs-sm); color: var(--ink-1); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.group { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px 12px; min-width: 0; }
+.groupTitle { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+.row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; border-top: 1px solid var(--line); font-size: var(--fs-sm); }
+.row:first-of-type { border-top: 0; }
+.rowLbl { color: var(--ink-2); min-width: 0; }
+.rowVal { color: var(--ink-1); white-space: nowrap; text-align: right; }
+.rowRange { display: block; font-size: var(--fs-xs); color: var(--ink-4); }
+.touched .rowVal { color: var(--accent); }
+.foot { font-size: var(--fs-xs); color: var(--ink-3); line-height: 1.5; margin: 10px 0 0; }

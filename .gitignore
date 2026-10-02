@@ -18,6 +18,8 @@ estructura_iracing.txt
 # Data (CSVs locales — no subir a git)
 data/raw/
 data/processed/
+data/*.db
+data/storage/
 tmp/
 
 # IDE
@@ -40,3 +42,6 @@ frontend/.env
 .env
 .claude/
 graphify-out/
+
+# Local compose override (machine-specific paths)
+docker-compose.override.yml

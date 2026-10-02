@@ -1,0 +1,35 @@
+# Production-shaped overlay. Read docs/DEPLOYMENT.md ("What is NOT production-ready") first.
+# Before applying you must: (1) push images to a registry and set the names/tags below,
+# (2) create the Secret "motorsport-db" (see secret.example.yaml / externalsecret.example.yaml),
+# (3) set your real host in ingress-patch.yaml, (4) pick a ReadWriteMany StorageClass
+#     (storage-patch.yaml) or keep backend replicas at 1.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: motorsport
+resources:
+  - ../../base
+images:
+  - name: motorsport-backend
+    newName: ghcr.io/OWNER/motorsport-backend   # placeholder: no image is published today
+    newTag: "1.0.0"
+  - name: motorsport-frontend
+    newName: ghcr.io/OWNER/motorsport-frontend  # placeholder
+    newTag: "1.0.0"
+replicas:
+  - name: backend
+    count: 2
+  - name: frontend
+    count: 2
+patches:
+  - path: backend-patch.yaml
+  - path: hpa-patch.yaml
+  - path: ingress-patch.yaml
+  - path: storage-patch.yaml
+  - target: {kind: ConfigMap, name: motorsport-config}
+    patch: |-
+      - op: replace
+        path: /data/CORS_ORIGINS
+        value: "https://motorsport.example.com"
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: "INFO"

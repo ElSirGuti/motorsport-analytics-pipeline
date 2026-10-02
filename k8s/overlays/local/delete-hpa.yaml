@@ -1,0 +1,6 @@
+# kind has no metrics-server by default, so the HPA would just report <unknown>.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend
+$patch: delete

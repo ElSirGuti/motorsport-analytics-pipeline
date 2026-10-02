@@ -108,6 +108,7 @@ The loader (`src/io/loaders.py`) reads **CSV** only. Supported sources:
 |---|---|
 | Assetto Corsa via ACTI, exported as MoTeC CSV | Comma or semicolon separator is auto-detected; the MoTeC header block (Driver, Vehicle, Venue) is read as metadata and the units row is skipped. |
 | iRacing exported to CSV (`.ibt` converted with MoTeC i2 or a third-party tool) | Detected by `SessionTime`, `Session Time` or `SessionLapCount`. Speed in m/s is converted to km/h, pedals in 0-1 are scaled to 0-100, suspension in metres to mm, tyre pressure kPa/PSI to bar, brake bias fraction to percent. |
+| iRacing `.ibt` and MoTeC `.ld` (native, **experimental**) | Detected by extension or binary signature. Units are normalised to the canonical channels; see "Supported formats" in `docs/USER_GUIDE.md`. |
 
 The export steps for each program (ACTI, MoTeC i2, iRacing) are in the [User Guide](docs/USER_GUIDE.md#exporting-telemetry).
 
@@ -267,7 +268,7 @@ Test files: `tests/test_alignment.py`, `test_loaders.py`, `test_metrics.py`, `te
 - Speed-based corner detection finds fewer corners than geometry-based detection (7 vs 11 at Imola, because chicanes merge).
 - Suspension bottoming is a heuristic: travel at or above 90 % of the maximum observed travel.
 - Some channels may be absent depending on the simulator and export; the corresponding panels say so instead of guessing.
-- CSV only; `.ibt` and `.ld` files must be converted first.
+- CSV is the stable input. iRacing `.ibt` and MoTeC `.ld` are read natively but are **experimental** (see "Supported formats" in `docs/USER_GUIDE.md`).
 - No upload size limit is enforced (see `MAX_UPLOAD_MB` above); very large files need memory and time.
 
 ## Contributing

@@ -1,0 +1,12 @@
+# More than one backend replica needs storage mountable from several nodes (ReadWriteMany,
+# e.g. NFS / CephFS / EFS). Set storageClassName to one that supports it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-storage
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: CHANGE-ME-rwx
+  resources:
+    requests:
+      storage: 50Gi

@@ -1,0 +1,16 @@
+# Optional: expose your Assetto Corsa setups folder (read-only) to the backend.
+#
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#   # edit the host path below, then:  docker compose up --build
+#
+# docker-compose.override.yml is picked up automatically by `docker compose`
+# and is git-ignored (it contains a machine-specific path).
+services:
+  backend:
+    environment:
+      AC_SETUPS_DIR: /ac-setups
+    volumes:
+      # Windows (use forward slashes):
+      - "C:/Users/YOUR_USER/Documents/Assetto Corsa/setups:/ac-setups:ro"
+      # Linux/macOS example:
+      # - "${HOME}/.steam/steam/steamapps/compatdata/244210/pfx/drive_c/users/steamuser/Documents/Assetto Corsa/setups:/ac-setups:ro"

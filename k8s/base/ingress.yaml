@@ -1,0 +1,28 @@
+# Requires the ingress-nginx controller. Everything goes through the frontend Service,
+# whose nginx serves the SPA and proxies /api to the backend.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: motorsport
+  labels:
+    app.kubernetes.io/part-of: motorsport
+  annotations:
+    # 2 x MAX_UPLOAD_MB + 1 MB (two CSVs per request). Keep aligned with the ConfigMap by hand.
+    nginx.ingress.kubernetes.io/proxy-body-size: "4097m"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "900"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "900"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: motorsport.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  name: http

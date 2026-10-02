@@ -1,0 +1,3 @@
+{
+  "api_err_upload_too_large": "El archivo subido supera el tamaño máximo permitido de {max_mb} MB."
+}

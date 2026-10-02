@@ -54,8 +54,9 @@ def _pilot_note_for(problem_key: str) -> str:
 def _rec(category: str, problem: str, root_cause: str, recommendation: str,
          gain_lo: float, gain_hi: float, priority: str,
          detail: str = "", solves: str = "",
-         _problem_key: str = "") -> dict:
-    return {
+         _problem_key: str = "", _category_key: str = "",
+         _rec_key: str = "", _fmt: dict | None = None) -> dict:
+    out = {
         "category":      category,
         "problem":       problem,
         "root_cause":    root_cause,
@@ -67,7 +68,16 @@ def _rec(category: str, problem: str, root_cause: str, recommendation: str,
         "gain_hi":       gain_hi,
         "priority":      priority,
         "pilot_note":    _pilot_note_for(_problem_key),
+        # Stable identifiers (language independent) so other modules, e.g. the
+        # Assetto Corsa setup linker, can map a recommendation to setup parameters.
+        "problem_key":   _problem_key,
+        "category_key":  _category_key,
+        "rec_key":       _rec_key,
     }
+    pos = (_fmt or {}).get("pos")
+    if pos in ("FL", "FR", "RL", "RR"):
+        out["pos"] = pos
+    return out
 
 
 def _tr(key: str, lang: str = "es", **kwargs) -> str:
@@ -84,7 +94,7 @@ def _rec_t(t_cat, t_prob, t_rc, t_rec, t_det, t_sol,
         detail=_tr(t_det, lang=lang, **t_fmt) if t_det else "",
         solves=_tr(t_sol, lang=lang, **t_fmt) if t_sol else "",
         gain_lo=gain_lo, gain_hi=gain_hi, priority=priority,
-        _problem_key=t_prob,
+        _problem_key=t_prob, _category_key=t_cat, _rec_key=t_rec, _fmt=t_fmt,
     )
 
 

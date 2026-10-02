@@ -1,0 +1,20 @@
+# Non-secret settings. Keys mirror the environment contract used by docker-compose
+# and the backend: MAX_UPLOAD_MB, CORS_ORIGINS, LOG_LEVEL, TEMP_DIR, STORAGE_DIR.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: motorsport-config
+  labels:
+    app.kubernetes.io/part-of: motorsport
+data:
+  LOG_LEVEL: "INFO"
+  # Per-file limit in MB. The frontend nginx derives its body limit from it
+  # (2 x MAX_UPLOAD_MB + 1 MB because a request may carry two CSVs). The Ingress annotation
+  # proxy-body-size in ingress.yaml must be kept aligned by hand.
+  MAX_UPLOAD_MB: "2048"
+  # Same-origin through the frontend proxy, so CORS only matters for direct API access.
+  CORS_ORIGINS: "http://localhost"
+  TEMP_DIR: "/tmp/motorsport-analytics"
+  STORAGE_DIR: "/app/data/storage"
+  UVICORN_WORKERS: "1"
+  PROXY_TIMEOUT: "900s"

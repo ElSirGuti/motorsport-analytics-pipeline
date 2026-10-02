@@ -711,4 +711,8 @@ const en = {
   tdLowConfidence: 'Low confidence',
 };
 
+// Feature modules add their strings in ./extra/<feature>.en.js (default export: object).
+const extras = import.meta.glob('./extra/*.en.js', { eager: true });
+Object.values(extras).forEach((m) => Object.assign(en, m.default));
+
 export default en;

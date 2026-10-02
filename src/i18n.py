@@ -22,7 +22,17 @@ def _load_locale(lang: str) -> dict[str, str]:
     if not os.path.exists(path):
         path = os.path.join(_LOCALE_DIR, "es.json")
     with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    # Feature modules may ship their own strings in locales/extra/<feature>.<lang>.json
+    # (merged on top of the base file) so parallel work never edits one big JSON.
+    code = os.path.splitext(os.path.basename(path))[0]
+    extra_dir = os.path.join(_LOCALE_DIR, "extra")
+    if os.path.isdir(extra_dir):
+        for name in sorted(os.listdir(extra_dir)):
+            if name.endswith(f".{code}.json"):
+                with open(os.path.join(extra_dir, name), "r", encoding="utf-8") as f:
+                    data.update(json.load(f))
+    return data
 
 
 def get_locale(lang: Optional[str] = None) -> dict[str, str]:

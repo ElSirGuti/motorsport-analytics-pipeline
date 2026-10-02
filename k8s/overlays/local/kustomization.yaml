@@ -1,0 +1,35 @@
+# Local cluster (kind / minikube / Docker Desktop). Images are built locally and loaded
+# into the cluster (see scripts/kind-up.sh); nothing is pulled from a registry.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: motorsport
+resources:
+  - ../../base
+images:
+  - name: motorsport-backend
+    newTag: dev
+  - name: motorsport-frontend
+    newTag: dev
+secretGenerator:
+  # THROWAWAY credentials for a local cluster only. Never reuse them anywhere else.
+  - name: motorsport-db
+    literals:
+      - POSTGRES_USER=motorsport
+      - POSTGRES_PASSWORD=local-dev-only
+      - POSTGRES_DB=motorsport
+    options:
+      disableNameSuffixHash: true
+patches:
+  - path: delete-hpa.yaml
+  - path: delete-pdb-backend.yaml
+  - path: delete-pdb-frontend.yaml
+  - target: {kind: Ingress, name: motorsport}
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: localhost
+  - target: {kind: ConfigMap, name: motorsport-config}
+    patch: |-
+      - op: replace
+        path: /data/CORS_ORIGINS
+        value: "http://localhost,http://localhost:5173"

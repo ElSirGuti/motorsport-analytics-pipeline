@@ -1,0 +1,9 @@
+#!/bin/sh
+# Sourced by the nginx entrypoint before envsubst runs.
+# A request may carry two CSVs (lap comparison), so the body limit is
+# 2 x MAX_UPLOAD_MB + 1 MB of multipart overhead. Keep MAX_UPLOAD_MB identical
+# to the backend value so nginx and FastAPI agree.
+MAX_UPLOAD_MB="${MAX_UPLOAD_MB:-2048}"
+NGINX_MAX_BODY="$((MAX_UPLOAD_MB * 2 + 1))m"
+export NGINX_MAX_BODY
+echo "15-upload-limit: client_max_body_size=${NGINX_MAX_BODY}"

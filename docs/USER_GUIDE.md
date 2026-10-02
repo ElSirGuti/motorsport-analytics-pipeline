@@ -329,9 +329,27 @@ The **"Copy Report"** button generates text ready to paste into a WhatsApp group
 
 ---
 
+## Supported formats
+
+| Format | Source | Status |
+|--------|--------|--------|
+| `.csv` | MoTeC i2 export (Assetto Corsa/ACTI, iRacing) | Stable |
+| `.ibt` | iRacing native telemetry | **Experimental** |
+| `.ld`  | MoTeC i2 native log (ACTI, iRacing "MoTeC" export) | **Experimental** |
+
+> **Experimental status.** The `.ibt` and `.ld` readers are implemented from the publicly documented binary layouts. They were checked against synthetic files (round-trip tests) and against real files on the author's machine (53 files: 9 iRacing `.ibt` sessions of a BMW M2 at Oran Park and a Ford Mustang GT4 at Lime Rock, the 9 matching MoTeC `.ld` exports, and 35 Assetto Corsa/ACTI `.ld` logs). That is a small sample: other cars, simulators or MoTeC loggers may expose channels the reader does not know. The UI marks these files with an **Experimental** badge. If a result looks wrong, compare it with the CSV export of the same session.
+
+**iRacing `.ibt`:** iRacing writes them automatically to `Documents\iRacing	elemetry` (one file per session, named `<car>_<track> <date> <time>.ibt`) when telemetry logging is on (Ctrl+L toggles it in the sim). Drop the file in the uploader as is. Driver, car and track are read from the file. Units are converted (m/s to km/h, 0-1 pedals to %, rad to degrees, m/s2 to g, kPa to bar, m to mm); `Distance` is rebuilt from the sim's lap distance.
+
+**MoTeC `.ld`:** open the folder where your logger or ACTI saves logs (for ACTI, `Documentscti	elem\<track>_&_<car>\`; the `.ldx` next to it is optional and ignored) and upload the `.ld`. Channels sampled at different rates are resampled to the fastest one. If `Distance` is not in the log it is synthesised from speed, as with CSV.
+
+Known limits: files larger than the server upload limit (`MAX_UPLOAD_MB`, 2048 by default) are rejected; sessions above 2 million samples after resampling (`NATIVE_MAX_ROWS`) are rejected with a message; a truncated `.ibt` loads the records that are complete, a truncated `.ld` is rejected. Lateral-G sign conventions follow each source and are not normalised.
+
+---
+
 ## Exporting telemetry
 
-The app reads **CSV files only**. Export them from the program you use:
+Besides the native `.ibt` / `.ld` files above, the app reads **CSV files**. Export them from the program you use:
 
 **Assetto Corsa (ACTI + MoTeC i2)**
 1. Record the session with the ACTI telemetry app (see the ACTI documentation for installation).
@@ -340,7 +358,7 @@ The app reads **CSV files only**. Export them from the program you use:
 4. The header block of the MoTeC CSV (Driver, Vehicle, Venue) is read automatically and used for labels.
 
 **iRacing**
-1. iRacing records `.ibt` files; the app does not read `.ibt` directly. Convert them to CSV with MoTeC i2 or a third-party tool.
+1. iRacing records `.ibt` files; you can upload them directly (experimental, see above) or convert them to CSV with MoTeC i2 or a third-party tool.
 2. The loader detects iRacing exports by the `SessionTime`, `Session Time` or `SessionLapCount` columns and normalises units (speed m/s to km/h, pedals 0-1 to 0-100, suspension m to mm, tyre pressure kPa/PSI to bar).
 
 **Required channels:** `Speed`, `Brake`, `Throttle`. If one is missing, the API returns a `400` error listing the columns it found.
