@@ -59,7 +59,7 @@ Esta herramienta alinea las vueltas por distancia y detecta automáticamente eve
 ### 1 — Clonar el repositorio
 
 ```bash
-git clone https://github.com/tu-usuario/motorsport-analytics-pipeline.git
+git clone https://github.com/ElSirGuti/motorsport-analytics-pipeline.git
 cd motorsport-analytics-pipeline
 ```
 
