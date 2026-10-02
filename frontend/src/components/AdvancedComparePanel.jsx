@@ -170,7 +170,7 @@ const AdvancedComparePanel = () => {
         distance:  (results.telemetria || []).map((r) => r.Distance),
         speed_a:   (results.telemetria || []).map((r) => r.Speed_Fast),
         speed_b:   (results.telemetria || []).map((r) => r.Speed_Slow),
-        lap_labels: { speed_a: results.metadata?.driver_fast || 'Fast', speed_b: results.metadata?.driver_slow || 'Slow' },
+        lap_labels: { speed_a: results.metadata?.driver_fast || t.fastLabelFallback, speed_b: results.metadata?.driver_slow || t.slowLabelFallback },
       }
     : null;
 

@@ -12,7 +12,7 @@ const SummaryCard = ({ summary, metadata, rawTimeDelta }) => {
   const isPositive = displayDelta > 0;
   const isNegative = displayDelta < 0;
 
-  const labelB = metadata?.label_b || 'Piloto B';
+  const labelB = metadata?.label_b || t.summaryPilotB;
 
   return (
     <div className={`${styles.root} fade-up`}>

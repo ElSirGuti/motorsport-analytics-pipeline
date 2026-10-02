@@ -16,7 +16,7 @@ const formatTime = (seconds) => {
 };
 
 const SessionTab = () => {
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const [sessionFile, setSessionFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -36,8 +36,6 @@ const SessionTab = () => {
       setLoading(false);
     }
   };
-
-  const outlierLabel = lang === 'es' ? 'Atípica' : 'Outlier';
 
   return (
     <div className={css.root}>
@@ -129,9 +127,9 @@ const SessionTab = () => {
                           <td>
                             <span className={css.lapCell}>
                               {lap.lap_number}
-                              {lap.is_fastest && <Badge tone="accent">BEST</Badge>}
-                              {lap.is_pit_lap && <Badge tone="warn">PIT</Badge>}
-                              {lap.is_outlier && <Badge tone="bad">{outlierLabel}</Badge>}
+                              {lap.is_fastest && <Badge tone="accent">{t.lapBadgeBest}</Badge>}
+                              {lap.is_pit_lap && <Badge tone="warn">{t.lapBadgePit}</Badge>}
+                              {lap.is_outlier && <Badge tone="bad">{t.lapBadgeOutlier}</Badge>}
                             </span>
                           </td>
                           <td className="is-num">{formatTime(lap.lap_time)}</td>

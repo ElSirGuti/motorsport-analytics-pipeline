@@ -1,30 +1,27 @@
 import { Fragment } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon } from './ui';
 import s from './RecPanels.module.css';
 
-const BIN_LABEL = {
-  brake: { early: 'Early braking', similar: 'Braking OK', late: 'Late braking' },
-  apex:  { slow: 'Slow apex', similar: 'Apex OK', fast: 'Fast apex' },
-  exit:  { late: 'Late throttle', similar: 'Throttle OK', early: 'Early throttle' },
-};
-const PHASE_NAME = { brake: 'Brake', apex: 'Apex', exit: 'Exit' };
 
 function PhaseTag({ phase, value, optimal }) {
+  const { t } = useLanguage();
   const isOpt = value === optimal;
-  const label = BIN_LABEL[phase]?.[value] || value;
-  const optLabel = BIN_LABEL[phase]?.[optimal] || optimal;
+  const label = t[`rlBin_${phase}_${value}`] || value;
+  const optLabel = t[`rlBin_${phase}_${optimal}`] || optimal;
   return (
     <div className={`${s.phase} ${isOpt ? s.good : s.bad}`}>
-      <span className={s.phaseKey}>{PHASE_NAME[phase]}</span>
+      <span className={s.phaseKey}>{t[`rlPhase_${phase}`]}</span>
       <span className={s.phaseVal}>{label}</span>
       {isOpt
-        ? <Icon name="check" size={14} style={{ color: 'var(--ok)' }} aria-label="Optimal" />
-        : <span className={s.phaseTarget}>target <b>{optLabel}</b></span>}
+        ? <Icon name="check" size={14} style={{ color: 'var(--ok)' }} aria-label={t.rlOptimalLower} />
+        : <span className={s.phaseTarget}>{t.rlTarget} <b>{optLabel}</b></span>}
     </div>
   );
 }
 
 function QHeatmap({ heatmap, current, optimal }) {
+  const { t } = useLanguage();
   if (!heatmap?.length) return null;
   const brakeLabels = ['early', 'similar', 'late'];
   const apexLabels = ['slow', 'similar', 'fast'];
@@ -33,13 +30,13 @@ function QHeatmap({ heatmap, current, optimal }) {
 
   return (
     <div>
-      <div className={s.fieldLbl}>Q-table · braking × apex</div>
+      <div className={s.fieldLbl}>{t.rlQTable}</div>
       <div className={s.q}>
         <div />
-        {apexLabels.map(al => <div key={al} className={s.qHead}>{al.slice(0, 3)}</div>)}
+        {apexLabels.map(al => <div key={al} className={s.qHead}>{t[`rlShort_${al}`]}</div>)}
         {brakeLabels.map(bl => (
           <Fragment key={bl}>
-            <div className={s.qRow}>{bl.slice(0, 3)}</div>
+            <div className={s.qRow}>{t[`rlShort_${bl}`]}</div>
             {apexLabels.map(al => {
               const cell = qByKey[`${bl}_${al}`];
               const q = cell?.q;
@@ -47,7 +44,7 @@ function QHeatmap({ heatmap, current, optimal }) {
               const isOptimal = bl === optimal.brake && al === optimal.apex;
               const cls = `${s.qCell} ${isOptimal ? s.opt : isCurrent ? s.cur : ''}`;
               return (
-                <div key={al} className={cls} title={cell ? `Q: ${q?.toFixed(4)} | obs: ${cell.count}` : 'no data'}>
+                <div key={al} className={cls} title={cell ? t.rlCellTip(q?.toFixed(4), cell.count) : t.rlNoData}>
                   {q != null ? (q > 0 ? '+' : '') + q.toFixed(3) : '—'}
                 </div>
               );
@@ -56,14 +53,15 @@ function QHeatmap({ heatmap, current, optimal }) {
         ))}
       </div>
       <div className={s.legend}>
-        <span><span className={s.sw} style={{ background: 'var(--ok)' }} />Optimal</span>
-        <span><span className={s.sw} style={{ background: 'var(--warn)' }} />Current</span>
+        <span><span className={s.sw} style={{ background: 'var(--ok)' }} />{t.rlOptimal}</span>
+        <span><span className={s.sw} style={{ background: 'var(--warn)' }} />{t.rlCurrent}</span>
       </div>
     </div>
   );
 }
 
 function CornerCard({ corner }) {
+  const { t } = useLanguage();
   const { corner_number, n_laps, mean_time_loss_s, potential_gain_s,
     current_execution, optimal_execution, already_optimal, recommendations } = corner;
 
@@ -74,14 +72,14 @@ function CornerCard({ corner }) {
     <div className={`${s.card} ${cls}`}>
       <div className={s.cardHead}>
         <div>
-          <div className={s.cardTitle}>Corner {corner_number}</div>
-          <div className={s.cardSub}>{n_laps} laps · avg loss <span className={s.mono}>{mean_time_loss_s > 0 ? '+' : ''}{mean_time_loss_s.toFixed(3)} s</span></div>
+          <div className={s.cardTitle}>{t.rlCorner(corner_number)}</div>
+          <div className={s.cardSub}>{t.rlLapsAvgLoss(n_laps)} <span className={s.mono}>{mean_time_loss_s > 0 ? '+' : ''}{mean_time_loss_s.toFixed(3)} s</span></div>
         </div>
         <div style={{ textAlign: 'right' }}>
           {already_optimal
-            ? <Badge tone="ok">OPTIMAL</Badge>
+            ? <Badge tone="ok">{t.rlOptimalBadge}</Badge>
             : <div className={s.recGainVal} style={{ color: `var(--${tone})` }}>+{potential_gain_s.toFixed(3)} s</div>}
-          {!already_optimal && <div className={s.recGainLbl}>potential gain</div>}
+          {!already_optimal && <div className={s.recGainLbl}>{t.rlPotentialGain}</div>}
         </div>
       </div>
 
@@ -100,7 +98,7 @@ function CornerCard({ corner }) {
       )}
 
       <details>
-        <summary className={s.cardSub} style={{ cursor: 'pointer' }}>Q-table detail</summary>
+        <summary className={s.cardSub} style={{ cursor: 'pointer' }}>{t.rlQDetail}</summary>
         <div style={{ marginTop: 8 }}>
           <QHeatmap heatmap={corner.q_heatmap} current={current_execution} optimal={optimal_execution} />
         </div>
@@ -110,6 +108,7 @@ function CornerCard({ corner }) {
 }
 
 export default function RacingLinePanel({ data }) {
+  const { t } = useLanguage();
   if (!data?.available) return null;
 
   const { corners, total_potential_gain_s, n_corners } = data;
@@ -118,27 +117,25 @@ export default function RacingLinePanel({ data }) {
 
   const gain = (
     <div className={s.gain}>
-      <span className={s.gainLabel}>Total potential gain</span>
+      <span className={s.gainLabel}>{t.rlTotalGain}</span>
       <span className={s.gainValue}>+{total_potential_gain_s.toFixed(3)} s</span>
-      <span className={s.gainSub}>if optimal line is applied</span>
+      <span className={s.gainSub}>{t.rlIfOptimal}</span>
     </div>
   );
 
   return (
     <Panel
       icon="target"
-      title="Racing Line Optimization"
-      subtitle={`Tabular Q-learning · ${n_corners} corners · ${optimal} already optimal`}
+      title={t.rlTitle}
+      subtitle={t.rlSubtitle(n_corners, optimal)}
       actions={gain}
     >
-      <div className={s.sectionHead}><span className={s.sectionTitle}>Corners ranked by potential gain</span></div>
+      <div className={s.sectionHead}><span className={s.sectionTitle}>{t.rlRanked}</span></div>
       <div className={s.cards}>
         {byGain.map((c) => <CornerCard key={c.corner_number} corner={c} />)}
       </div>
 
-      <p className={s.note}>
-        Offline Q-learning trained on session historical telemetry data. The agent learns which braking/apex/throttle combination produced the least time loss in past laps. Recommendations reflect statistical patterns — validate on track before applying drastic changes.
-      </p>
+      <p className={s.note}>{t.rlDisclaimer}</p>
     </Panel>
   );
 }

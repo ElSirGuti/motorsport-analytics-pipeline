@@ -1,5 +1,7 @@
 # Guía de Usuario — Motorsport Analytics Pipeline
 
+[Read in English](./USER_GUIDE.md)
+
 Esta guía explica, en lenguaje sencillo, cómo usar la aplicación y qué significan los resultados de cada análisis. No necesitas saber matemáticas ni ingeniería para interpretarlos.
 
 ---
@@ -8,41 +10,51 @@ Esta guía explica, en lenguaje sencillo, cómo usar la aplicación y qué signi
 
 ### ¿Qué hace esta herramienta?
 
-Compara dos vueltas de telemetría lado a lado y te dice **dónde ganás tiempo, dónde lo perdés y por qué**. También analiza el estado de los neumáticos, los frenos, la suspensión, y el estilo de conducción, todo de forma automática.
+Analiza telemetría y te dice **dónde ganás tiempo, dónde lo perdés y por qué**. Funciona de dos maneras:
+
+- **Sesión completa (1 CSV):** la sesión se divide automáticamente en vueltas y obtenés una tabla de vueltas, análisis de stint (ritmo, combustible, neumáticos, ventana de pit) y recomendaciones de setup.
+- **Comparación de vueltas (2 CSV, o 2 vueltas elegidas de una sesión):** una comparación lado a lado con diagnóstico curva a curva y los análisis avanzados (neumáticos, frenos, suspensión, estilo de pilotaje, balance).
 
 ### Archivos que necesitás
 
-Archivos CSV exportados desde **MoTeC i2** o cualquier simulador compatible (Assetto Corsa, etc.). Cada archivo representa una vuelta o una sesión.
+Archivos CSV exportados desde **MoTeC i2** (Assetto Corsa vía ACTI, iRacing). Mirá [Exportar la telemetría](#exportar-la-telemetría) para los pasos y los canales que la app entiende.
 
 ### Cómo empezar
 
-1. Abrí la app en tu navegador (`http://localhost:5173`)
-2. Arrastrá o seleccioná **dos archivos CSV** en el panel de carga
-3. Hacé clic en **"Comparar Vueltas"**
-4. Esperá unos segundos — el análisis completo se carga automáticamente
-
-> Si el archivo tiene varias vueltas, el sistema toma las dos más rápidas válidas.
+1. Instalá e iniciá el backend y el frontend (ver el [README](../README.es.md#inicio-rápido)) y abrí `http://localhost:5173`.
+2. En la barra superior elegí el idioma (ES/EN) y el modo: **Ingeniero** (todo) o **Piloto** (paneles técnicos ocultos).
+3. Soltá tu(s) archivo(s) CSV en el área de carga. Un archivo se trata como sesión completa; dos archivos se tratan como dos vueltas sueltas a comparar.
+4. Presioná analizar. Una barra de progreso muestra los pasos. Los archivos grandes pueden tardar varios minutos (una sesión de ~57 MB tardó unos 25 s); mantené la pestaña abierta.
+5. Al terminar, el área de carga se compacta en una barra de archivo. Presioná **Nuevo análisis** para empezar de nuevo.
 
 ---
 
 ## La Interfaz de un Vistazo
 
-La página es una sola vista larga con secciones. Podés hacer scroll o usar el cursor cruzado interactivo: **mover el ratón sobre cualquier gráfico sincroniza la posición en todos los demás**.
+La barra superior contiene la marca, el selector de idioma y el interruptor Piloto/Ingeniero. Un **riel lateral** permite saltar entre secciones. El resto de la página es una sola vista larga: **mover el ratón sobre cualquier gráfico sincroniza la posición del cursor en todos los demás**.
+
+### Sesión completa (1 CSV)
 
 | Sección | Qué muestra |
 |---------|-------------|
-| **Encabezado** | Nombre de piloto, vehículo, circuito, tiempo de cada vuelta |
-| **Velocidad y Delta** | Curva de velocidad + diferencia de tiempo acumulada |
-| **Freno y Acelerador** | Superposición de las dos vueltas en frenado y gas |
-| **Mapa de Pista** | Trazada del circuito con la posición actual |
-| **Diagrama G-G** | Agarre total usado por vuelta |
-| **Análisis de Curvas** | Tabla con tiempos, frenado y aceleración por curva |
-| **Neumáticos** | Temperatura e interpretación de los 4 neumáticos |
-| **Frenos** | Eficiencia y detección de fade térmico |
-| **Inputs del Piloto** | Estilo de conducción al volante (suave vs nervioso) |
-| **Suspensión** | Roll, pitch y eventos de fondo |
-| **Ángulo de Deslizamiento** | Balance del coche (subviraje vs sobreviraje) |
-| **Reporte de Ingeniero** | Texto exportable con el resumen completo |
+| **Resumen de sesión** | Tabla de vueltas, mejor vuelta, panel de salud, mapa de pista |
+| **Análisis de stint** | Evolución del tiempo por vuelta, degradación, estrategia de combustible, ventana de pit, proyección Monte Carlo, evolución de pista |
+| **Setup y estrategia** | Análisis de curvas de toda la sesión, degradación de neumáticos, gestión térmica, trazada y recomendaciones de setup |
+
+**Tabla de vueltas:** marcá **dos vueltas (A/B)** y presioná **Comparar** para abrir una comparación completa de esas vueltas, o presioná **Mejor vs Peor** para comparar automáticamente la vuelta flying más rápida con la más lenta. Las vueltas marcadas **PIT** (entrada/salida de boxes) y **atípicas** (tiempo muy lejos de la mediana) se excluyen de las estadísticas de degradación y proyección.
+
+**Panel de salud:** lista los módulos de análisis (térmico, setup, degradación de neumáticos, trazada, slip, curvas) como disponibles o no disponibles. No disponible suele significar que el CSV no contiene los canales que ese módulo necesita.
+
+### Comparación de vueltas (2 CSV, o 2 vueltas de una sesión)
+
+| Sección | Qué muestra |
+|---------|-------------|
+| **Vuelta base** | Resumen, curva de velocidad + time delta acumulado, superposición de freno y acelerador, mapa de pista, análisis de curvas y sectores |
+| **Dinámica del vehículo** | Diagrama G-G, neumáticos, frenos, suspensión, ángulo de deslizamiento (oculta en modo Piloto) |
+| **Piloto y entradas** | Estilo de volante y pedales (oculta en modo Piloto) |
+| **Estrategia y setup** | Potencial de vuelta, anomalías, recomendaciones de setup y reporte de ingeniero (copiar como texto o descargar como PDF) |
+
+Hacé clic en una curva del análisis de curvas y todos los gráficos hacen zoom a esa zona.
 
 ---
 
@@ -113,11 +125,11 @@ Muestra el circuito dibujado a partir de las coordenadas GPS/juego. El punto se 
 
 **Los estados de cada zona:**
 
-| Ícono / Color | Significado |
+| Color | Significado |
 |---------------|-------------|
-| Verde ✓ | Sin problema detectado |
-| Amarillo ⚠ | Diferencia leve (0.05–0.15s) |
-| Rojo ✗ | Diferencia importante (>0.15s) |
+| Verde | Sin problema detectado |
+| Amarillo | Diferencia leve (0.05–0.15s) |
+| Rojo | Diferencia importante (>0.15s) |
 
 **Diagnósticos frecuentes que verás:**
 - *"Frena tarde / llega caliente"* → el punto de frenado está comprimido, se pierde tiempo por sobrecalentamiento de la maniobra
@@ -237,14 +249,14 @@ Un piloto más rápido normalmente tiene **más potencia en banda baja** (hace l
 
 **Bottoming — Eventos de fondo:**
 
-Un evento de fondo ocurre cuando el amortiguador llega a su límite de recorrido. Esto es problemático porque:
+Un evento de fondo se marca cuando el recorrido de la suspensión llega al 90 % o más del recorrido máximo observado en el archivo (una heurística, no un límite medido). Es problemático porque:
 - El coche se pone rígido de golpe (pérdida de agarre)
 - La aerodinámica se desestabiliza
 - Puede dañar la carrocería
 
 | Severidad | Descripción |
 |-----------|-------------|
-| < 95% | Cerca del límite pero controlado |
+| 90-95% | Cerca del límite pero controlado (90 % es el umbral de detección) |
 | 95–98% | Fondo frecuente. Recomendable ajustar ride height o muelles |
 | > 98% | Fondo severo. El coche está tocando mecánicamente |
 
@@ -317,34 +329,105 @@ El botón **"Copiar Reporte"** genera un texto listo para pegar en un grupo de W
 
 ---
 
+## Exportar la telemetría
+
+La app lee **únicamente archivos CSV**. Exportalos desde el programa que uses:
+
+**Assetto Corsa (ACTI + MoTeC i2)**
+1. Grabá la sesión con la app de telemetría ACTI (mirá la documentación de ACTI para instalarla).
+2. Abrí el log en **MoTeC i2** y usá **File -> Export -> Export to Spreadsheet (CSV)**.
+3. Para una **vuelta suelta**, seleccioná el rango de tiempo de esa vuelta; para una **sesión completa**, seleccioná todo el rango (de la vuelta 1 a la última). Exportá todos los canales, idealmente a 60 Hz o más.
+4. El bloque de cabecera del CSV de MoTeC (Driver, Vehicle, Venue) se lee automáticamente y se usa para las etiquetas.
+
+**iRacing**
+1. iRacing graba archivos `.ibt`; la app no lee `.ibt` directamente. Convertilos a CSV con MoTeC i2 o una herramienta de terceros.
+2. El cargador detecta las exportaciones de iRacing por las columnas `SessionTime`, `Session Time` o `SessionLapCount` y normaliza las unidades (velocidad m/s a km/h, pedales 0-1 a 0-100, suspensión m a mm, presión de neumáticos kPa/PSI a bar).
+
+**Canales obligatorios:** `Speed`, `Brake`, `Throttle`. Si falta alguno, la API devuelve un error `400` con las columnas que encontró.
+
+**Canales y alias reconocidos** (el cargador los renombra automáticamente; la tabla completa es `COLUMN_ALIASES` en `src/io/loaders.py`):
+
+| Categoría | Nombre canónico | Ejemplos de nombres aceptados |
+|-----------|-----------------|-------------------------------|
+| Velocidad | `Speed` | `Speed`, `Ground Speed`, `Chassis Velocity X` |
+| Distancia | `Distance` | `Distance`, `Lap Distance`, `LapDistance` |
+| Freno / Acelerador | `Brake`, `Throttle` | `Brake Pos`, `Throttle Pos`, `Gas` |
+| Volante | `SteerAngle` | `Steering Angle`, `Steering Wheel Angle` |
+| G lateral / longitudinal | `LateralG`, `LongitudinalG` | `Lateral Acc`, `CG Accel Lateral`, `Longitudinal Acc`, `CG Accel Longitudinal` |
+| Velocidad de guiñada | `YawRate` | `Chassis Yaw Rate`, `Yaw Rate` |
+| Contador de vueltas | `SessionLapCount` | `Session Lap Count`, `Lap` |
+| Posición | `CarCoordX/Y/Z` | `Car Coord X/Y/Z` |
+| Temperatura de neumáticos | `TyreTemp{Core,Inner,Middle,Outer}{FL,FR,RL,RR}` | `Tire Temp Core FL`, `Tyre Temp (I) FL`, `LFtempCL` |
+| Presión de neumáticos | `TyrePress{FL,FR,RL,RR}` | `Tire Pressure FL`, `LFpressure` |
+| Recorrido de suspensión | `SuspTravel{FL,FR,RL,RR}` | `Suspension Travel FL`, `LFshockDefl` |
+| Temperatura / reparto de freno | `BrakeTemp{FL,FR,RL,RR}`, `BrakeBias` | `Brake Temp FL`, `dcBrakeBias` |
+| Temperatura de agua / aceite | `WaterTemp`, `OilTemp` | `Coolant Temp`, `Eng Oil Temp` |
+
+La ausencia de canales opcionales no detiene el análisis: el panel afectado se muestra como no disponible.
+
+**¿Y si no hay canal `Distance`?** La app lo sintetiza integrando la velocidad sobre un reloj válido (`LR/HR/MR Sample Clock`, `SessionTime`, `Time`, `Lap Time`...). Los relojes que solo alternan 0/1 no se usan. La respuesta lo marca con `distance_synthetic`. Es suficientemente preciso para el análisis de sesión y de stint; para comparar vuelta contra vuelta es más fiable un canal de distancia real.
+
+---
+
+## Notas de Calidad de Datos
+
+- **Detección de vueltas:** las vueltas se encuentran a partir del canal contador de vueltas o, si no existe, de los reinicios de distancia. Los segmentos de menos de 30 s (vueltas parciales, restos de pit) se descartan.
+- **Vueltas de pit y atípicas:** las vueltas con el canal `In Pit` activo, o con un tiempo fuera del 70-115 % de la mediana, se marcan y quedan fuera de regresiones y proyecciones.
+- **Las ventanas de curva** nunca se solapan: cada una se recorta a mitad de camino entre ápices vecinos. El resumen informa el time delta dentro de curvas (`corners_time_delta_s`) y fuera de ellas (`outside_corners_delta_s`). Las curvas de dos vueltas se emparejan por la distancia del ápice.
+- **"No medible" no es "cero":** si un delta de frenada o acelerador muestra `0.0` pero está marcado como no disponible (`braking_delta_available` / `throttle_delta_available` = false), no se pudo medir.
+- **Canales constantes:** un canal que nunca cambia (por ejemplo, temperaturas de freno fijas en un valor) se informa como no disponible con un motivo, en lugar de generar consejos inventados.
+- **Slip angle:** la convención de signo de la G lateral se detecta por su correlación con la velocidad de guiñada y se invierte si hace falta (Assetto Corsa la registra invertida).
+- **Archivos inválidos:** un CSV vacío, o sin `Speed`, `Brake` y `Throttle`, se rechaza con un mensaje claro.
+
+## Ejemplo de Resultado
+
+Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV de MoTeC de unos 57 MB sin canal `Distance`):
+
+- 21 vueltas detectadas (las vueltas 1 y 21 son de pit); la mejor es la vuelta 11 con 1:57.605; las vueltas de carrera están entre 117.6 y 122.4 s.
+- Longitud de pista de unos 4862 m, velocidad máxima 243.9 km/h, 11 curvas encontradas por geometría.
+- Consumo de combustible 1.758 L/vuelta; tendencia de ritmo -0.077 s/vuelta (el coche mejora a medida que consume combustible, por lo que es una mejora y no desgaste de neumáticos).
+- El análisis completo terminó en unos 25 s.
+
+## Limitaciones Conocidas
+
+- La detección de curvas solo por velocidad encuentra 7 curvas en Imola frente a 11 por geometría (las chicanes se fusionan en una).
+- La detección de bottoming es heurística: recorrido de suspensión igual o superior al 90 % del recorrido máximo observado en el archivo.
+- Según el simulador y la exportación, algunos canales pueden faltar; los paneles te avisan cuando ocurre.
+
+---
+
 ## Problemas Comunes
 
 **No se detectan curvas:**
-- El CSV no tiene datos de distancia o los datos son ruidosos
-- Probá con una vuelta completa (sin laps cortadas)
+- El CSV no tiene datos de distancia utilizables, o los datos son muy ruidosos
+- Probá con una vuelta completa (sin vueltas cortadas)
 
-**Los neumáticos siempre aparecen en "frío":**
-- El CSV no tiene los canales de temperatura de neumáticos (TyreTempInner, TyreTempMiddle, etc.)
-- Verificá que el set de canales de MoTeC incluye temperatura de ruedas
+**Un panel dice "no disponible" (mirá el panel de salud):**
+- El CSV no tiene los canales que ese módulo necesita (temperaturas de neumáticos, temperaturas de freno, recorrido de suspensión, `YawRate` y `LateralG` para el slip angle...)
+- Los canales con valor constante también se informan como no disponibles
 
-**El análisis de slip angle no aparece:**
-- El CSV necesita canales de `YawRate` y `LateralG`
-- Si el simulador no exporta YawRate, este módulo se desactiva automáticamente
+**La app dice que no encontró varias vueltas:**
+- Un archivo de sesión necesita un canal contador de vueltas (`Session Lap Count`) o una distancia que se reinicie en cada vuelta
+- El análisis de stint necesita al menos 3 vueltas
+
+**Error 400 al subir:**
+- El CSV está vacío o no contiene `Speed`, `Brake` y `Throttle` (el mensaje lista las columnas encontradas)
+
+**Error 422 al comparar:**
+- La vuelta elegida está fuera de rango, las dos vueltas son la misma, o no hay suficientes vueltas flying válidas para la selección automática
 
 **Los gráficos no se sincronizan:**
-- Mové el cursor lentamente — la sincronización ocurre cada frame a 60fps
-- Si el navegador tiene alto consumo de CPU, puede haber lag
+- Mové el cursor lentamente; si el navegador tiene alto consumo de CPU, puede haber lag
 
 **El análisis tarda mucho:**
-- CSVs con más de 50.000 filas pueden tardar 10–20 segundos en el backend
-- Normal para vueltas largas (>5 minutos) con alta frecuencia de muestreo
+- Los archivos de sesión de decenas de MB pueden tardar decenas de segundos o más en el backend; mantené la pestaña abierta
 
 ---
 
 ## Flujo de Trabajo Recomendado
 
 ```
-1. Cargá las dos vueltas → esperá el análisis
+1. Cargá el/los archivo(s) y esperá el análisis (en una sesión, elegí dos vueltas o usá Mejor vs Peor)
 2. Mirá el TIME DELTA: ¿dónde se separan las líneas?
 3. Hacé click en las curvas donde perdés más tiempo
 4. Verificá el G-G: ¿estás usando todo el agarre disponible?

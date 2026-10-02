@@ -94,7 +94,7 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
             <Legend items={[
               ...(hasA ? [{ label: labelA, color: COLOR_A }] : []),
               ...(hasB ? [{ label: labelB, color: COLOR_B }] : []),
-              ...(hasA && data.baseline_a > 0 ? [{ label: 'Baseline', color: '#6f7a8a', dashed: true }] : []),
+              ...(hasA && data.baseline_a > 0 ? [{ label: t.baselineLabel, color: '#6f7a8a', dashed: true }] : []),
             ]} />
           </div>
           <ResponsiveContainer width="100%" height={210}>

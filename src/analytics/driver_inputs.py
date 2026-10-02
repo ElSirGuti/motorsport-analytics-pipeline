@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 from scipy.signal import welch
 
+from src.i18n import _ as _tr
+
 logger = logging.getLogger(__name__)
 
 DOWNSAMPLE      = 5      # reducción para series de distancia
@@ -67,14 +69,14 @@ def _fft_bands(steer: pd.Series, sample_rate_hz: float = 10.0) -> dict:
 
 def _nervousness_label(score: float, high_band: float) -> str:
     if score < 0.15 and high_band < 0.15:
-        return "Muy suave"
+        return _tr("driver_nerv_very_smooth")
     if score < 0.30 and high_band < 0.25:
-        return "Suave"
+        return _tr("driver_nerv_smooth")
     if score < 0.50 and high_band < 0.40:
-        return "Normal"
+        return _tr("driver_nerv_normal")
     if score < 0.70 or high_band < 0.55:
-        return "Activo"
-    return "Nervioso"
+        return _tr("driver_nerv_active")
+    return _tr("driver_nerv_nervous")
 
 
 # ── Throttle-brake overlap ─────────────────────────────────────────────────────

@@ -13,6 +13,8 @@ from collections import defaultdict
 
 import numpy as np
 
+from src.i18n import _ as _tr
+
 logger = logging.getLogger(__name__)
 
 # ── Discretisation bins ───────────────────────────────────────────────────────
@@ -138,14 +140,11 @@ def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None
         # ── Build human-readable recommendation ──────────────────────────────
         recs = []
         if opt_bb != mean_bb:
-            direction = 'later' if opt_bb > mean_bb else 'earlier'
-            recs.append(f"Brake {direction}")
+            recs.append(_tr("rl_brake_later") if opt_bb > mean_bb else _tr("rl_brake_earlier"))
         if opt_ab != mean_ab:
-            direction = 'faster' if opt_ab > mean_ab else 'slower'
-            recs.append(f"Carry more apex speed" if direction == 'faster' else 'Accept lower apex speed — tighter line')
+            recs.append(_tr("rl_apex_faster") if opt_ab > mean_ab else _tr("rl_apex_slower"))
         if opt_tb != mean_tb:
-            direction = 'earlier' if opt_tb > mean_tb else 'later'
-            recs.append(f"Apply throttle {direction}")
+            recs.append(_tr("rl_throttle_earlier") if opt_tb > mean_tb else _tr("rl_throttle_later"))
 
         mean_loss = float(np.mean([l['time_loss'] for l in laps]))
         results.append({
@@ -164,7 +163,7 @@ def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None
                 "exit":  _BIN_LABELS_THTL[int(opt_tb)],
             },
             "already_optimal": (opt_bb == mean_bb and opt_ab == mean_ab and opt_tb == mean_tb),
-            "recommendations":  recs if recs else ["Execution already near optimal"],
+            "recommendations":  recs if recs else [_tr("rl_already_optimal")],
             # Q-table as 3×3 heatmap data (brake × apex, collapsed over thtl dim)
             "q_heatmap": _build_heatmap(agent),
         })

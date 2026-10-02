@@ -200,7 +200,7 @@ async def generate_pdf_from_json(
         )
     except Exception as e:
         logger.error("Error generando PDF desde JSON: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error generando PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_pdf", err=str(e)))
 
 
 @app.post("/api/report/pdf")
@@ -234,7 +234,7 @@ async def generate_pdf_report(
         if lap_a == 0 or lap_b == 0:
             flying, lap_times = _flying_lap_indices(laps)
             if len(flying) < 2:
-                raise HTTPException(422, "No hay suficientes vueltas flying para auto-seleccionar (posibles vueltas de pit detectadas)")
+                raise HTTPException(422, _("api_err_no_flying_laps"))
             best_idx  = min(flying, key=lambda i: lap_times[i])
             worst_idx = max(flying, key=lambda i: lap_times[i])
             if lap_a == 0:
@@ -245,11 +245,11 @@ async def generate_pdf_report(
                         lap_a, lap_times[best_idx], lap_b, lap_times[worst_idx], len(flying), n)
 
         if lap_a < 1 or lap_a > n:
-            raise HTTPException(422, f"Vuelta {lap_a} fuera de rango (1–{n})")
+            raise HTTPException(422, _("api_err_lap_range", lap=lap_a, n=n))
         if lap_b < 1 or lap_b > n:
-            raise HTTPException(422, f"Vuelta {lap_b} fuera de rango (1–{n})")
+            raise HTTPException(422, _("api_err_lap_range", lap=lap_b, n=n))
         if lap_a == lap_b:
-            raise HTTPException(422, "Las dos vueltas deben ser diferentes")
+            raise HTTPException(422, _("api_err_laps_differ"))
 
         df_a = laps[lap_a - 1]
         df_b = laps[lap_b - 1]
@@ -314,7 +314,7 @@ async def generate_pdf_report(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("Error generando PDF: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil
@@ -530,7 +530,7 @@ async def compare_laps_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error interno: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil
@@ -571,7 +571,7 @@ async def analyze_session_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error interno: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil
@@ -640,7 +640,7 @@ async def compare_session_laps_endpoint(
         if lap_a == 0 or lap_b == 0:
             flying, lap_times = _flying_lap_indices(laps)
             if len(flying) < 2:
-                raise HTTPException(422, "No hay suficientes vueltas flying para auto-seleccionar (posibles vueltas de pit detectadas)")
+                raise HTTPException(422, _("api_err_no_flying_laps"))
             best_idx  = min(flying, key=lambda i: lap_times[i])
             worst_idx = max(flying, key=lambda i: lap_times[i])
             if lap_a == 0:
@@ -651,17 +651,17 @@ async def compare_session_laps_endpoint(
                         lap_a, lap_times[best_idx], lap_b, lap_times[worst_idx], len(flying), n)
 
         if lap_a < 1 or lap_a > n:
-            raise HTTPException(422, f"Vuelta {lap_a} fuera de rango (1–{n})")
+            raise HTTPException(422, _("api_err_lap_range", lap=lap_a, n=n))
         if lap_b < 1 or lap_b > n:
-            raise HTTPException(422, f"Vuelta {lap_b} fuera de rango (1–{n})")
+            raise HTTPException(422, _("api_err_lap_range", lap=lap_b, n=n))
         if lap_a == lap_b:
-            raise HTTPException(422, "Las dos vueltas deben ser diferentes")
+            raise HTTPException(422, _("api_err_laps_differ"))
 
         df_a = laps[lap_a - 1]
         df_b = laps[lap_b - 1]
 
         if len(df_a) < 50 or len(df_b) < 50:
-            raise HTTPException(422, "Alguna vuelta tiene muy pocas muestras para comparar")
+            raise HTTPException(422, _("api_err_few_samples"))
 
         logger.info("Paso 3/3: Comparando V%d (%d pts) vs V%d (%d pts)...",
                     lap_a, len(df_a), lap_b, len(df_b))
@@ -885,7 +885,7 @@ async def compare_session_laps_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error interno: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil
@@ -996,7 +996,7 @@ async def compare_telemetry_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error interno: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil
@@ -1147,7 +1147,7 @@ async def analyze_telemetry_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error interno: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil
@@ -1299,7 +1299,7 @@ async def analyze_stint_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error en stint: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Error interno: {str(e)}")
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):
             import shutil

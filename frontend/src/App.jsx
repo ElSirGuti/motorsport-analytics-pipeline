@@ -50,12 +50,6 @@ function clean(s) {
     .replace(/[^\p{L}\p{N}.)%]+$/u, '');
 }
 
-// Bilingual fallback for strings that are not in the i18n files yet.
-function useTx() {
-  const { t, lang } = useLanguage();
-  return useCallback((key, en, es) => t[key] ?? (lang === 'es' ? es : en), [t, lang]);
-}
-
 function SectionHeader({ icon, title, sub, actions }) {
   return (
     <div className="shell-section__head">
@@ -83,11 +77,11 @@ function Alert({ tone = 'info', title, children, role, flush }) {
 }
 
 function NoData({ title }) {
-  const tx = useTx();
+  const { t } = useLanguage();
   return (
     <div className="shell-nodata">
       <Icon name="info" size={14} />
-      <span>{title ? `${title}: ` : ''}{tx('noDataAvailable', 'No data available', 'Sin datos disponibles')}</span>
+      <span>{title ? `${title}: ` : ''}{t.noDataAvailable}</span>
     </div>
   );
 }
@@ -147,7 +141,6 @@ function SessionKPIs({ sessionResult, stintResult }) {
 
 function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, onCompareBestWorst, compareLoading, compareError }) {
   const { t } = useLanguage();
-  const tx = useTx();
   const [lapA, lapB] = selectedLaps;
   const canCompare = selectedLaps.length === 2 && !compareLoading;
 
@@ -156,7 +149,7 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
       <div className="shell-lapbar">
         <div className="shell-lapbar__sel" aria-live="polite">
           {selectedLaps.length === 0 && (
-            <span>{tx('lapSelectHint', 'Click two laps to compare them (A and B).', 'Haz clic en dos vueltas para compararlas (A y B).')}</span>
+            <span>{t.lapSelectHint}</span>
           )}
           {selectedLaps.length === 1 && (
             <>
@@ -264,7 +257,7 @@ function ModuleWithHelp({ children, title, helpContent }) {
 }
 
 function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode }) {
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const meta = result?.metadata;
   const title = comparingLaps
     ? t.compareSectionTitle(comparingLaps[0], comparingLaps[1])
@@ -282,7 +275,7 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
   }, [meta, t]);
 
   const head = (id, icon, sub) => (
-    <SectionHeader icon={icon} title={sectionLabel(id, lang)} sub={sub} />
+    <SectionHeader icon={icon} title={sectionLabel(id, t)} sub={sub} />
   );
 
   return (
@@ -390,14 +383,14 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
             ? (
               <div className="shell-gap">
                 <ModuleWithHelp
-                  title="Circuit Curvature Signature"
-                  helpContent={"Shows lateral G intensity (|LateralG|) across the lap. Peaks correspond to corners — numbered dots mark the apex positions. A higher peak means a tighter or faster corner. Compare the profile shape between fast and slow laps to identify where the reference lap carries more or less lateral load."}
+                  title={t.curvatureTitle}
+                  helpContent={t.helpCurvature}
                 >
                   <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
                 </ModuleWithHelp>
               </div>
             )
-            : <NoData title="Circuit Curvature" />
+            : <NoData title={t.curvatureTitle} />
         )}
 
         {!isPilotMode && result.sectores?.length > 0 && (
@@ -417,14 +410,14 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
             ? (
               <div>
                 <ModuleWithHelp
-                  title="GG Diagram — Grip Utilization"
-                  helpContent={"Plots lateral G vs longitudinal G for every telemetry sample. Points near the outer edge of the circle = using the car's full grip. Sparse center = under-driving. The efficiency % shows how each sample compares to the car's grip limit. A well-driven lap fills the outer ring evenly."}
+                  title={t.ggTitle}
+                  helpContent={t.helpGG}
                 >
                   <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
                 </ModuleWithHelp>
               </div>
             )
-            : <NoData title="GG Diagram" />
+            : <NoData title={t.ggTitle} />
           }
 
           {result.anomaly
@@ -433,35 +426,35 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
                 <AnomalyReport anomaly={result.anomaly} />
               </div>
             )
-            : <NoData title="Anomaly" />
+            : <NoData title={t.anomalyTitle} />
           }
 
           {result.slip_angle?.available
             ? (
               <div className="shell-gap">
                 <ModuleWithHelp
-                  title="Slip Angle — Chassis Sideslip"
-                  helpContent={"Body sideslip angle β: difference between car heading and velocity direction. High β = sliding. US% = time spent understeering (front slides more). OS% = oversteering (rear slides more). Balance mean > 0 → understeer tendency; < 0 → oversteer. Target: <10% combined US+OS in fast corners."}
+                  title={t.slipAngleTitle}
+                  helpContent={t.helpSlip}
                 >
                   <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
                 </ModuleWithHelp>
               </div>
             )
-            : <NoData title="Slip Angle" />
+            : <NoData title={t.slipAngleTitle} />
           }
 
           {result.suspension?.available
             ? (
               <div className="shell-gap">
                 <ModuleWithHelp
-                  title="Suspension Analysis — Pitch & Roll"
-                  helpContent={"Shows suspension travel in mm. Roll = left/right difference (load transfer in corners). Pitch = front/rear difference (load under braking/acceleration). Bottoming events = damper at full compression — consider raising ride height or increasing bump stiffness. High roll ratio F/R → ARB imbalance."}
+                  title={t.suspensionTitle}
+                  helpContent={t.helpSuspension}
                 >
                   <SuspensionChart suspension={result.suspension} metadata={meta} />
                 </ModuleWithHelp>
               </div>
             )
-            : <NoData title="Suspension" />
+            : <NoData title={t.suspensionTitle} />
           }
         </section>
       )}
@@ -473,42 +466,42 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
             ? (
               <div>
                 <ModuleWithHelp
-                  title="Tyre Temperature Analysis"
-                  helpContent={"Shows inner / middle / outer tyre temperature per corner. Optimal window: 80–100 °C. Inner hotter than outer → too much negative camber. Outer hotter → too little. Even distribution → camber is well set. Front much hotter than rear → understeer bias or need more rear downforce."}
+                  title={t.tyreTitle}
+                  helpContent={t.helpTyre}
                 >
                   <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
                 </ModuleWithHelp>
               </div>
             )
-            : <NoData title="Tyre Temperature" />
+            : <NoData title={t.tyreTitle} />
           }
 
           {result.brake_analysis?.available
             ? (
               <div className="shell-gap">
                 <ModuleWithHelp
-                  title="Brake Efficiency — Fade Analysis"
-                  helpContent={"Ratio of generated deceleration to applied brake pressure. Baseline = 1.0. A progressive drop means thermal fade — the pads/discs are overheating. Highlighted zones fell >15% below baseline. Fix: more brake duct opening, harder compound, or reduce brake bias slightly."}
+                  title={t.brakeFadeTitle}
+                  helpContent={t.helpBrake}
                 >
                   <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
                 </ModuleWithHelp>
               </div>
             )
-            : <NoData title="Brake Efficiency" />
+            : <NoData title={t.brakeFadeTitle} />
           }
 
           {result.driver_inputs?.available
             ? (
               <div className="shell-gap">
                 <ModuleWithHelp
-                  title="Driver Inputs — Smoothness Analysis"
-                  helpContent={"Nervousness index measures steering micro-corrections via FFT. High-frequency spikes (>5 Hz) → damper rebound too stiff. Mid-frequency (2–5 Hz) → spring rate issue. Brake-throttle overlap target: 8–18% for proper trail braking. Low overlap → driver lifting brake too early before apex."}
+                  title={t.driverInputsTitle}
+                  helpContent={t.helpDriver}
                 >
                   <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
                 </ModuleWithHelp>
               </div>
             )
-            : <NoData title="Driver Inputs" />
+            : <NoData title={t.driverInputsTitle} />
           }
         </section>
       )}
@@ -584,7 +577,6 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
 
 export default function App() {
   const { t, lang, setLang } = useLanguage();
-  const tx = useTx();
   const [step, setStep] = useState('session');
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -840,10 +832,10 @@ export default function App() {
   );
 
   const progressText = step === 'stint'
-    ? tx('shellStepStint', 'Analyzing stint: degradation, fuel and corners', 'Analizando stint: degradación, combustible y curvas')
+    ? t.shellStepStint
     : step === 'compare'
-      ? tx('shellStepCompare', 'Comparing laps and running advanced analysis', 'Comparando vueltas y ejecutando análisis avanzado')
-      : tx('shellStepSession', 'Reading session and segmenting laps', 'Leyendo la sesión y segmentando vueltas');
+      ? t.shellStepCompare
+      : t.shellStepSession;
   const progressStep = isSessionMode ? (step === 'stint' ? 2 : 1) : null;
 
   const analyzeLabel = isSessionMode ? clean(t.appAnalyzeSession) : clean(t.appAnalyzeCompare(files.length));
@@ -911,7 +903,7 @@ export default function App() {
                   <div className="shell-drop__label">{t.dropzoneLabel}</div>
                   {!files.length && (
                     <div className="shell-drop__sub">
-                      {tx('shellDropHint', 'or click to browse. Only .csv files.', 'o haz clic para buscar. Solo archivos .csv.')}
+                      {t.shellDropHint}
                     </div>
                   )}
                 </div>
@@ -930,23 +922,19 @@ export default function App() {
                   <div className={`shell-mode${isSessionMode ? ' is-active' : ''}`}>
                     <div className="shell-mode__head">
                       <Icon name="layers" size={16} /> {t.modeSession}
-                      <span className="shell-mode__req">{tx('shellOneCsv', '1 CSV', '1 CSV')}</span>
+                      <span className="shell-mode__req">{t.shellOneCsv}</span>
                     </div>
                     <div className="shell-mode__desc">
-                      {tx('shellModeSessionDesc',
-                        'One CSV with the whole session. Laps are segmented automatically, the stint is analysed and you can pick any two laps to compare.',
-                        'Un CSV con toda la sesión. Las vueltas se segmentan automáticamente, se analiza el stint y puedes elegir dos vueltas para comparar.')}
+                      {t.shellModeSessionDesc}
                     </div>
                   </div>
                   <div className={`shell-mode${files.length >= 2 ? ' is-active' : ''}`}>
                     <div className="shell-mode__head">
                       <Icon name="activity" size={16} /> {clean(t.analyzeCompare)}
-                      <span className="shell-mode__req">{tx('shellTwoCsv', '2 CSV', '2 CSV')}</span>
+                      <span className="shell-mode__req">{t.shellTwoCsv}</span>
                     </div>
                     <div className="shell-mode__desc">
-                      {tx('shellModeCompareDesc',
-                        'Two single-lap CSVs (reference first, then comparison). Time delta, corners and detailed telemetry between both laps.',
-                        'Dos CSV de una vuelta (primero la referencia, luego la comparación). Delta de tiempo, curvas y telemetría detallada entre ambas.')}
+                      {t.shellModeCompareDesc}
                     </div>
                   </div>
                 </div>
@@ -956,12 +944,12 @@ export default function App() {
                     {files.map((f, i) => (
                       <li key={f.name + f.size} className="shell-file">
                         <span className="shell-file__tag" style={{ color: LAP_COLORS[i % LAP_COLORS.length] }}>
-                          {isSessionMode ? 'S' : `V${i + 1}`}
+                          {isSessionMode ? 'S' : `${t.lapTag}${i + 1}`}
                         </span>
                         <Icon name="file" size={16} className="shell-file__icon" />
                         <span className="shell-file__name shell-trunc" title={f.name}>{f.name}</span>
                         {!isSessionMode && i >= 2 && (
-                          <Badge tone="warn">{tx('shellNotUsed', 'not used', 'sin usar')}</Badge>
+                          <Badge tone="warn">{t.shellNotUsed}</Badge>
                         )}
                         <span className="shell-file__size">{fmtMB(f.size)}</span>
                         <button
@@ -994,7 +982,7 @@ export default function App() {
                       </span>
                     </div>
                     <div className="shell-progress__hint">
-                      {tx('shellProgressHint', 'Large files can take a few minutes. Keep this tab open.', 'Los archivos grandes pueden tardar varios minutos. Mantén esta pestaña abierta.')}
+                      {t.shellProgressHint}
                     </div>
                   </div>
                 )}
@@ -1013,12 +1001,12 @@ export default function App() {
                   </button>
                   {!files.length && (
                     <span className="shell-actions__note">
-                      {tx('shellAddFile', 'Add at least one CSV to start.', 'Añade al menos un CSV para empezar.')}
+                      {t.shellAddFile}
                     </span>
                   )}
                   {files.length > 2 && !loading && (
                     <span className="shell-actions__note">
-                      {tx('shellExtraFiles', 'Only the first two files are compared.', 'Solo se comparan los dos primeros archivos.')}
+                      {t.shellExtraFiles}
                     </span>
                   )}
                 </div>
@@ -1033,7 +1021,7 @@ export default function App() {
                 {files.map((f, i) => (
                   <span key={f.name + f.size} className="shell-chip" title={f.name}>
                     <span className="shell-chip__tag" style={{ color: LAP_COLORS[i % LAP_COLORS.length] }}>
-                      {isSessionMode ? 'S' : `V${i + 1}`}
+                      {isSessionMode ? 'S' : `${t.lapTag}${i + 1}`}
                     </span>
                     <span className="shell-trunc">{f.name}</span>
                     <span className="shell-chip__size">{fmtMB(f.size)}</span>
@@ -1042,7 +1030,7 @@ export default function App() {
               </div>
               <button type="button" className="ui-btn ui-btn--sm" onClick={resetAll} disabled={loading || compareLoading}>
                 <Icon name="upload" size={14} />
-                {tx('shellNewAnalysis', 'New analysis', 'Nuevo análisis')}
+                {t.shellNewAnalysis}
               </button>
             </div>
           )}
@@ -1053,8 +1041,8 @@ export default function App() {
               <section id="section-overview" className="shell-section">
                 <SectionHeader
                   icon="grid"
-                  title={sectionLabel('section-overview', lang)}
-                  sub={tx('shellOverviewSub', 'Key figures, circuit map and lap list. Select two laps to compare them.', 'Cifras clave, mapa del circuito y lista de vueltas. Selecciona dos vueltas para compararlas.')}
+                  title={sectionLabel('section-overview', t)}
+                  sub={t.shellOverviewSub}
                 />
                 <SessionKPIs sessionResult={sessionResult} stintResult={stintResult} />
 
@@ -1080,11 +1068,11 @@ export default function App() {
 
               {stintResult && (
                 <section id="section-stint" className="shell-section">
-                  <SectionHeader icon="trend" title={sectionLabel('section-stint', lang)} />
+                  <SectionHeader icon="trend" title={sectionLabel('section-stint', t)} />
                   {stintResult.health_summary && <HealthDashboard health_summary={stintResult.health_summary} />}
                   {stintResult.track_evolution?.available && (
                     <Alert tone="info" flush>
-                      {tx('shellTrackEvolution', 'Track evolution', 'Evolución de pista')}: {stintResult.track_evolution.note}
+                      {t.shellTrackEvolution}: {stintResult.track_evolution.note}
                     </Alert>
                   )}
                   <LapTimelineChart
@@ -1119,7 +1107,7 @@ export default function App() {
 
               {stintResult && (stintResult.thermal_analysis?.available || stintResult.setup_sesion?.available || stintResult.degradacion_neumatico?.available || stintResult.racing_line_rl?.available) && (
                 <section id="section-setup" className="shell-section">
-                  <SectionHeader icon="wrench" title={sectionLabel('section-setup', lang)} />
+                  <SectionHeader icon="wrench" title={sectionLabel('section-setup', t)} />
                   {stintResult.thermal_analysis?.available && (
                     <div>
                       <ThermalManagementPanel thermal_analysis={stintResult.thermal_analysis} />

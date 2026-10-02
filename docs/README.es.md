@@ -1,13 +1,26 @@
 # Documentación — Motorsport Analytics Pipeline
 
+[Read in English](./README.md)
+
 ---
 
 ## Guías para el Usuario
 
 | Documento | Para quién |
 |-----------|-----------|
-| [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app. Explica cómo interpretar cada sección en lenguaje simple. |
+| [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app: cómo usarla, exportar telemetría, interpretar cada panel, notas de calidad de datos y solución de problemas. |
 | [Referencia Rápida](./REFERENCIA_RAPIDA.es.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes y flujo de análisis. |
+
+---
+
+## Documentación del Proyecto
+
+| Documento | Contenido |
+|-----------|-----------|
+| [README principal](../README.es.md) | Inicio rápido, instalación, endpoints de la API, configuración, tests, arquitectura |
+| [README del frontend](../frontend/README.md) | Estructura de la UI, sistema de diseño, cliente de API, build y lint |
+| [CONTRIBUTING](../CONTRIBUTING.md) | Cómo contribuir (en inglés) |
+| [LICENSE](../LICENSE) | Licencia MIT |
 
 ---
 
@@ -61,7 +74,9 @@ python scripts/docs/gen_suspension.py
 python scripts/docs/gen_slip_angle.py
 ```
 
-Cada script escribe en `docs/images/{módulo}/`.
+Cada script escribe en `docs/images/{módulo}/`. Los módulos 14-17 (gestión térmica, degradación de neumáticos, línea de carrera, asesor de configuración) no tienen generador de imágenes.
+
+Ejecuta los scripts desde la raíz del proyecto con las dependencias de `requirements.txt` instaladas.
 
 ---
 

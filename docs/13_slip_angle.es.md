@@ -271,3 +271,7 @@ Serie del balance de pista (αF − αR, grados) con bandas de umbral sombreadas
 4. Guiggiani, M. (2014). *The Science of Vehicle Dynamics*. Springer. — Fundamentos matemáticos del modelo de bicicleta extendido; análisis de estabilidad en función de los ángulos de deslizamiento.
 
 5. Pacejka, H. B. (2012). *Tire and Vehicle Dynamics* (3rd ed.). Butterworth-Heinemann. — Modelo de Magic Formula; relación entre α y la fuerza lateral de neumático; transición a saturación.
+
+---
+
+**Nota de implementación:** la convención de signo de `LateralG` difiere entre simuladores (Assetto Corsa la registra anticorrelada con la velocidad de guiñada). `lateral_sign_convention()` en `src/analytics/slip_angle.py` lo detecta por la correlación con la velocidad de guiñada e invierte el signo antes de calcular β.

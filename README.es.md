@@ -1,268 +1,279 @@
-# Motorsport Analytics Pipeline — El Analista Automatizado
+# Motorsport Analytics Pipeline
 
-Plataforma full-stack para el análisis automatizado de telemetría de Assetto Corsa (ACTI) y otros simuladores compatibles con MoTeC. 
+> Análisis de telemetría de vueltas y sesiones de Assetto Corsa e iRacing a partir de exportaciones CSV tipo MoTeC: comparación de vueltas, diagnóstico curva a curva, análisis de stint y neumáticos, y recomendaciones de setup.
 
-Esta herramienta alinea las vueltas por distancia y detecta automáticamente eventos clave como puntos de frenado, vértices de curva (apex) y puntos de aceleración para generar un reporte detallado y visual curva por curva.
+[Read in English](README.md)
 
-## ✨ Características Principales
+## Inicio rápido
 
-- 🏁 **Comparación Multi-Vuelta:** Soporta la carga y comparación simultánea de hasta 6 vueltas, con colores y etiquetas automáticas.
-- 🔍 **Zoom Interactivo por Curva:** Al hacer clic en las tarjetas de análisis de curvas, los gráficos hacen zoom automáticamente en la zona de frenado y aceleración de esa curva específica.
-- 🆔 **Detección Inteligente de Identidad:** Extrae la metadata del CSV de MoTeC (Piloto, Vehículo, Circuito) para generar etiquetas dinámicas e identificar diferencias (ej. advierte si estás comparando distintos vehículos).
-- 📋 **Reporte de Ingeniero Exportable:** Genera un resumen en texto plano, curva por curva, con un botón integrado para copiar al portapapeles.
-- 🌡️ **Temperatura de Neumáticos:** Análisis térmico completo por neumático (Inner/Middle/Outer/Core), detección de ventana óptima de operación (configurable), gradiente ΔT superficie–núcleo y % de tiempo en estrés térmico.
-- 🔴 **Brake Fade — Eficiencia de Frenado:** Ratio |LonG| / presión de pedal en todas las zonas de frenada. Detecta automáticamente la degradación de eficiencia a lo largo del stint y localiza zonas de fade térmico.
-- 🎮 **Análisis de Inputs del Piloto (FFT):** Welch PSD sobre el canal SteerAngle para cuantificar micro-correcciones de alta frecuencia. Índice de nerviosismo normalizado + % solapamiento freno-gas por vuelta.
-- 🔧 **Suspensión — Pitch & Roll:** Pitch y roll del chasis desde los 4 canales SuspTravel, detección de eventos de fondo (bottoming) con severidad, máximos de transferencia de carga dinámica.
-- 📐 **Ángulo de Deslizamiento (Sideslip β):** Integración cinemática de Vy_dot = LateralG·g − YawRate·Vx para estimar β del chasis. Cálculo de αF y αR con modelo de bicicleta; balance de pista (subviraje vs sobreviraje) por distancia.
-- 🗺️ **Mapeo de Pista:** Visualización simplificada de la trazada del circuito basada en coordenadas GPS/Juego.
-- ◎ **Diagrama G-G (Círculo de Fricción):** Visualiza el agarre disponible del vehículo con puntos coloreados por eficiencia de G-Sum. Muestra el límite de adherencia (percentil 95) y la distribución de fuerzas longitudinales y laterales.
-- ⚠️ **Detección de Subviraje y Sobreviraje:** Algoritmo que analiza derivadas del ángulo de volante y G-Lateral para identificar pérdida de agarre delantero (subviraje) o trasero (sobreviraje) en cada curva, con severidad y diagnóstico textual.
-- 🗜️ **Compresión RDP (Ramer-Douglas-Peucker):** Reduce el payload de telemetría hasta un 80% preservando la forma de las curvas de velocidad y delta, con retención forzada de apexes para mantener precisión en zonas críticas.
-- 🗃️ **Vista Unificada:** Todos los análisis (básico + avanzado) se presentan en una sola página scrollable sin pestañas ni toggles, cargados en paralelo.
+```bash
+# 1. Backend (desde la raíz del proyecto)
+python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt && uvicorn main:app --reload --port 8000
 
-## 📁 Estructura del Proyecto
+# 2. Frontend (segunda terminal)
+cd frontend && npm install && npm run dev
 
-- `main.py` - Backend FastAPI (Endpoints y gestión de telemetría)
-- `src/` - Lógica central del motor de telemetría
-  - `io/` - Carga y exportación de datos (loaders, exporters)
-  - `processing/` - Alineación espacial y filtros (alignment, filters)
-  - `telemetry/` - Comparación de vueltas y análisis de sesión (lap_comparator, session_analyzer)
-  - `analytics/` - Módulos de análisis avanzado
-    - `geometry.py` - Geometría de pista, detección de apexes por curvatura
-    - `alignment.py` - Alineación de vueltas y cálculo de time delta
-    - `insights.py` - Generación de insights técnicos curva por curva
-    - `dynamics.py` - Círculo de fricción (G-Sum, eficiencia), detección de subviraje/sobreviraje
-    - `compression.py` - Compresión Ramer-Douglas-Peucker (RDP) para reducción de payload
-    - `thermodynamics.py` - Análisis térmico de neumáticos: ventana de temperatura, ΔT, estrés
-    - `brake_fade.py` - Eficiencia de frenado y detección de brake fade por zona
-    - `driver_inputs.py` - FFT Welch sobre SteerAngle, índice de nerviosismo, solapamiento freno-gas
-    - `suspension.py` - Pitch, roll y bottoming desde canales SuspTravel FL/FR/RL/RR
-    - `slip_angle.py` - Ángulo de deslizamiento β (cinemático), αF/αR y balance de pista
-- `frontend/` - Interfaz de usuario (React + Vite, Recharts para gráficos)
-  - `src/components/` - Componentes React (SpeedChart, BrakeThrottleChart, TimeDeltaChart, TrackMap, CornerReport, GGDiagramChart, etc.)
-  - `src/api/` - Cliente Axios para comunicación con la API
-  - `src/api/cursorStore.js` - Store sincrónico para cursor entre gráficas (rendimiento 60fps)
-- `scripts/` - Utilidades adicionales (ej. generador de datos sintéticos)
-- `data/` - Directorio para guardar archivos CSV crudos
+# 3. Abre http://localhost:5173 y suelta un CSV (ver "Uso de la aplicación")
+```
 
-## ⚙️ Instalación
+## Tabla de contenidos
 
-### Requisitos previos
+- [Qué es](#qué-es)
+- [Instalación](#instalación)
+- [Uso de la aplicación](#uso-de-la-aplicación)
+- [Formatos de telemetría](#formatos-de-telemetría)
+- [Notas de calidad de datos y comportamiento](#notas-de-calidad-de-datos-y-comportamiento)
+- [Ejemplo de resultado](#ejemplo-de-resultado)
+- [Arquitectura](#arquitectura)
+- [API](#api)
+- [Configuración](#configuración)
+- [Desarrollo y tests](#desarrollo-y-tests)
+- [Documentación](#documentación)
+- [Limitaciones conocidas](#limitaciones-conocidas)
+- [Contribuir](#contribuir)
+- [Licencia](#licencia)
 
-| Herramienta | Versión mínima | Descarga |
-|---|---|---|
-| Python | 3.10 | https://www.python.org/downloads/ |
-| Node.js | 18 LTS | https://nodejs.org/ |
-| Git | cualquiera | https://git-scm.com/ |
+## Qué es
 
-### 1 — Clonar el repositorio
+Un backend FastAPI y un frontend React. Subes archivos CSV de telemetría y obtienes:
+
+- **Modo sesión (1 CSV):** la sesión completa se segmenta automáticamente en vueltas. Obtienes una tabla de vueltas (con las vueltas de pit y atípicas marcadas), análisis de stint (degradación de ritmo, estrategia de combustible, proyección Monte Carlo, ventana de pit, evolución de pista), análisis de curvas de la sesión, degradación de neumáticos, gestión térmica, optimización de trazada y recomendaciones de setup.
+- **Modo comparación (2 CSV de una vuelta cada uno, o 2 vueltas elegidas de una sesión):** time delta alineado por distancia, superposición de velocidad/freno/acelerador, diagnóstico curva a curva, diagrama G-G, eventos de subviraje/sobreviraje, análisis de neumáticos/frenos/suspensión/inputs/slip angle, módulos de ML (detección de anomalías, clustering de estilo, potencial de vuelta) e informe PDF.
+
+La interfaz tiene dos vistas: **Ingeniero** (todo) y **Piloto** (paneles técnicos ocultos). Idiomas: español e inglés (los mensajes y reportes de la API siguen el parámetro `lang` o `Accept-Language`).
+
+## Instalación
+
+### Requisitos
+
+| Herramienta | Versión |
+|---|---|
+| Python | 3.10+ (la imagen Docker usa 3.11) |
+| Node.js | 18+ (la imagen Docker usa 20) |
+| Git | cualquiera |
+
+### Local
 
 ```bash
 git clone https://github.com/ElSirGuti/motorsport-analytics-pipeline.git
 cd motorsport-analytics-pipeline
-```
 
-### 2 — Backend (Python)
-
-```bash
-# Crear y activar entorno virtual (recomendado)
 python -m venv .venv
+source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt    # añade -r requirements-dev.txt para los tests
 
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-# macOS / Linux
-source .venv/bin/activate
-
-# Instalar dependencias
-pip install -r requirements.txt
+cd frontend && npm install && cd ..
 ```
 
-### 3 — Frontend (Node.js)
+Ejecuta los dos procesos en terminales separadas:
 
 ```bash
-cd frontend
-npm install
-cd ..
+uvicorn main:app --reload --port 8000     # API en http://localhost:8000 (docs en /docs)
+cd frontend && npm run dev                # UI en http://localhost:5173
 ```
 
-### 4 — Ejecutar la app
+También puedes ejecutar `python main.py`, que lee `API_HOST`, `API_PORT` y `API_RELOAD` del entorno.
 
-Abre **dos terminales** desde la raíz del proyecto:
+### Docker
 
-**Terminal 1 — API Backend:**
 ```bash
-uvicorn main:app --reload --port 8000
+docker compose up --build
 ```
 
-**Terminal 2 — Frontend:**
-```bash
-cd frontend
-npm run dev
-```
+`docker-compose.yml` levanta el `backend` (puerto 8000, health check en `/api/health`) y el `frontend` (nginx sirviendo el build de producción en el puerto 5173). La imagen del frontend incorpora la URL de la API en tiempo de build (`VITE_API_URL`, por defecto `http://localhost:8000/api`), por lo que el navegador debe poder alcanzar la API en esa dirección.
 
-Abre el navegador en **http://localhost:5173**.
+## Uso de la aplicación
 
----
+1. Abre `http://localhost:5173` y elige el idioma (ES/EN) y el modo (Piloto/Ingeniero) en la barra superior.
+2. Suelta archivos CSV en el área de carga. El modo se detecta por la cantidad de archivos:
+   - **1 CSV = sesión completa**, segmentada automáticamente en vueltas.
+   - **2 CSV = dos vueltas sueltas** para comparar.
+3. Pulsa analizar. Una barra de progreso por pasos muestra las etapas (los archivos grandes pueden tardar varios minutos; una sesión de ~57 MB tardó unos 25 s). Al terminar, el área de carga se compacta en una barra de archivo con el botón **Nuevo análisis**.
+4. Navega con el riel lateral:
+   - Sesión: *Resumen de sesión*, *Análisis de stint*, *Setup y estrategia*.
+   - Comparación: *Vuelta base*, *Dinámica del vehículo*, *Piloto y entradas*, *Estrategia y setup*.
+   - El modo Piloto oculta los paneles técnicos (dinámica del vehículo y piloto y entradas).
+5. En la tabla de vueltas de la sesión, marca **dos vueltas (A/B)** y pulsa **Comparar**, o usa **Mejor vs Peor**. Las vueltas de pit y atípicas aparecen marcadas.
+6. Un panel de salud indica qué módulos de análisis produjeron datos y cuáles no están disponibles para ese archivo.
+7. El resultado de una comparación se puede copiar como reporte de texto o descargar como PDF.
 
-## 📡 Guía de Exportación de Telemetría
+Guía completa: [Guía de Usuario](docs/GUIA_USUARIO.es.md).
 
-### Assetto Corsa — Plugin ACTI
+## Formatos de telemetría
 
-[ACTI (AC Telemetry Interface)](https://www.assettocorsa.net/forum/index.php?threads/acti-ac-telemetry-interface.50534/) graba telemetría compatible con MoTeC directamente desde Assetto Corsa.
+El cargador (`src/io/loaders.py`) lee únicamente **CSV**. Fuentes soportadas:
 
-**Configuración:**
-1. Descarga e instala el plugin ACTI en la carpeta `apps/python/` de Assetto Corsa.
-2. En Assetto Corsa ve a **Opciones → General** y activa las **Apps de Python**.
-3. En sesión, habilita la app **ACTI** desde la barra de apps del HUD.
-4. ACTI grabará automáticamente un archivo `.ldx` / CSV crudo por vuelta. Por defecto en `Documentos\Assetto Corsa\logs\`.
-5. Para exportar a CSV: abre **MoTeC i2**, conecta el archivo de log y sigue los pasos de exportación MoTeC indicados abajo.
-
-### iRacing — Logging de telemetría
-
-iRacing puede escribir un archivo `.ibt` de telemetría de forma nativa.
-
-**Activar en iRacing:**
-1. Abre `Documentos\iRacing\app.ini` con un editor de texto.
-2. Busca (o agrega) la sección `[Telemetry]` y configura:
-   ```
-   logToDisk=1
-   diskSamplingRate=60
-   ```
-3. Alternativamente, ve a **Opciones → Telemetría → Grabar en disco** en la interfaz de iRacing (si está disponible en tu versión).
-4. Los archivos `.ibt` se guardan en `Documentos\iRacing\telemetry\`.
-5. Usa **MoTeC i2 Pro** (con el workspace de iRacing) o herramientas de terceros (p.ej. *ibt2csv*) para convertir `.ibt` → `.csv`.
-
-### MoTeC i2 — Exportar a CSV
-
-MoTeC i2 es la herramienta de análisis de datos profesional para visualizar y exportar telemetría de ACTI, iRacing y otras fuentes.
-
-**Exportar una vuelta específica:**
-1. Abre MoTeC i2 y carga tu archivo de log (**Archivo → Abrir**).
-2. Navega a la vuelta deseada en el panel **Laps**.
-3. Ve a **Archivo → Exportar → Exportar a hoja de cálculo (CSV)**.
-4. En el diálogo: selecciona el **rango de tiempo** de esa vuelta, elige **Todos los canales**, configura la frecuencia de salida (60 Hz recomendado) y haz clic en **Exportar**.
-
-**Exportar un stint completo:**
-1. Selecciona el rango de tiempo de toda la sesión (desde la Vuelta 1 hasta la última) en el panel Laps.
-2. Sigue los mismos pasos de **Archivo → Exportar → CSV**.
-3. El CSV resultante contendrá todas las vueltas como un dataset continuo — la app segmentará automáticamente las vueltas individuales detectando transiciones de velocidad cero.
-
-**Canales requeridos para análisis completo:**
-
-| Categoría | Nombres típicos de canal |
+| Fuente | Notas |
 |---|---|
-| Velocidad | `Speed`, `Ground Speed` |
-| Distancia | `Lap Distance`, `Distance` |
-| Freno / Gas | `Brake Pos`, `Throttle Pos` |
-| G Lateral / Longitudinal | `Lateral Acc`, `Longitudinal Acc` |
-| Velocidad de guiñada | `Yaw Rate` |
-| Ángulo de volante | `Steer Angle` |
-| Temp. neumáticos | `Tyre Temp FL`, `Tyre Temp FR`, `Tyre Temp RL`, `Tyre Temp RR` |
-| Viaje de suspensión | `Susp Travel FL`, `Susp Travel FR`, `Susp Travel RL`, `Susp Travel RR` |
+| Assetto Corsa vía ACTI, exportado como CSV de MoTeC | El separador (coma o punto y coma) se detecta automáticamente; el bloque de cabecera de MoTeC (Driver, Vehicle, Venue) se lee como metadatos y la fila de unidades se omite. |
+| iRacing exportado a CSV (`.ibt` convertido con MoTeC i2 o una herramienta de terceros) | Se detecta por `SessionTime`, `Session Time` o `SessionLapCount`. La velocidad en m/s se convierte a km/h, los pedales de 0-1 se escalan a 0-100, la suspensión de metros a mm, la presión de neumáticos de kPa/PSI a bar y el brake bias de fracción a porcentaje. |
 
-Los canales faltantes simplemente desactivan el panel de análisis correspondiente — la app degrada de forma elegante.
+Los pasos de exportación de cada programa (ACTI, MoTeC i2, iRacing) están en la [Guía de Usuario](docs/GUIA_USUARIO.es.md#exportar-la-telemetría).
 
----
+**Canales obligatorios:** `Speed`, `Brake`, `Throttle`. Si falta alguno o no tiene valores numéricos, la API responde `400` con un mensaje que lista las columnas encontradas.
 
-## 🏎️ Uso Rápido
+**Distancia:** si el canal `Distance` no existe (o nunca supera los 10 m), se sintetiza integrando `Speed` sobre un reloj válido (`LR/HR/MR Sample Clock`, `SessionTime`, `Time`, `Lap Time`; un reloj que sea una onda cuadrada 0/1 se descarta; si no hay ninguno se usa `Session Time Left`, luego el cronómetro de vuelta y, en último caso, 100 Hz fijos). Las respuestas con metadatos (`/api/compare-session-laps`, `/api/report/pdf`) marcan `metadata.distance_synthetic = true`. La distancia sintética es adecuada para el análisis de stint y de sesión; la comparación vuelta contra vuelta es más fiable con un canal de distancia real.
 
-```bash
-# Backend
-python -m venv .venv && .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+**Canales reconocidos (nombre canónico: ejemplos de alias aceptados):**
 
-# Frontend (otra terminal)
-cd frontend && npm install && npm run dev
+| Grupo | Nombres canónicos | Ejemplos de alias |
+|---|---|---|
+| Base | `Speed`, `Brake`, `Throttle`, `Distance`, `Gear`, `RPM` | `Ground Speed`, `Brake Pos`, `Throttle Pos`, `Lap Distance` |
+| Dinámica | `SteerAngle`, `LateralG`, `LongitudinalG`, `YawRate` | `Steering Angle`, `CG Accel Lateral`, `CG Accel Longitudinal`, `Chassis Yaw Rate` |
+| Vueltas y tiempo | `LapTime`, `SessionLapCount` | `Lap Time`, `Session Lap Count`, `Lap` |
+| Posición | `CarCoordX/Y/Z` | `Car Coord X` |
+| Clima | `AirTemp`, `RoadTemp` | `Air Temp`, `Road Temp` |
+| Temperatura de neumáticos (4 zonas x 4 esquinas) | `TyreTemp{Core,Inner,Middle,Outer}{FL,FR,RL,RR}` | `Tire Temp Core FL`, `LFtempCL` |
+| Presión de neumáticos | `TyrePress{FL..RR}`, `TyrePressCold{FL..RR}` | `Tire Pressure FL`, `LFpressure`, `LFcoldPressure` |
+| Recorrido de suspensión | `SuspTravel{FL..RR}` | `Suspension Travel FL`, `LFshockDefl` |
+| Frenos | `BrakeTemp{FL..RR}`, `BrakeBias` | `Brake Temp FL`, `dcBrakeBias` |
+| Fluidos | `WaterTemp`, `OilTemp` | `Coolant Temp`, `Eng Oil Temp` |
+
+La tabla completa de alias es `COLUMN_ALIASES` en `src/io/loaders.py`. La ausencia de canales opcionales no aborta el análisis: el panel afectado se declara no disponible.
+
+## Notas de calidad de datos y comportamiento
+
+- **La segmentación de vueltas** es única para todos los endpoints: por canal contador de vueltas (`Session Lap Count`, `Lap`, ...) o, si no existe, por reinicios de distancia. Los segmentos parciales de menos de 30 s se descartan. Si se encuentran menos de 2 vueltas, la API responde con un mensaje de error.
+- **Vueltas de pit y atípicas:** una vuelta se marca como pit si el canal `In Pit` lo indica; las vueltas fuera del 70-115 % de la mediana también se marcan como atípicas y se excluyen de regresiones y proyecciones.
+- **Las ventanas de curva no se solapan:** cada ventana se recorta en el punto medio entre ápices vecinos. El `summary` de la comparación incluye `corners_time_delta_s` (tiempo ganado/perdido dentro de curvas) y `outside_corners_delta_s` (el resto).
+- **El emparejado de curvas** entre dos vueltas usa la distancia del ápice, no el índice de curva.
+- **Valores no medibles:** `braking_delta_available` y `throttle_delta_available` indican si los deltas de frenada/acelerador pudieron medirse. Un `0.0` con `available = false` significa "no medible", no "sin diferencia".
+- **Canales constantes** (por ejemplo, temperaturas de freno fijas en un solo valor) devuelven `available: false` con un `reason` en lugar de generar recomendaciones falsas.
+- **Convención de signo del slip angle:** la convención de signo de `LateralG` se detecta por su correlación con la velocidad de guiñada y se invierte si hace falta (Assetto Corsa la registra invertida) antes de calcular el ángulo de deslizamiento.
+- **Validación de entrada:** un CSV vacío o sin los canales mínimos devuelve `400` con un mensaje claro. Las selecciones de vuelta inválidas devuelven `422`.
+- **La evolución de pista** (`track_evolution`) y el **`health_summary`** forman parte de las respuestas de stint y de compare-session.
+
+## Ejemplo de resultado
+
+Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV MoTeC de ~57 MB sin canal `Distance`):
+
+| Dato | Valor |
+|---|---|
+| Vueltas detectadas | 21 (las vueltas 1 y 21 son de pit) |
+| Mejor vuelta | Vuelta 11, 1:57.605 |
+| Rango de vueltas de carrera | 117.6 - 122.4 s |
+| Longitud de pista | ~4862 m |
+| Velocidad máxima | 243.9 km/h |
+| Curvas por geometría | 11 |
+| Consumo de combustible | 1.758 L/vuelta |
+| Tendencia de degradación | -0.077 s/vuelta (el coche mejora al consumir combustible) |
+| Tiempo de análisis completo | ~25 s |
+
+El CSV no forma parte del repositorio.
+
+## Arquitectura
+
+```
+main.py                  App FastAPI: endpoints, CORS, logging, mapeo de errores
+src/
+  io/                    loaders.py (ingesta CSV, alias, normalización de unidades, síntesis de distancia)
+                         exporters.py (reporte de texto), pdf_exporter.py (reporte PDF)
+  processing/            alignment.py (alineación por distancia), filters.py (filtros de señal)
+  telemetry/             lap_comparator.py, metrics.py, session_analyzer.py
+  analytics/             Módulos avanzados (ver tabla)
+  i18n.py, locales/      Traducciones del backend (en.json, es.json)
+  visualization/         (paquete vacío)
+frontend/                React 19 + Vite + Recharts (ver frontend/README.md)
+tests/                   suite pytest (48 tests)
+scripts/                 Generador de datos de ejemplo y de imágenes de la documentación
+data/                    laptime_history.db (historial usado por el módulo ML de tiempo de vuelta)
+docs/                    Guías de usuario y documentación científica (ES/EN)
 ```
 
-Abre **http://localhost:5173**, sube un CSV exportado desde MoTeC i2 y haz clic en **Analizar Sesión Completa**.
+Módulos de `src/analytics/`:
 
-## 🏗️ Arquitectura del Pipeline
-
-El pipeline utiliza la siguiente arquitectura matemática y lógica:
-1. **Ingesta y Metadatos:** Pandas carga los CSVs, lee las cabeceras (Driver, Vehicle) y valida/limpia los canales esenciales (Speed, Brake, Throttle, Distance).
-2. **Filtros de Señal:** Suavizado (media móvil) y limpieza de outliers de sensores ruidosos para evitar falsos positivos en las derivadas.
-3. **Geometría de Pista y Apexes:** Cálculo de curvatura dinámica para detectar puntos de entrada, apex y salida de curva mediante máximos de curvatura y mínimos de velocidad.
-4. **Alineación Espacial:** A diferencia de la telemetría temporal tradicional, interpolamos cúbicamente todas las vueltas a un eje X uniforme basado en la **distancia** (1 metro de resolución), con canales extra como LateralG, LongitudinalG y SteerAngle.
-5. **Círculo de Fricción (G-G Diagram):** Cálculo de G-Sum (√(G_Lat² + G_Long²)) por muestra, límite de adherencia como percentil 95 del G-Sum, y eficiencia de agarre por punto.
-6. **Detección de Subviraje/Sobreviraje:** Análisis de derivadas del steering angle en ventanas de apex. Subviraje = volante sigue girando pero G-Lat no aumenta. Sobreviraje = pico abrupto de G-Lat con corrección simultánea de volante.
-7. **Comparación y Visualización:** Generación de deltas precisos en metros y segundos, compresión RDP del payload (preservando apexes), envío del JSON final al frontend para renderizado con Recharts interactivo.
-8. **Persistencia de Estado:** Los componentes de cada pestaña permanecen montados (ocultos via CSS) al cambiar de tab, preservando archivos cargados y resultados sin recarga. Cursor tracking fuera de React (módulo store + rAF + DOM directo) para 60fps sin re-renders.
-
-### Endpoints de la API REST
-
-| Endpoint | Método | Descripción |
+| Módulo | Propósito | Doc |
 |---|---|---|
-| `/api/compare-laps` | POST | Comparación simple de 2 vueltas (SpeedChart, TrackMap, CornerReport) |
-| `/api/telemetry/compare` | POST | Pipeline avanzado con geometría, time delta y sectorización |
-| `/api/telemetry/analyze` | POST | Pipeline completo: geometría + time delta + círculo de fricción + eventos dinámicos + compresión RDP |
-| `/api/analyze-session` | POST | Análisis de sesión completa con múltiples vueltas |
-| `/api/analyze` | POST | Pipeline completo con IA: geometría + time delta + Isolation Forest + K-Means + XGBoost + P10 |
-| `/api/stint/analyze` | POST | Análisis multi-vuelta: degradación lineal + estrategia de combustible + Monte Carlo 500 sims |
+| `geometry.py` | Curvatura y detección de ápices | [01](docs/01_geometry.es.md) |
+| `alignment.py` | Alineación por distancia y time delta | [02](docs/02_time_delta.es.md) |
+| `dynamics.py` | Diagrama G-G, eventos de subviraje/sobreviraje | [03](docs/03_gg_diagram.es.md), [04](docs/04_dynamics.es.md) |
+| `compression.py` | Compresión RDP del payload | [02](docs/02_time_delta.es.md) |
+| `insights.py` | Diagnóstico curva a curva | [01](docs/01_geometry.es.md) |
+| `ml_anomaly.py` | Zonas anómalas con Isolation Forest | [05](docs/05_anomaly_detection.es.md) |
+| `ml_clustering.py` | Perfiles de estilo por curva con K-Means | [06](docs/06_clustering.es.md) |
+| `ml_laptime.py` | Vuelta alcanzable (P10), consistencia, XGBoost, historial en SQLite | [07](docs/07_lap_time_potential.es.md) |
+| `stint.py` | Segmentación de vueltas, métricas por vuelta, degradación, combustible, Monte Carlo, evolución de pista | [08](docs/08_stint_analysis.es.md) |
+| `thermodynamics.py` | Ventana térmica de neumáticos (comparación) | [09](docs/09_thermodynamics.es.md) |
+| `brake_fade.py` | Eficiencia de frenado y fade | [10](docs/10_brake_fade.es.md) |
+| `driver_inputs.py` | FFT del volante, nerviosismo, solape de pedales | [11](docs/11_driver_inputs.es.md) |
+| `suspension.py` | Pitch, roll, bottoming | [12](docs/12_suspension.es.md) |
+| `slip_angle.py` | Deslizamiento lateral y balance | [13](docs/13_slip_angle.es.md) |
+| `thermal_management.py` | Temperaturas y presiones de neumáticos, frenos y fluidos en la sesión | [14](docs/14_thermal_management.es.md) |
+| `tyre_degradation.py` | Predicción de degradación de neumáticos | [15](docs/15_tyre_degradation.es.md) |
+| `racing_line_rl.py` | Optimización de trazada | [16](docs/16_racing_line_rl.es.md) |
+| `setup_advisor.py` | Recomendaciones de setup (comparación de vueltas y sesión) | [17](docs/17_setup_advisor.es.md) |
+| `session_corner_analysis.py` | Estadísticas por curva a lo largo de todas las vueltas de la sesión | [08](docs/08_stint_analysis.es.md) |
+| `session_telemetry_analysis.py` | Agregados de sesión de neumáticos, frenos, suspensión, inputs y balance | [08](docs/08_stint_analysis.es.md) |
 
-## 🤖 Pipeline de Inteligencia Artificial
+## API
 
-El sistema incluye tres modelos de IA que se activan progresivamente según el historial acumulado en `data/laptime_history.db`:
+URL base: `http://localhost:8000`. Documentación interactiva: `/docs` (Swagger). Todos los POST usan `multipart/form-data` salvo indicación contraria. Añade `?lang=es` o `?lang=en` (si no, se usa `Accept-Language`) para elegir el idioma de mensajes y reportes. Errores: `400` para CSV ilegible o inválido, `422` para selecciones inválidas (vuelta fuera de rango, misma vuelta dos veces, menos de 3 vueltas en stint), `500` para errores internos; el cuerpo es `{"detail": "..."}`.
 
-### Isolation Forest — Anomaly Detection
-Entrena sobre la vuelta rápida (estado de referencia normal) y puntúa la vuelta lenta punto a punto. Zonas con score > 0.60 se identifican como anomalías de conducción.
-- **Siempre activo** — no requiere datos históricos
-- Documentación: [docs/05_anomaly_detection.md](./docs/05_anomaly_detection.md)
+| Endpoint | Método | Campos del formulario | Devuelve |
+|---|---|---|---|
+| `/api/health` | GET | ninguno | `{status, service, version}` |
+| `/api/analyze-session` | POST | `session_file` (CSV) | JSON con `laps` (tiempo, marcas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`. Si no se pueden segmentar vueltas, `laps` vacío y un `message`. |
+| `/api/stint/analyze` | POST | `laps`: un CSV de sesión, o 3 o más CSV de una vuelta | JSON: `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `health_summary` |
+| `/api/compare-laps` | POST | `lap_a`, `lap_b` (CSV) | Comparación básica: `summary`, comparaciones de velocidad/freno/acelerador, `time_delta_series`, `corners`, `track_map`, `metadata`, `text_report`, `setup_advisor` y los resultados de los módulos avanzados cuando están disponibles |
+| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (CSV); query `resolution_m` (por defecto 5) | Pipeline avanzado: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, resultados de neumáticos/frenos/inputs/suspensión/slip |
+| `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow` (CSV); query `resolution_m` | Subconjunto de geometría y time delta: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners` |
+| `/api/compare-session-laps` | POST | `session_file` (CSV), `lap_a`, `lap_b` (enteros desde 1; `0` = automático: la vuelta flying más rápida y la más lenta) | Comparación completa de dos vueltas de una sesión: todo lo de `compare-laps` más `telemetria`, `curvatura`, `apexes`, `sectores`, `gg_diagram`, `anomaly`, neumáticos/frenos/inputs/suspensión/slip/`thermal_analysis`, `setup_advisor`, `text_report`, `health_summary`; `metadata` incluye `distance_synthetic` |
+| `/api/report/pdf` | POST | `session_file` (CSV), `lap_a`, `lap_b` (mismas reglas) | Adjunto `application/pdf` `report_V{a}_vs_V{b}.pdf` |
+| `/api/report/pdf-from-json` | POST | Cuerpo JSON: un resultado de comparación ya calculado (como lo devuelven los endpoints de comparación) | Adjunto `application/pdf`, sin recalcular |
 
-### K-Means — Perfiles de Estilo por Curva
-Clasifica cada curva en perfiles semánticos: *Ataque Limpio*, *Entrada Agresiva*, *Conservador*, *Salida Tardía*. Permite comparar el estilo de conducción entre circuitos y vueltas.
-- **Siempre activo** — basado en los datos de la vuelta actual
-- Documentación: [docs/06_clustering.md](./docs/06_clustering.md)
+Notas:
 
-### Reachable Lap (P10) + Consistencia + XGBoost
-Tres capas de análisis de tiempo potencial:
-1. **P10 Histórico** — activa con ≥3 observaciones por curva: tiempo estadísticamente alcanzable en el 10% mejor
-2. **Score de Consistencia** — `max(0, 100 × (1 − σ/|μ|))`: qué tan repetible es el piloto curva por curva
-3. **XGBoost** — activa con ≥30 observaciones totales: predice el óptimo y explica el gap con los top-2 factores limitantes
-- Documentación: [docs/07_lap_time_potential.md](./docs/07_lap_time_potential.md)
+- La UI llama a `/api/analyze-session` y luego a `/api/stint/analyze` para una sesión, a `/api/compare-laps` más `/api/telemetry/analyze` para dos archivos, a `/api/compare-session-laps` para pares de vueltas y a `/api/report/pdf-from-json` para el botón de PDF.
+- `/api/telemetry/analyze` añade una observación a `data/laptime_history.db`, que alimenta con el tiempo las capas de P10 histórico y XGBoost.
+- Un módulo que no puede ejecutarse devuelve `{"available": false, ...}` (a menudo con `reason`) en lugar de hacer fallar toda la petición.
 
-### Stint Analysis — Monte Carlo
-Pipeline completo para análisis de carrera completa:
-- Degradación de tiempo de vuelta: regresión lineal β₁ (s/vuelta)
-- Estrategia de combustible con ventana de pit calculada con consumo conservador (media + 1.65σ)
-- 500 simulaciones Monte Carlo reproducibles (`seed=42`) con bandas P10/P25/P50/P75/P90
-- Documentación: [docs/08_stint_analysis.md](./docs/08_stint_analysis.md)
+## Configuración
 
-## 📖 Guías de Usuario
+Copia `.env.example` a `.env` (se carga con `python-dotenv`).
 
-Para interpretar los resultados de la app en lenguaje simple:
+| Variable | Por defecto | Efecto |
+|---|---|---|
+| `CORS_ORIGINS` | `http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000` | Orígenes permitidos, separados por coma |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `TEMP_DIR` | `<proyecto>/tmp` | Directorio de archivos temporales de subida (se crea si no existe; los archivos se borran al terminar cada petición) |
+| `API_HOST` / `API_PORT` / `API_RELOAD` | `0.0.0.0` / `8000` / `false` | Solo al ejecutar `python main.py` |
+| `VITE_API_URL` | `http://localhost:8000/api` | URL de la API usada por el frontend (la lee Vite en dev/build) |
+| `MAX_UPLOAD_MB` | n/d | Aparece en `.env.example` y `docker-compose.yml` pero **el código no la lee**: el backend no impone un límite de tamaño de subida |
 
-| Documento | Descripción |
-|-----------|-------------|
-| [Guía de Usuario](./docs/GUIA_USUARIO.md) | Cómo usar la app y qué significa cada análisis. Sin matemáticas. |
-| [Referencia Rápida](./docs/REFERENCIA_RAPIDA.md) | Tablas de estados, umbrales y diagnósticos frecuentes para consulta durante sesión. |
+## Desarrollo y tests
 
----
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest tests -q          # 48 tests
 
-## 📚 Documentación Científica
+cd frontend
+npm run lint                       # ESLint
+npm run build                      # build de producción en frontend/dist
+```
 
-Todos los módulos están documentados con fundamentos matemáticos, pseudocódigo y visualizaciones matplotlib:
+Archivos de test: `tests/test_alignment.py`, `test_loaders.py`, `test_metrics.py`, `test_session_pipeline.py` (fixtures en `tests/conftest.py`). Se pueden generar vueltas sintéticas con `python scripts/generate_sample_data.py` (escribe `data/raw/lap_clean.csv` y `data/raw/lap_errors.csv`, ignorados por git).
 
-| Módulo | Documento |
-|--------|-----------|
-| Geometría de pista y detección de apexes | [docs/01_geometry.md](./docs/01_geometry.es.md) |
-| Time Delta y alineación por distancia | [docs/02_time_delta.md](./docs/02_time_delta.es.md) |
-| Diagrama GG y círculo de fricción | [docs/03_gg_diagram.md](./docs/03_gg_diagram.es.md) |
-| Subviraje / sobreviraje (3 niveles de severidad) | [docs/04_dynamics.md](./docs/04_dynamics.es.md) |
-| Isolation Forest — detección de anomalías | [docs/05_anomaly_detection.md](./docs/05_anomaly_detection.es.md) |
-| K-Means — clustering de estilo de conducción | [docs/06_clustering.md](./docs/06_clustering.es.md) |
-| Reachable Lap, Consistencia y XGBoost | [docs/07_lap_time_potential.md](./docs/07_lap_time_potential.es.md) |
-| Análisis de stint y simulación Monte Carlo | [docs/08_stint_analysis.md](./docs/08_stint_analysis.es.md) |
-| Temperatura de Neumáticos — ventana térmica y ΔT | [docs/09_thermodynamics.md](./docs/09_thermodynamics.es.md) |
-| Brake Fade — eficiencia y degradación de frenado | [docs/10_brake_fade.md](./docs/10_brake_fade.es.md) |
-| Inputs del Piloto — FFT y nerviosismo de volante | [docs/11_driver_inputs.md](./docs/11_driver_inputs.es.md) |
-| Suspensión — pitch, roll y bottoming | [docs/12_suspension.md](./docs/12_suspension.es.md) |
-| Ángulo de Deslizamiento — sideslip β y balance αF/αR | [docs/13_slip_angle.md](./docs/13_slip_angle.es.md) |
-| Gestión Térmica — ventana, disipación y optimización de temperatura | [docs/14_thermal_management.md](./docs/14_thermal_management.es.md) |
-| Degradación de Neumáticos — modelo de compuesto, grip y estrategia de pit | [docs/15_tyre_degradation.md](./docs/15_tyre_degradation.es.md) |
-| Optimización de Línea de Carrera (RL) — trayectoria, apex y eficiencia en curva | [docs/16_racing_line_rl.md](./docs/16_racing_line_rl.es.md) |
-| Asesor de Configuración — balance aerodinámico, suspensión y carga de combustible | [docs/17_setup_advisor.md](./docs/17_setup_advisor.es.md) |
+## Documentación
 
-Ver índice completo en [docs/README.md](./docs/README.es.md).
+| Audiencia | Documento |
+|---|---|
+| Usuarios | [Guía de Usuario](docs/GUIA_USUARIO.es.md), [Referencia Rápida](docs/REFERENCIA_RAPIDA.es.md) |
+| Desarrolladores | [Índice de docs](docs/README.es.md) con los 17 documentos científicos de módulo (matemática, algoritmos, figuras), [frontend/README.md](frontend/README.md) |
+| Inglés | [README.md](README.md), [User Guide](docs/USER_GUIDE.md), [Quick Reference](docs/QUICK_REFERENCE.md), [docs/README.md](docs/README.md) |
+
+## Limitaciones conocidas
+
+- La detección de curvas por velocidad encuentra menos curvas que la detección por geometría (7 frente a 11 en Imola, porque las chicanes se fusionan).
+- El bottoming de suspensión es heurístico: recorrido igual o superior al 90 % del recorrido máximo observado.
+- Algunos canales pueden faltar según el simulador y la exportación; los paneles correspondientes lo indican en lugar de adivinar.
+- Solo CSV; los archivos `.ibt` y `.ld` deben convertirse antes.
+- No se impone límite de tamaño de subida (ver `MAX_UPLOAD_MB`); los archivos muy grandes requieren memoria y tiempo.
+
+## Contribuir
+
+Consulta [CONTRIBUTING.md](CONTRIBUTING.md) (en inglés). En resumen: haz un fork, crea una rama, ejecuta `python -m pytest tests -q` y abre un Pull Request contra `main`. No subas CSV de telemetría ni secretos.
+
+## Licencia
+
+[MIT](LICENSE) - Copyright (c) 2026 Andres Gutierrez.

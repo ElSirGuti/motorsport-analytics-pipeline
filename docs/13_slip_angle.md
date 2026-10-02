@@ -276,4 +276,8 @@ Series of on-track balance (αF − αR, degrees) with shaded threshold bands (b
 
 ---
 
+**Implementation note:** the sign convention of `LateralG` differs between simulators (Assetto Corsa logs it anti-correlated with the yaw rate). `lateral_sign_convention()` in `src/analytics/slip_angle.py` detects this from the correlation with the yaw rate and flips the sign before computing β.
+
+---
+
 *Also available in [Español 🇪🇸](./13_slip_angle.es.md)*

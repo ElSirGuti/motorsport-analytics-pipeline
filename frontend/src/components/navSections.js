@@ -14,18 +14,18 @@ export const COMPARE_SECTIONS = [
 
 export const PILOT_HIDDEN = new Set(['section-dynamics', 'section-inputs']);
 
-const LABELS = {
-  'section-overview': { en: 'Session overview', es: 'Resumen de sesión' },
-  'section-stint': { en: 'Stint analysis', es: 'Análisis de stint' },
-  'section-setup': { en: 'Setup & strategy', es: 'Setup y estrategia' },
-  'section-core-lap': { en: 'Core lap', es: 'Vuelta base' },
-  'section-dynamics': { en: 'Vehicle dynamics', es: 'Dinámica del vehículo' },
-  'section-inputs': { en: 'Driver & inputs', es: 'Piloto y entradas' },
-  'section-strategy': { en: 'Strategy & setup', es: 'Estrategia y setup' },
+const LABEL_KEYS = {
+  'section-overview': 'secOverview',
+  'section-stint': 'secStint',
+  'section-setup': 'secSetup',
+  'section-core-lap': 'secCoreLap',
+  'section-dynamics': 'secDynamics',
+  'section-inputs': 'secInputs',
+  'section-strategy': 'secStrategy',
 };
 
-export function sectionLabel(id, lang) {
-  const l = LABELS[id];
-  if (!l) return id;
-  return lang === 'es' ? l.es : l.en;
+// t: the active i18n dictionary (useLanguage().t)
+export function sectionLabel(id, t) {
+  const key = LABEL_KEYS[id];
+  return key ? (t[key] ?? id) : id;
 }

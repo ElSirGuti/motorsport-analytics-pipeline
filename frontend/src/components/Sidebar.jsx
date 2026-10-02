@@ -4,7 +4,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { SESSION_SECTIONS, COMPARE_SECTIONS, PILOT_HIDDEN, sectionLabel } from './navSections';
 
 export default function Sidebar({ mode, isPilotMode, resultKey }) {
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const visibleCompare = isPilotMode
     ? COMPARE_SECTIONS.filter(s => !PILOT_HIDDEN.has(s.id))
     : COMPARE_SECTIONS;
@@ -13,14 +13,14 @@ export default function Sidebar({ mode, isPilotMode, resultKey }) {
   if (mode === 'session' || mode === 'both') {
     groups.push({
       key: 'session',
-      title: t.navSession ?? (lang === 'es' ? 'Sesión' : 'Session'),
+      title: t.navSession,
       items: SESSION_SECTIONS,
     });
   }
   if (mode === 'compare' || mode === 'both') {
     groups.push({
       key: 'compare',
-      title: t.navComparison ?? (lang === 'es' ? 'Comparación' : 'Comparison'),
+      title: t.navComparison,
       items: visibleCompare,
     });
   }
@@ -73,7 +73,7 @@ export default function Sidebar({ mode, isPilotMode, resultKey }) {
   };
 
   return (
-    <nav className="shell-rail" aria-label={t.navAria ?? (lang === 'es' ? 'Secciones del análisis' : 'Analysis sections')}>
+    <nav className="shell-rail" aria-label={t.navAria}>
       {groups.map(g => (
         <div className="shell-rail__group" key={g.key}>
           <div className="shell-rail__title">{g.title}</div>
@@ -88,7 +88,7 @@ export default function Sidebar({ mode, isPilotMode, resultKey }) {
                 onClick={() => scrollTo(id)}
               >
                 <Icon name={icon} size={16} />
-                <span>{sectionLabel(id, lang)}</span>
+                <span>{sectionLabel(id, t)}</span>
               </button>
             );
           })}
@@ -97,9 +97,7 @@ export default function Sidebar({ mode, isPilotMode, resultKey }) {
       {isPilotMode && (
         <div className="shell-rail__note">
           <Icon name="info" size={14} />
-          <span>{t.navPilotNote ?? (lang === 'es'
-            ? 'Modo piloto: paneles técnicos ocultos.'
-            : 'Pilot mode: technical panels hidden.')}</span>
+          <span>{t.navPilotNote}</span>
         </div>
       )}
     </nav>

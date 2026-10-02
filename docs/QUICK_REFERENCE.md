@@ -1,6 +1,6 @@
 # Quick Reference — Interpreting Results
 
-🌐 [Ver en Español](./REFERENCIA_RAPIDA.es.md)
+[Ver en Español](./REFERENCIA_RAPIDA.es.md)
 
 Cheat sheet for quick reference during or after a session.
 
@@ -12,7 +12,7 @@ Cheat sheet for quick reference during or after a session.
 |-------|-------|--------|
 | Cold (blue) | < 65°C | Warm-up lap, do not push |
 | Suboptimal | 65–80°C | Gentle, avoid heavily loaded corners |
-| **Optimal** ✓ | **80–100°C** | **Ideal grip conditions** |
+| **Optimal** | **80–100°C** | **Ideal grip conditions** |
 | Hot | 100–115°C | Reduce load or soften inputs |
 | Overheated | > 115°C | Danger: grip severely reduced |
 
@@ -166,14 +166,14 @@ Some modules require specific channels:
 | Suspension | SuspTravelFL/FR/RL/RR |
 | Slip angle | LateralG + YawRate + SteerAngle |
 
-If any of these channels is not present in your MoTeC CSV, that module is automatically disabled and will not appear in the view.
+If any of these channels is not present in your MoTeC CSV, that module is reported as unavailable (see the health panel) instead of showing made-up results. A channel that never changes (for example brake temperatures fixed at one value) is also reported as unavailable. Bottoming is flagged at 90 % or more of the maximum travel observed. Minimum channels for any analysis: Speed, Brake, Throttle; a missing Distance is synthesised from speed (flagged `distance_synthetic`).
 
 ---
 
 ## Analysis Session Flow
 
 ```
-Load the CSVs
+Load the CSV(s): 1 file = session, 2 files = lap comparison
     ↓
 How much time am I losing and where? → Time Delta + Corners
     ↓
@@ -190,4 +190,4 @@ Is the mechanical setup the problem? → Suspension + Slip Angle
 Copy the report → share with the team
 ```
 
-*Also available in [Español 🇪🇸](./REFERENCIA_RAPIDA.es.md)*
+*Also available in [Español](./REFERENCIA_RAPIDA.es.md)*

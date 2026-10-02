@@ -3,12 +3,15 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useCursorWriter } from '../hooks/useCursorWriter';
+import { useLanguage } from '../context/LanguageContext';
 import { Panel } from './ui';
 import { LAP_COLORS, TICK, AXIS_LINE, GRID_PROPS, CURSOR, ACTIVE_DOT, fmtDist } from './chartTheme';
 import { ChartTooltip, ZoomBadge, SeriesLegend, ChartEmpty } from './chartKit';
 
-// labels: translations object passed from parent
-const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
+// labels: optional translations override; defaults to the active dictionary
+const SpeedChart = ({ data, zoomDomain, onChartClick, labels: labelsProp }) => {
+  const { t } = useLanguage();
+  const labels = labelsProp ?? t;
   const cursorHandlers = useCursorWriter();
   const chartData = useMemo(() => {
     if (!data?.distance) return [];

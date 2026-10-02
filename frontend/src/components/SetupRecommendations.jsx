@@ -11,7 +11,7 @@ function RecCard({ rec, isPilotMode }) {
   const [open, setOpen] = useState(false);
   const bodyId = useId();
   const prio = rec.priority in ROWCLS ? rec.priority : 'baja';
-  const labels = { alta: t.priorityHigh, media: t.priorityMed, baja: t.priorityLow, nominal: 'NOMINAL' };
+  const labels = { alta: t.priorityHigh, media: t.priorityMed, baja: t.priorityLow, nominal: t.thPrioNominal };
   const rowCls = `${s.rec} ${s[ROWCLS[prio]]}`;
 
   if (isPilotMode) {
@@ -80,7 +80,7 @@ function RecCard({ rec, isPilotMode }) {
   );
 }
 
-const AREA_LABEL = { nominal: 'OK', alta: 'HIGH', media: 'MED', baja: 'LOW' };
+const AREA_KEY = { nominal: 'areaOk', alta: 'areaHigh', media: 'areaMed', baja: 'areaLow' };
 
 export default function SetupRecommendations({ setup_advisor, source, isPilotMode }) {
   const { t } = useLanguage();
@@ -115,18 +115,18 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
   return (
     <Panel icon="wrench" title={t.setupTitle} subtitle={t.setupSub(recommendations.length)} actions={gain || null}>
       {source === 'compare' && (
-        <div style={{ marginBottom: 12 }}><Badge tone="accent">Post-lap comparison analysis</Badge></div>
+        <div style={{ marginBottom: 12 }}><Badge tone="accent">{t.setupPostLap}</Badge></div>
       )}
 
       {!isPilotMode && areas_status?.length > 0 && (
         <div className={s.section}>
-          <div className={s.sectionHead}><span className={s.sectionTitle}>Area health</span></div>
+          <div className={s.sectionHead}><span className={s.sectionTitle}>{t.setupAreaHealth}</span></div>
           <div className={s.chips}>
             {areas_status.map(area => (
               <div key={area.domain} className={s.chip}>
-                <div><Badge tone={TONE[area.status] ?? 'accent'}>{AREA_LABEL[area.status] ?? 'OK'}</Badge></div>
+                <div><Badge tone={TONE[area.status] ?? 'accent'}>{t[AREA_KEY[area.status]] ?? t.areaOk}</Badge></div>
                 <span className={s.chipLabel}>{area.label}</span>
-                {area.n_issues > 0 && <span className={s.chipHint}>{area.n_issues} issue{area.n_issues > 1 ? 's' : ''}</span>}
+                {area.n_issues > 0 && <span className={s.chipHint}>{t.setupIssues(area.n_issues)}</span>}
               </div>
             ))}
           </div>
@@ -135,7 +135,7 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
 
       <div className={s.section}>
         {recommendations.length > 0 && (
-          <div className={s.filters} role="group" aria-label="Priority filter">
+          <div className={s.filters} role="group" aria-label={t.setupFilterAria}>
             <div className="ui-seg">
               {filters.map(f => (
                 <button key={f.key} type="button" className="ui-seg__item" aria-pressed={filter === f.key} onClick={() => setFilter(f.key)}>

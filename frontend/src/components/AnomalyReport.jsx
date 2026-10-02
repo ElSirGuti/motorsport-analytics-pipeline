@@ -16,13 +16,14 @@ const SEV_HEX  = { critico: COLOR.bad, media: COLOR.warn, leve: COLOR.ok };
 const scoreToPercent = (s) => Math.round(Math.min(100, Math.max(0, (s - 0.6) / 0.4 * 100)));
 
 const ScoreBar = ({ avg, peak, sevKey }) => {
+  const { t } = useLanguage();
   const color = `var(--${SEV_TONE[sevKey] ?? 'ok'})`;
   return (
     <div>
       <div className={styles.barMeta}>
-        <span>Deviation from reference</span>
+        <span>{t.anomalyDeviation}</span>
         <span className={styles.barNums} style={{ color }}>
-          avg {(avg * 100).toFixed(0)}% · peak {(peak * 100).toFixed(0)}%
+          {t.anomalyAvgPeak((avg * 100).toFixed(0), (peak * 100).toFixed(0))}
         </span>
       </div>
       <div className={styles.barTrack}>
@@ -75,7 +76,7 @@ const AnomalyReport = ({ anomaly }) => {
           <SeriesLegend items={[
             { key: 'fast', label: t.anomalyReference, color: LAP_COLORS[0] },
             { key: 'slow', label: t.anomalySlowLap, color: LAP_COLORS[1] },
-            { key: 'thr', label: 'Threshold 60%', color: COLOR.warn },
+            { key: 'thr', label: t.anomalyThreshold, color: COLOR.warn },
           ]} />
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={chartData} margin={{ top: 4, right: 12, bottom: 0, left: 0 }}>
@@ -125,7 +126,7 @@ const AnomalyReport = ({ anomaly }) => {
                 <div className={styles.zoneHead}>
                   <Badge tone={SEV_TONE[sevKey]}>{SEV_LABEL[sevKey] ?? z.severity}</Badge>
                   <span className={styles.range}>{z.start_m.toFixed(0)} – {z.end_m.toFixed(0)} m</span>
-                  <span className={styles.len}>{z.length_m.toFixed(0)} m zone</span>
+                  <span className={styles.len}>{t.anomalyZoneLen(z.length_m.toFixed(0))}</span>
                 </div>
                 <ScoreBar avg={z.avg_score} peak={z.peak_score} sevKey={sevKey} />
                 <p className={styles.zoneDesc}>{z.descripcion}</p>

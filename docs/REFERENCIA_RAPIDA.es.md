@@ -1,5 +1,7 @@
 # Referencia Rápida — Interpretar Resultados
 
+[Read in English](./QUICK_REFERENCE.md)
+
 Cheat sheet para consulta rápida durante o después de una sesión.
 
 ---
@@ -10,7 +12,7 @@ Cheat sheet para consulta rápida durante o después de una sesión.
 |--------|-------|--------|
 | Frío (azul) | < 65°C | Vuelta de calentamiento, no atacar |
 | Subóptimo | 65–80°C | Suave, evitar curvas muy cargadas |
-| **Óptimo** ✓ | **80–100°C** | **Condiciones ideales de agarre** |
+| **Óptimo** | **80–100°C** | **Condiciones ideales de agarre** |
 | Caliente | 100–115°C | Reducir carga o suavizar entradas |
 | Sobrecalentado | > 115°C | Peligro: agarre muy reducido |
 
@@ -164,14 +166,14 @@ Algunos módulos requieren canales específicos:
 | Suspensión | SuspTravelFL/FR/RL/RR |
 | Slip angle | LateralG + YawRate + SteerAngle |
 
-Si alguno de estos canales no está en tu CSV de MoTeC, ese módulo se desactiva automáticamente y no aparece en la vista.
+Si alguno de estos canales no está en tu CSV de MoTeC, ese módulo se informa como no disponible (mirá el panel de salud) en lugar de mostrar resultados inventados. Un canal que nunca cambia (por ejemplo, temperaturas de freno fijas en un valor) también se informa como no disponible. El bottoming se marca al 90 % o más del recorrido máximo observado. Canales mínimos para cualquier análisis: Speed, Brake, Throttle; si falta Distance se sintetiza a partir de la velocidad (marcado como `distance_synthetic`).
 
 ---
 
 ## Flujo de Sesión de Análisis
 
 ```
-Cargá los CSV
+Cargá el/los CSV: 1 archivo = sesión, 2 archivos = comparación de vueltas
     ↓
 ¿Cuánto tiempo pierdo y dónde? → Time Delta + Curvas
     ↓

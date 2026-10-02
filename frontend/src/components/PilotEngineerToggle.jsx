@@ -1,19 +1,16 @@
 import { useLanguage } from '../context/LanguageContext';
 
 export default function PilotEngineerToggle({ isPilotMode, onToggle }) {
-  const { t, lang } = useLanguage();
-  const es = lang === 'es';
-  const engineerLabel = t.viewEngineer ?? (es ? 'Ingeniero' : 'Engineer');
-  const pilotLabel = t.viewPilot ?? (es ? 'Piloto' : 'Pilot');
-  const hint = isPilotMode
-    ? (t.viewPilotHint ?? (es ? 'Modo piloto: paneles técnicos ocultos' : 'Pilot mode: technical panels hidden'))
-    : (t.viewEngineerHint ?? (es ? 'Modo ingeniero: telemetría completa' : 'Engineer mode: full telemetry'));
+  const { t } = useLanguage();
+  const engineerLabel = t.viewEngineer;
+  const pilotLabel = t.viewPilot;
+  const hint = isPilotMode ? t.viewPilotHint : t.viewEngineerHint;
 
   return (
     <div
       className="ui-seg"
       role="group"
-      aria-label={t.viewModeAria ?? (es ? 'Modo de vista' : 'View mode')}
+      aria-label={t.viewModeAria}
       title={hint}
     >
       <button

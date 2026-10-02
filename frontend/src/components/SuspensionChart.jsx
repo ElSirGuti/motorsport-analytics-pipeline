@@ -98,13 +98,13 @@ const SuspensionChart = ({ suspension, metadata }) => {
       {chartData.length > 0 && (
         <div className={styles.chartBox}>
           <div className={styles.chartTitle}>
-            <span className={styles.chartLabel}>Roll / Pitch (mm)</span>
+            <span className={styles.chartLabel}>{t.suspChartTitle}</span>
             <Legend items={[
               ...(seriesA ? [
-                { label: `Roll ${labelA}`, color: COLOR_A },
-                { label: `Pitch ${labelA}`, color: COLOR_D, dashed: true },
+                { label: `${t.suspRollLbl} ${labelA}`, color: COLOR_A },
+                { label: `${t.suspPitchLbl} ${labelA}`, color: COLOR_D, dashed: true },
               ] : []),
-              ...(seriesB ? [{ label: `Roll ${labelB}`, color: COLOR_B }] : []),
+              ...(seriesB ? [{ label: `${t.suspRollLbl} ${labelB}`, color: COLOR_B }] : []),
             ]} />
           </div>
           <ResponsiveContainer width="100%" height={210}>
@@ -116,14 +116,14 @@ const SuspensionChart = ({ suspension, metadata }) => {
               <ReferenceLine y={0} stroke={REF_ZERO} />
               {seriesA && (
                 <>
-                  <Line type="monotone" dataKey="roll_f_a" name={`Roll ${labelA}`} stroke={COLOR_A} strokeWidth={1.5}
+                  <Line type="monotone" dataKey="roll_f_a" name={`${t.suspRollLbl} ${labelA}`} stroke={COLOR_A} strokeWidth={1.5}
                     dot={false} isAnimationActive={false} connectNulls />
-                  <Line type="monotone" dataKey="pitch_a" name={`Pitch ${labelA}`} stroke={COLOR_D} strokeWidth={1.25}
+                  <Line type="monotone" dataKey="pitch_a" name={`${t.suspPitchLbl} ${labelA}`} stroke={COLOR_D} strokeWidth={1.25}
                     strokeDasharray="4 2" dot={false} isAnimationActive={false} connectNulls />
                 </>
               )}
               {seriesB && (
-                <Line type="monotone" dataKey="roll_f_b" name={`Roll ${labelB}`} stroke={COLOR_B} strokeWidth={1.5}
+                <Line type="monotone" dataKey="roll_f_b" name={`${t.suspRollLbl} ${labelB}`} stroke={COLOR_B} strokeWidth={1.5}
                   dot={false} isAnimationActive={false} connectNulls />
               )}
             </ComposedChart>

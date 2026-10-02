@@ -23,29 +23,6 @@ const effColor = (eff, alpha = 1) => {
 };
 const effTone = (eff) => (eff >= 90 ? 'ok' : eff >= 72 ? 'warn' : 'bad');
 
-const REC_MAP = {
-  braking: {
-    low: 'Trail braking underused. Carry brake pressure into turn entry to keep the nose planted and maximise the braking zone.',
-    mid: 'Trail braking present but inconsistent. Focus on a more progressive release through turn-in.',
-    high: 'Braking zone well-exploited.',
-  },
-  traction: {
-    low: 'Early or abrupt throttle detected. Progressive application from apex outward will fill this quadrant.',
-    mid: 'Traction has headroom. Slightly later initial input with an earlier full-throttle point at exit.',
-    high: 'Traction phase well-optimised.',
-  },
-  left: {
-    low: 'Understeer or cautious line in left-handers. Review entry speed, turn-in point, and mid-corner rotation.',
-    mid: 'Left-corner grip available. Carry slightly more mid-corner speed to fill the lateral zone.',
-    high: 'Left-corner grip well-utilised.',
-  },
-  right: {
-    low: 'Understeer or cautious line in right-handers. Check trail-brake balance and rotation timing.',
-    mid: 'Right-corner grip available. A later apex may improve exit speed.',
-    high: 'Right-corner grip well-utilised.',
-  },
-};
-
 const GGDiagramChart = ({ ggData, gLimit }) => {
   const { t } = useLanguage();
   const canvasRef = useRef(null);
@@ -112,12 +89,12 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     ctx.font = `600 10px ${MONO}`;
     ctx.fillStyle = 'rgba(163,173,187,0.55)';
     ctx.textAlign = 'right';
-    ctx.fillText('BRAKING', cx - 8, cy - 5);
+    ctx.fillText(t.ggQuadBraking, cx - 8, cy - 5);
     ctx.textAlign = 'left';
-    ctx.fillText('TRACTION', cx + 8, cy - 5);
+    ctx.fillText(t.ggQuadTraction, cx + 8, cy - 5);
     ctx.textAlign = 'center';
-    ctx.fillText('LEFT', cx, PAD.top + 12);
-    ctx.fillText('RIGHT', cx, PAD.top + plotH - 5);
+    ctx.fillText(t.ggQuadLeft, cx, PAD.top + 12);
+    ctx.fillText(t.ggQuadRight, cx, PAD.top + plotH - 5);
 
     // Points: slow = hollow rings, fast = filled dots (efficiency colour)
     ctx.lineWidth = 1;
@@ -144,10 +121,10 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
       ctx.fillText(v.toFixed(1), PAD.left - 6, toY(v) + 3);
     });
     ctx.textAlign = 'right';
-    ctx.fillText('Lon G', PAD.left + plotW, PAD.top + plotH + 32);
+    ctx.fillText(t.ggLonG, PAD.left + plotW, PAD.top + plotH + 32);
     ctx.textAlign = 'left';
-    ctx.fillText('Lat G', 2, PAD.top - 10);
-  }, [fastPoints, slowPoints, limit]);
+    ctx.fillText(t.ggLatG, 2, PAD.top - 10);
+  }, [fastPoints, slowPoints, limit, t]);
 
   useEffect(() => {
     draw();
@@ -183,13 +160,13 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     const rightPts    = fastPoints.filter(p => p.lat < -0.1);
 
     const quadrants = [
-      { key: 'braking',  label: 'Braking',      eff: avgE(brakingPts) },
-      { key: 'traction', label: 'Traction',      eff: avgE(tractionPts) },
-      { key: 'left',     label: 'Turn Left',     eff: avgE(leftPts) },
-      { key: 'right',    label: 'Turn Right',    eff: avgE(rightPts) },
+      { key: 'braking',  label: t.ggBraking,      eff: avgE(brakingPts) },
+      { key: 'traction', label: t.ggTraction,      eff: avgE(tractionPts) },
+      { key: 'left',     label: t.ggTurnLeft,     eff: avgE(leftPts) },
+      { key: 'right',    label: t.ggTurnRight,    eff: avgE(rightPts) },
     ].filter(q => q.eff !== null);
 
-    const getRec = (key, eff) => REC_MAP[key][eff >= 85 ? 'high' : eff >= 72 ? 'mid' : 'low'];
+    const getRec = (key, eff) => t[`ggRec_${key}_${eff >= 85 ? 'high' : eff >= 72 ? 'mid' : 'low'}`];
 
     // Show recommendations only for quadrants below 85, sorted worst first
     const recs = [...quadrants]
@@ -205,7 +182,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
       quadrants,
       recs,
     };
-  }, [fastPoints, slowPoints]);
+  }, [fastPoints, slowPoints, t]);
 
   if (!fastPoints.length && !slowPoints.length && !gLimit) return null;
 
@@ -239,10 +216,10 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
         {tooltip && (
           <div className={styles.tip} style={{ left: tooltip.screenX + 14, top: tooltip.screenY - 8 }}>
             <div className={styles.tipHead}>{tooltip._lap === 'fast' ? t.ggFast : t.ggSlow}</div>
-            <div className={styles.tipRow}><span>Lat</span><b>{tooltip.lat.toFixed(3)} G</b></div>
-            <div className={styles.tipRow}><span>Lon</span><b>{tooltip.lon.toFixed(3)} G</b></div>
+            <div className={styles.tipRow}><span>{t.ggTipLat}</span><b>{tooltip.lat.toFixed(3)} G</b></div>
+            <div className={styles.tipRow}><span>{t.ggTipLon}</span><b>{tooltip.lon.toFixed(3)} G</b></div>
             <div className={styles.tipRow}>
-              <span>Eff</span>
+              <span>{t.ggTipEff}</span>
               <b style={{ color: `var(--${effTone(tooltip.eff)})` }}>{tooltip.eff.toFixed(1)} %</b>
             </div>
           </div>
@@ -252,11 +229,11 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
       {stats && (
         <div className={styles.stats}>
           <div className="ui-grid ui-grid--3">
-            <Stat label="Fast avg eff" value={`${stats.fastAvgEff.toFixed(1)} %`} tone={effTone(stats.fastAvgEff)} />
+            <Stat label={t.ggFastAvgEff} value={`${stats.fastAvgEff.toFixed(1)} %`} tone={effTone(stats.fastAvgEff)} />
             {stats.slowAvgEff !== null && (
-              <Stat label="Slow avg eff" value={`${stats.slowAvgEff.toFixed(1)} %`} tone={effTone(stats.slowAvgEff)} />
+              <Stat label={t.ggSlowAvgEff} value={`${stats.slowAvgEff.toFixed(1)} %`} tone={effTone(stats.slowAvgEff)} />
             )}
-            <Stat label="Peak G (fast)" value={`${stats.fastPeakG.toFixed(2)} G`} />
+            <Stat label={t.ggPeakG} value={`${stats.fastPeakG.toFixed(2)} G`} />
           </div>
 
           <div className={styles.quads}>
@@ -276,7 +253,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
             </ul>
           ) : (
             <p className={`${styles.rec} ${styles.recOk}`}>
-              All quadrants above 85% — driver is consistently near the friction limit.
+              {t.ggAllGood}
             </p>
           )}
         </div>

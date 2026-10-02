@@ -1,6 +1,6 @@
 # Documentation — Motorsport Analytics Pipeline
 
-🌐 [Ver en Español](./README.es.md)
+[Ver en Español](./README.es.md)
 
 ---
 
@@ -8,8 +8,17 @@
 
 | Document | Audience |
 |----------|---------|
-| [User Guide](./USER_GUIDE.md) | Pilots, engineers — simple language, no math |
+| [User Guide](./USER_GUIDE.md) | Pilots, engineers: how to use the app, export telemetry, read each panel, data-quality notes, troubleshooting |
 | [Quick Reference](./QUICK_REFERENCE.md) | Interpretation cheat sheet for track-side use |
+
+## Project Documentation
+
+| Document | Content |
+|----------|---------|
+| [Root README](../README.md) | Quick start, installation, API endpoints, configuration, tests, architecture |
+| [Frontend README](../frontend/README.md) | UI structure, design system, API client, build and lint |
+| [CONTRIBUTING](../CONTRIBUTING.md) | How to contribute |
+| [LICENSE](../LICENSE) | MIT License |
 
 ---
 
@@ -63,7 +72,9 @@ python scripts/docs/gen_suspension.py
 python scripts/docs/gen_slip_angle.py
 ```
 
-Each script writes output to `docs/images/{module}/`.
+Each script writes output to `docs/images/{module}/`. Modules 14-17 (thermal management, tyre degradation, racing line, setup advisor) have no image generator.
+
+Run the scripts from the project root with the dependencies from `requirements.txt` installed.
 
 ---
 

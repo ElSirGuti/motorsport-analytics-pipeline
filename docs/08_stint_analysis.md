@@ -338,4 +338,8 @@ Horizontal timeline diagram that visually summarises the entire fuel strategy: t
 
 ---
 
+**Implementation note:** lap segmentation (`segmentar_vueltas_desde_csv`) uses the lap-counter channel or distance resets, and discards segments shorter than 30 s (`MIN_LAP_SEGMENT_S`). Laps flagged by the `In Pit` channel, or outside 70-115 % of the median lap time, are excluded from the regression and the Monte Carlo (`is_pit_lap`, `is_outlier`). The stint response also includes `track_evolution` (`calcular_evolucion_pista`).
+
+---
+
 *Also available in [Español 🇪🇸](./08_stint_analysis.es.md)*

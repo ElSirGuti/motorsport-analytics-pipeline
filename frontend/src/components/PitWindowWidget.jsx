@@ -19,9 +19,8 @@ const FuelTooltip = ({ active, payload, label, t }) => {
 };
 
 export default function PitWindowWidget({ combustible }) {
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   if (!combustible) return null;
-  const L = (en, es) => (lang === 'es' ? es : en);
   const title = clean(t.pitWindowTitle);
 
   if (!combustible.available) {
@@ -39,9 +38,9 @@ export default function PitWindowWidget({ combustible }) {
   const lapsLeft = vueltas_restantes_min;
 
   let tone = 'warn';
-  let status = L('Prepare pit stop', 'Preparar parada');
-  if (lapsLeft >= 5) { tone = 'ok'; status = L('Fuel on target', 'Combustible OK'); }
-  else if (lapsLeft <= 2) { tone = 'bad'; status = L('Box now', 'Entrar a boxes ya'); }
+  let status = t.pitStatusPrepare;
+  if (lapsLeft >= 5) { tone = 'ok'; status = t.pitStatusOk; }
+  else if (lapsLeft <= 2) { tone = 'bad'; status = t.pitStatusBox; }
 
   const barData = (fuel_per_lap || []).map(r => ({
     lap: r.lap_number,
@@ -71,7 +70,7 @@ export default function PitWindowWidget({ combustible }) {
             </div>
             <div className={css.callLaps}>{t.pitWindowLap(open)} – {t.pitWindowLap(close)}</div>
             <div className={css.callAction}>
-              {L('Plan the stop inside this window.', 'Planifica la parada dentro de esta ventana.')}
+              {t.pitPlanStop}
             </div>
           </div>
           <div className={css.callSide}>

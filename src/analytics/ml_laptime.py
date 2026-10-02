@@ -22,6 +22,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.i18n import _ as _tr
+
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "laptime_history.db"
@@ -43,13 +45,13 @@ FEATURE_COLS = [
 
 # (label_ui, unit, sign): sign=-1 → higher=better, sign=+1 → lower=better, None → skip
 FEATURE_META = {
-    "entry_speed_kmh":    ("V. entrada",   "km/h",  -1),
-    "apex_speed_kmh":     ("V. apex",      "km/h",  -1),
-    "exit_throttle_pct":  ("Gas salida",   "%",     -1),
-    "braking_delta_m":    ("Frenada",      "m",     -1),
-    "throttle_delta_m":   ("Gas delta",    "m",     +1),
-    "g_efficiency_pct":   ("Efic. G",      "%",     -1),
-    "steer_variance":     ("Var. volante", "",      +1),
+    "entry_speed_kmh":    ("ml_feat_entry_speed",   "km/h",  -1),
+    "apex_speed_kmh":     ("ml_feat_apex_speed",      "km/h",  -1),
+    "exit_throttle_pct":  ("ml_feat_exit_throttle",   "%",     -1),
+    "braking_delta_m":    ("ml_feat_braking",      "m",     -1),
+    "throttle_delta_m":   ("ml_feat_throttle_delta",    "m",     +1),
+    "g_efficiency_pct":   ("ml_feat_g_eff",      "%",     -1),
+    "steer_variance":     ("ml_feat_steer_var", "",      +1),
     "curvature_radius_m": None,
 }
 
@@ -352,7 +354,8 @@ def _compute_explanations(
         meta = FEATURE_META.get(feat)
         if meta is None:
             continue
-        label, unit, sign = meta
+        label_key, unit, sign = meta
+        label = _tr(label_key)
 
         val       = float(features_vec[i])
         fast_mean = float(fast[feat].mean())

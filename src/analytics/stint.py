@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
+from src.i18n import _ as _tr
+
 logger = logging.getLogger(__name__)
 
 FUEL_CHANNELS     = ["Fuel", "FuelLevel", "Fuel Level", "fuel_level", "FuelMass", "Fuel Mass"]
@@ -147,10 +149,7 @@ def segmentar_vueltas_desde_csv(df: pd.DataFrame) -> list:
             return dfs
 
     raise ValueError(
-        "No se detectaron múltiples vueltas en el CSV. "
-        "Asegúrate de que el archivo de sesión incluya el canal 'Session Lap Count' "
-        "o que la distancia se reinicie en cada vuelta."
-    )
+        _tr("stint_err_no_laps"))
 
 
 def _format_laptime(seconds):
@@ -446,10 +445,11 @@ def calcular_evolucion_pista(df_laps: pd.DataFrame) -> dict:
     slope, _ = np.polyfit(x, rolling_min.values, 1)
     total_gain = slope * (len(rolling_min) - 1)
     direction = "improving" if slope < -0.05 else "degrading" if slope > 0.05 else "stable"
+    gain_txt = str(round(abs(total_gain), 2))
     note = (
-        ("Track gaining grip: " + str(round(abs(total_gain), 2)) + "s over session") if direction == "improving"
-        else ("Track losing grip: " + str(round(abs(total_gain), 2)) + "s over session") if direction == "degrading"
-        else "Track conditions stable throughout session"
+        _tr("stint_track_improving", gain=gain_txt) if direction == "improving"
+        else _tr("stint_track_degrading", gain=gain_txt) if direction == "degrading"
+        else _tr("stint_track_stable")
     )
     per_lap = [{"lap": int(l), "rolling_min_s": round(float(v), 3)}
                for l, v in zip(lap_ids, rolling_min)]

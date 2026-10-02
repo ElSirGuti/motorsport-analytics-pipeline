@@ -333,3 +333,7 @@ Diagrama de línea temporal horizontal que resume visualmente toda la estrategia
 4. Corno, M., Tanelli, M., Savaresi, S. M., & Fabbri, L. (2008). Design and validation of a lean-angle controller for racing motorcycles. *IEEE Transactions on Control Systems Technology*, 17(6), 1320–1329. [G-sum as tyre load proxy.]
 
 5. Montgomery, D. C. & Runger, G. C. (2018). *Applied Statistics and Probability for Engineers* (7th ed.). Wiley. [Normal percentile estimation, FUEL_SIGMA_SCALE derivation: §4.6 Normal distribution quantiles.]
+
+---
+
+**Nota de implementación:** la segmentación de vueltas (`segmentar_vueltas_desde_csv`) usa el canal contador de vueltas o los reinicios de distancia, y descarta los segmentos de menos de 30 s (`MIN_LAP_SEGMENT_S`). Las vueltas marcadas por el canal `In Pit`, o fuera del 70-115 % de la mediana del tiempo de vuelta, se excluyen de la regresión y del Monte Carlo (`is_pit_lap`, `is_outlier`). La respuesta de stint incluye además `track_evolution` (`calcular_evolucion_pista`).

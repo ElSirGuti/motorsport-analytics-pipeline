@@ -1,4 +1,5 @@
 // Shared chart primitives (colours, axes, tooltip) so every chart looks the same.
+import { useLanguage } from '../context/LanguageContext';
 import { Badge, Panel, EmptyState } from './ui';
 import styles from './chartKit.module.css';
 
@@ -32,8 +33,9 @@ export function ChartTooltip({
 }
 
 export function ZoomBadge({ domain }) {
+  const { t } = useLanguage();
   if (!domain) return null;
-  return <Badge tone="accent">ZOOM {domain[0].toFixed(0)}–{domain[1].toFixed(0)} m</Badge>;
+  return <Badge tone="accent">{t.zoomBadge} {domain[0].toFixed(0)}–{domain[1].toFixed(0)} m</Badge>;
 }
 
 /** Legend rendered as HTML (above the plot) rather than Recharts' Legend. */

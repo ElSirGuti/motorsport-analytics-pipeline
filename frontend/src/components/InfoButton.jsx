@@ -6,7 +6,7 @@ export default function InfoButton({ title, content }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const popId = useId();
-  const { lang } = useLanguage();
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!open) return;
@@ -22,7 +22,7 @@ export default function InfoButton({ title, content }) {
     };
   }, [open]);
 
-  const label = title ?? (lang === 'es' ? 'Ayuda' : 'Help');
+  const label = title ?? t.helpLabel;
 
   return (
     <div ref={ref} className="info-btn">

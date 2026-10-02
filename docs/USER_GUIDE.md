@@ -1,6 +1,6 @@
 # User Guide — Motorsport Analytics Pipeline
 
-🌐 [Leer en Español](./GUIA_USUARIO.es.md)
+[Leer en Español](./GUIA_USUARIO.es.md)
 
 This guide explains, in plain language, how to use the application and what the results of each analysis mean. You do not need any math or engineering background to interpret them.
 
@@ -10,41 +10,51 @@ This guide explains, in plain language, how to use the application and what the 
 
 ### What does this tool do?
 
-It compares two telemetry laps side by side and tells you **where you are gaining time, where you are losing it, and why**. It also analyses tyre condition, brakes, suspension, and driving style — all automatically.
+It analyses telemetry and tells you **where you are gaining time, where you are losing it, and why**. It works in two ways:
+
+- **Full session (1 CSV):** the session is split into laps automatically and you get a lap table, stint analysis (pace, fuel, tyres, pit window) and setup recommendations.
+- **Lap comparison (2 CSVs, or 2 laps picked from a session):** a side-by-side comparison with corner-by-corner diagnosis and the advanced analyses (tyres, brakes, suspension, driving style, balance).
 
 ### Files you need
 
-CSV files exported from **MoTeC i2** or any compatible simulator (Assetto Corsa, etc.). Each file represents a lap or a session.
+CSV files exported from **MoTeC i2** (Assetto Corsa via ACTI, iRacing). See [Exporting telemetry](#exporting-telemetry) for the steps and the channels the app understands.
 
 ### How to start
 
-1. Open the app in your browser (`http://localhost:5173`)
-2. Drag or select **two CSV files** in the upload panel
-3. Click **"Compare Laps"**
-4. Wait a few seconds — the full analysis loads automatically
-
-> If the file contains multiple laps, the system picks the two fastest valid ones.
+1. Install and start the backend and the frontend (see the [README](../README.md#quick-start)) and open `http://localhost:5173`.
+2. In the top bar choose the language (ES/EN) and the mode: **Engineer** (everything) or **Pilot** (technical panels hidden).
+3. Drop your CSV file(s) in the upload area. One file is treated as a full session; two files are treated as two single laps to compare.
+4. Press analyze. A progress bar shows the steps. Large files can take a few minutes (a ~57 MB session took about 25 s); keep the tab open.
+5. When it finishes, the upload area collapses into a file bar. Press **New analysis** to start over.
 
 ---
 
 ## The Interface at a Glance
 
-The page is a single long view with sections. You can scroll through it or use the interactive crosshair cursor: **moving the mouse over any chart synchronises the position across all the others**.
+The top bar holds the brand, the language switch and the Pilot/Engineer toggle. A **side rail** lets you jump between sections. The page is otherwise a single long view: **moving the mouse over any chart synchronises the cursor position across all the others**.
+
+### Full session (1 CSV)
 
 | Section | What it shows |
 |---------|---------------|
-| **Header** | Driver name, vehicle, circuit, lap time for each lap |
-| **Speed & Delta** | Speed trace + cumulative time difference |
-| **Brake & Throttle** | Overlay of both laps for braking and throttle |
-| **Track Map** | Circuit layout with the current position |
-| **G-G Diagram** | Total grip used per lap |
-| **Corner Analysis** | Table with times, braking, and acceleration per corner |
-| **Tyres** | Temperature and interpretation for all 4 tyres |
-| **Brakes** | Efficiency and thermal fade detection |
-| **Driver Inputs** | Driving style at the wheel (smooth vs. nervous) |
-| **Suspension** | Roll, pitch, and bottoming events |
-| **Slip Angle** | Car balance (understeer vs. oversteer) |
-| **Engineer Report** | Exportable text with the full summary |
+| **Session overview** | Lap table, best lap, health panel, track map |
+| **Stint analysis** | Lap-time evolution, degradation, fuel strategy, pit window, Monte Carlo projection, track evolution |
+| **Setup & strategy** | Corner analysis across the session, tyre degradation, thermal management, racing line and setup recommendations |
+
+**Lap table:** tick **two laps (A/B)** and press **Compare** to open a full comparison of those laps, or press **Best vs Worst** to compare the fastest and the slowest flying lap automatically. Laps marked **PIT** (in/out laps) and **outlier** (time far from the median) are excluded from the degradation and projection statistics.
+
+**Health panel:** lists the analysis modules (thermal, setup, tyre degradation, racing line, slip, corners) as available or unavailable. Unavailable usually means the CSV does not contain the channels that module needs.
+
+### Lap comparison (2 CSVs, or 2 laps of a session)
+
+| Section | What it shows |
+|---------|---------------|
+| **Core lap** | Summary, speed trace + cumulative time delta, brake & throttle overlay, track map, corner analysis and sectors |
+| **Vehicle dynamics** | G-G diagram, tyres, brakes, suspension, slip angle (hidden in Pilot mode) |
+| **Driver & inputs** | Steering and pedal style (hidden in Pilot mode) |
+| **Strategy & setup** | Lap-time potential, anomalies, setup recommendations and the engineer report (copy as text or download as PDF) |
+
+Click a corner in the corner analysis and all charts zoom into that zone.
 
 ---
 
@@ -115,11 +125,11 @@ Shows the circuit drawn from the GPS/game coordinates. The marker moves in sync 
 
 **The status for each zone:**
 
-| Icon / Colour | Meaning |
+| Colour | Meaning |
 |---------------|---------|
-| Green ✓ | No issue detected |
-| Yellow ⚠ | Minor difference (0.05–0.15 s) |
-| Red ✗ | Significant difference (>0.15 s) |
+| Green | No issue detected |
+| Yellow | Minor difference (0.05–0.15 s) |
+| Red | Significant difference (>0.15 s) |
 
 **Common diagnoses you will see:**
 - *"Late braking / hot entry"* → the braking point is compressed, time is lost through overheating of the manoeuvre
@@ -239,14 +249,14 @@ A faster driver typically has **more power in the low band** (doing things earli
 
 **Bottoming — Bottom-out events:**
 
-A bottoming event occurs when the damper reaches its travel limit. This is problematic because:
+A bottoming event is flagged when suspension travel reaches 90 % or more of the maximum travel observed in the file (a heuristic, not a measured limit). It is problematic because:
 - The car suddenly goes rigid (grip loss)
 - Aerodynamics become destabilised
 - It can damage the bodywork
 
 | Severity | Description |
 |----------|-------------|
-| < 95% | Close to the limit but controlled |
+| 90-95% | Close to the limit but controlled (90% is the detection threshold) |
 | 95–98% | Frequent bottoming. Recommended to adjust ride height or springs |
 | > 98% | Severe bottoming. The car is making mechanical contact |
 
@@ -319,34 +329,105 @@ The **"Copy Report"** button generates text ready to paste into a WhatsApp group
 
 ---
 
+## Exporting telemetry
+
+The app reads **CSV files only**. Export them from the program you use:
+
+**Assetto Corsa (ACTI + MoTeC i2)**
+1. Record the session with the ACTI telemetry app (see the ACTI documentation for installation).
+2. Open the log in **MoTeC i2** and use **File -> Export -> Export to Spreadsheet (CSV)**.
+3. For a **single lap**, select that lap's time range; for a **full session**, select the whole range (lap 1 to the last lap). Export all channels, ideally at 60 Hz or more.
+4. The header block of the MoTeC CSV (Driver, Vehicle, Venue) is read automatically and used for labels.
+
+**iRacing**
+1. iRacing records `.ibt` files; the app does not read `.ibt` directly. Convert them to CSV with MoTeC i2 or a third-party tool.
+2. The loader detects iRacing exports by the `SessionTime`, `Session Time` or `SessionLapCount` columns and normalises units (speed m/s to km/h, pedals 0-1 to 0-100, suspension m to mm, tyre pressure kPa/PSI to bar).
+
+**Required channels:** `Speed`, `Brake`, `Throttle`. If one is missing, the API returns a `400` error listing the columns it found.
+
+**Recognised channels and aliases** (the loader renames them automatically; the full table is `COLUMN_ALIASES` in `src/io/loaders.py`):
+
+| Category | Canonical name | Examples of accepted names |
+|----------|----------------|----------------------------|
+| Speed | `Speed` | `Speed`, `Ground Speed`, `Chassis Velocity X` |
+| Distance | `Distance` | `Distance`, `Lap Distance`, `LapDistance` |
+| Brake / Throttle | `Brake`, `Throttle` | `Brake Pos`, `Throttle Pos`, `Gas` |
+| Steering | `SteerAngle` | `Steering Angle`, `Steering Wheel Angle` |
+| Lateral / longitudinal G | `LateralG`, `LongitudinalG` | `Lateral Acc`, `CG Accel Lateral`, `Longitudinal Acc`, `CG Accel Longitudinal` |
+| Yaw rate | `YawRate` | `Chassis Yaw Rate`, `Yaw Rate` |
+| Lap counter | `SessionLapCount` | `Session Lap Count`, `Lap` |
+| Position | `CarCoordX/Y/Z` | `Car Coord X/Y/Z` |
+| Tyre temperature | `TyreTemp{Core,Inner,Middle,Outer}{FL,FR,RL,RR}` | `Tire Temp Core FL`, `Tyre Temp (I) FL`, `LFtempCL` |
+| Tyre pressure | `TyrePress{FL,FR,RL,RR}` | `Tire Pressure FL`, `LFpressure` |
+| Suspension travel | `SuspTravel{FL,FR,RL,RR}` | `Suspension Travel FL`, `LFshockDefl` |
+| Brake temperature / bias | `BrakeTemp{FL,FR,RL,RR}`, `BrakeBias` | `Brake Temp FL`, `dcBrakeBias` |
+| Water / oil temperature | `WaterTemp`, `OilTemp` | `Coolant Temp`, `Eng Oil Temp` |
+
+Missing optional channels do not stop the analysis: the affected panel is shown as unavailable.
+
+**What if there is no `Distance` channel?** The app synthesises it by integrating speed over a valid time clock (`LR/HR/MR Sample Clock`, `SessionTime`, `Time`, `Lap Time`...). Clocks that only toggle 0/1 are not used. The response flags this with `distance_synthetic`. It is accurate enough for session and stint analysis; for lap-to-lap comparison a real distance channel is more reliable.
+
+---
+
+## Data Quality Notes
+
+- **Lap detection:** laps are found from the lap-counter channel or, if absent, from distance resets. Segments shorter than 30 s (partial laps, pit stubs) are discarded.
+- **Pit and outlier laps:** laps with the `In Pit` channel active, or with a time outside 70-115 % of the median, are marked and left out of regressions and projections.
+- **Corner windows** never overlap: each is trimmed halfway between neighbouring apexes. The summary reports the time delta inside corners (`corners_time_delta_s`) and outside them (`outside_corners_delta_s`). Corners of two laps are matched by apex distance.
+- **"Not measurable" is not "zero":** if a braking or throttle delta shows `0.0` but is flagged as not available (`braking_delta_available` / `throttle_delta_available` = false), it could not be measured.
+- **Constant channels:** a channel that never changes (for example brake temperatures stuck at one value) is reported as unavailable with a reason instead of producing made-up advice.
+- **Slip angle:** the sign convention of lateral G is detected from its correlation with the yaw rate and flipped when needed (Assetto Corsa logs it inverted).
+- **Invalid files:** an empty CSV, or one without `Speed`, `Brake` and `Throttle`, is rejected with a clear message.
+
+## Example Result
+
+Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, MoTeC CSV of about 57 MB without a `Distance` channel):
+
+- 21 laps detected (laps 1 and 21 are pit laps); best lap is lap 11 with 1:57.605; race laps between 117.6 and 122.4 s.
+- Track length about 4862 m, top speed 243.9 km/h, 11 corners found by geometry.
+- Fuel consumption 1.758 L/lap; pace trend -0.077 s/lap (the car gets faster as the fuel burns off, so this is an improvement, not tyre wear).
+- The full analysis finished in about 25 s.
+
+## Known Limitations
+
+- Corner detection from speed alone finds 7 corners at Imola against 11 from geometry (chicanes merge into one).
+- Bottoming detection is a heuristic: suspension travel at or above 90 % of the maximum travel observed in the file.
+- Depending on the simulator and the export, some channels may be missing; the panels tell you when that is the case.
+
+---
+
 ## Common Issues
 
 **No corners detected:**
-- The CSV has no distance data, or the data is noisy
+- The CSV has no usable distance data, or the data is very noisy
 - Try with a complete lap (no cut laps)
 
-**Tyres always shown as "cold":**
-- The CSV does not include tyre temperature channels (TyreTempInner, TyreTempMiddle, etc.)
-- Verify that the MoTeC channel set includes wheel temperatures
+**A panel says "unavailable" (check the health panel):**
+- The CSV lacks the channels that module needs (tyre temperatures, brake temperatures, suspension travel, `YawRate` and `LateralG` for slip angle...)
+- Channels with a constant value are also reported as unavailable
 
-**Slip angle analysis does not appear:**
-- The CSV needs `YawRate` and `LateralG` channels
-- If the simulator does not export YawRate, this module is disabled automatically
+**The app says it could not find several laps:**
+- A session file needs a lap-counter channel (`Session Lap Count`) or a distance that resets every lap
+- Stint analysis needs at least 3 laps
+
+**Error 400 when uploading:**
+- The CSV is empty or does not contain `Speed`, `Brake` and `Throttle` (the message lists the columns that were found)
+
+**Error 422 when comparing:**
+- The selected lap is out of range, both laps are the same, or there are not enough valid flying laps for automatic selection
 
 **Charts do not synchronise:**
-- Move the cursor slowly — synchronisation happens every frame at 60 fps
-- If the browser has high CPU usage, there may be lag
+- Move the cursor slowly; if the browser has high CPU usage there may be lag
 
 **Analysis takes too long:**
-- CSVs with more than 50,000 rows can take 10–20 seconds in the backend
-- Normal for long laps (>5 minutes) with a high sampling rate
+- Session files of tens of MB can take tens of seconds or more in the backend; keep the tab open
 
 ---
 
 ## Recommended Workflow
 
 ```
-1. Load the two laps → wait for the analysis
+1. Load the file(s) and wait for the analysis (for a session, pick two laps or use Best vs Worst)
 2. Look at the TIME DELTA: where do the lines diverge?
 3. Click on the corners where you lose the most time
 4. Check the G-G: are you using all the available grip?
@@ -356,4 +437,4 @@ The **"Copy Report"** button generates text ready to paste into a WhatsApp group
 8. Copy the engineer report to share with the team
 ```
 
-*Also available in [Español 🇪🇸](./GUIA_USUARIO.es.md)*
+*Also available in [Español](./GUIA_USUARIO.es.md)*

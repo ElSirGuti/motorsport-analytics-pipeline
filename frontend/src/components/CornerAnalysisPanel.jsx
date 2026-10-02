@@ -65,7 +65,7 @@ function PhaseBar({ label, delta, unit, color }) {
 
 function TopCornerCard({ c, rank }) {
   const { t } = useLanguage();
-  const PHASE_LABEL = t.phaseLabel || { frenada: 'Frenada', apex: 'Apex', salida: 'Salida' };
+  const PHASE_LABEL = t.phaseLabel;
   const dominant = c.dominant_phase;
   const isLoss = (c.time_loss_seconds || 0) > 0;
 
@@ -100,7 +100,7 @@ function TopCornerCard({ c, rank }) {
 
 export default function CornerAnalysisPanel({ result, metadata, sessionMode, referenceLap, nLaps }) {
   const { t } = useLanguage();
-  const PHASE_LABEL = t.phaseLabel || { frenada: 'Frenada', apex: 'Apex', salida: 'Salida' };
+  const PHASE_LABEL = t.phaseLabel;
   const corners      = result?.corners || [];
   const cornerPrio   = result?.setup_advisor?.corner_priority || [];
   const la = metadata?.label_a || 'A';

@@ -11,6 +11,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from src.i18n import _ as _tr
+
 logger = logging.getLogger(__name__)
 
 # ── Unit constants ────────────────────────────────────────────────────────────
@@ -155,9 +157,9 @@ def _analyse_fluid(dfs: list, candidates: list, warn: float, crit: float,
         "crit_threshold_c":  crit,
     }
     if status == "critical":
-        out["alert"] = f"{name} temp crítica ({peak:.0f}°C ≥ {crit}°C) — revisar sistema de refrigeración"
+        out["alert"] = _tr("thermal_fluid_critical", name=_tr(f"thermal_fluid_{name.lower()}"), peak=f"{peak:.0f}", limit=crit)
     elif status == "warning":
-        out["alert"] = f"{name} temp elevada ({peak:.0f}°C ≥ {warn}°C) — monitorear de cerca"
+        out["alert"] = _tr("thermal_fluid_warning", name=_tr(f"thermal_fluid_{name.lower()}"), peak=f"{peak:.0f}", limit=warn)
     return out
 
 
@@ -240,14 +242,14 @@ def _analyse_brake_temps(dfs: list) -> dict:
             duct_recs.append({
                 "corner": corner,
                 "action": "close",
-                "reason": f"{s['mean_c']:.0f}°C — under optimal range, close brake duct to build heat",
+                "reason": _tr("thermal_duct_close", temp=f"{s['mean_c']:.0f}"),
                 "priority": "media",
             })
         elif s["status"] in ("hot", "critical"):
             duct_recs.append({
                 "corner": corner,
                 "action": "open",
-                "reason": f"{s['mean_c']:.0f}°C — over optimal range, open brake duct to reduce heat",
+                "reason": _tr("thermal_duct_open", temp=f"{s['mean_c']:.0f}"),
                 "priority": "alta" if s["status"] == "critical" else "media",
             })
 
@@ -333,8 +335,7 @@ def _analyse_tyre_pressure(dfs: list) -> dict:
             "status":  status,
         }
         if avg_cold is None:
-            entry["note"] = ("No cold-pressure channel in the telemetry — hot-cold delta "
-                             "and cold-pressure advice are not available")
+            entry["note"] = _tr("thermal_no_cold_channel")
         if avg_cold is not None:
             entry["cold"] = _pbar(avg_cold)
         if avg_delta is not None:
@@ -357,11 +358,11 @@ def _analyse_tyre_pressure(dfs: list) -> dict:
                     "current_cold": _pbar(avg_cold),
                     "target_cold":  _pbar(target_cold),
                     "current_hot":  _pbar(avg_hot),
-                    "reason":      (
-                        f"Hot-cold delta {avg_delta:.2f} bar ({avg_delta*_BAR_TO_PSI:.1f} PSI) "
-                        f"— target is {_DP_MID:.2f} bar ({_DP_MID*_BAR_TO_PSI:.1f} PSI). "
-                        f"{direction.capitalize()} cold pressure by "
-                        f"{adj_bar:.2f} bar ({adj_psi:.1f} PSI)."
+                    "reason":      _tr(
+                        f"thermal_press_{direction}",
+                        delta=f"{avg_delta:.2f}", delta_psi=f"{avg_delta*_BAR_TO_PSI:.1f}",
+                        target=f"{_DP_MID:.2f}", target_psi=f"{_DP_MID*_BAR_TO_PSI:.1f}",
+                        adj=f"{adj_bar:.2f}", adj_psi=f"{adj_psi:.1f}",
                     ),
                     "priority": "media" if abs(delta_adjust) > 0.1 else "baja",
                 })
@@ -410,11 +411,8 @@ def _analyse_brake_bias(dfs: list, brake_temps: dict | None = None) -> dict:
                     "direction": "reduce",
                     "suggested_pct": suggested,
                     "current_pct":   current_pct,
-                    "reason": (
-                        f"Front brakes {f_avg:.0f}°C vs rear {r_avg:.0f}°C "
-                        f"(ratio {ratio:.2f}) — fronts overloaded. "
-                        f"Reduce bias from {current_pct}% to ~{suggested}% front."
-                    ),
+                    "reason": _tr("thermal_bias_reduce", f=f"{f_avg:.0f}", r=f"{r_avg:.0f}",
+                                  ratio=f"{ratio:.2f}", cur=current_pct, sug=suggested),
                     "priority": "media",
                 }
             elif ratio < 0.75:
@@ -424,20 +422,17 @@ def _analyse_brake_bias(dfs: list, brake_temps: dict | None = None) -> dict:
                     "direction": "increase",
                     "suggested_pct": suggested,
                     "current_pct":   current_pct,
-                    "reason": (
-                        f"Rear brakes {r_avg:.0f}°C vs front {f_avg:.0f}°C "
-                        f"(ratio {ratio:.2f}) — rears overloaded. "
-                        f"Increase bias from {current_pct}% to ~{suggested}% front."
-                    ),
+                    "reason": _tr("thermal_bias_increase", f=f"{f_avg:.0f}", r=f"{r_avg:.0f}",
+                                  ratio=f"{ratio:.2f}", cur=current_pct, sug=suggested),
                     "priority": "media",
                 }
 
     # Secondary: flag if bias is outside typical range
     out_of_range = None
     if current_pct < _BIAS_SOFT_MIN:
-        out_of_range = f"Bias {current_pct}% is below typical floor ({_BIAS_SOFT_MIN}%) — check rear locking risk"
+        out_of_range = _tr("thermal_bias_low", cur=current_pct, limit=_BIAS_SOFT_MIN)
     elif current_pct > _BIAS_SOFT_MAX:
-        out_of_range = f"Bias {current_pct}% is above typical ceiling ({_BIAS_SOFT_MAX}%) — check front fade/lock risk"
+        out_of_range = _tr("thermal_bias_high", cur=current_pct, limit=_BIAS_SOFT_MAX)
 
     return {
         "available":      True,

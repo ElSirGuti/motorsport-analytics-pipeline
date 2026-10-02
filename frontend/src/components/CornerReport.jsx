@@ -98,7 +98,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                   {hasZoom && (
                     <span className={styles.zoomHint}>
                       <Icon name={isActive ? 'x' : 'target'} size={12} />
-                      {isActive ? 'ZOOM' : ''}
+                      {isActive ? t.zoomBadge : ''}
                     </span>
                   )}
                 </div>
