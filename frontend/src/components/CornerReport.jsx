@@ -47,7 +47,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
       className="fade-up fade-up--d4"
     >
       <div className={styles.grid}>
-        {corners.map((corner) => {
+        {[...corners].sort((a, b) => a.corner_number - b.corner_number).map((corner) => {
           const isLoss   = corner.time_loss_seconds > 0.01;
           const isGain   = corner.time_loss_seconds < -0.01;
           const isActive = activeCorner === corner.corner_number;

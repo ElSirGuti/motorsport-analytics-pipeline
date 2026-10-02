@@ -6,6 +6,8 @@ G-loads, and lap number. Projects remaining useful laps before a performance
 cliff and provides axle-level wear asymmetry.
 """
 import logging
+
+from src.i18n import _ as _tr
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -95,186 +97,209 @@ def _lap_features(df) -> dict:
     return feat
 
 
+_WEAR_RATE_CHANNELS = ['AID Tire Wear Rate', 'AID Tyre Wear Rate', 'Tire Wear Rate', 'Tyre Wear Rate',
+                       'TyreWearRate', 'TireWearRate']
+_WEAR_STATE_PREFIXES = ('tire rubber grip', 'tyre rubber grip', 'tire wear', 'tyre wear',
+                        'tirewear', 'tyrewear', 'tire life', 'tyre life', 'tirelife', 'tyrelife')
+_WEAR_CONST_RANGE = 0.05   # channel range below this over the whole session == constant
+MIN_LAPS_FOR_FACTORS = 6   # correlations / thermal trends need at least this many laps
+
+
+def detect_wear_tracking(dfs: list) -> dict:
+    """
+    Decide whether the simulator was actually modelling tyre wear.
+    Returns {"active": True|False|None, "evidence": str}. None = no wear channel found
+    (unknown: keep going, but the result is flagged accordingly).
+    """
+    import pandas as pd
+    rate_seen, state_ranges = [], []
+    for df in dfs:
+        for c in df.columns:
+            lc = str(c).lower()
+            if c in _WEAR_RATE_CHANNELS:
+                v = pd.to_numeric(df[c], errors='coerce').dropna()
+                if len(v):
+                    rate_seen.append((c, float(v.abs().max())))
+            elif lc.startswith(_WEAR_STATE_PREFIXES):
+                v = pd.to_numeric(df[c], errors='coerce').dropna()
+                if len(v):
+                    state_ranges.append((c, float(v.min()), float(v.max())))
+    if rate_seen and max(r for _, r in rate_seen) <= 1e-9:
+        return {"active": False, "evidence": f"{rate_seen[0][0]} == 0 for the whole session"}
+    if state_ranges:
+        by_ch: dict = {}
+        for c, lo, hi in state_ranges:
+            a, b = by_ch.get(c, (lo, hi))
+            by_ch[c] = (min(a, lo), max(b, hi))
+        if all((hi - lo) < _WEAR_CONST_RANGE for lo, hi in by_ch.values()):
+            c0 = next(iter(by_ch))
+            return {"active": False, "evidence": f"{c0} constant ({by_ch[c0][0]:g}) across the session"}
+        return {"active": True, "evidence": "wear/grip channel varies across the session"}
+    if rate_seen:
+        return {"active": True, "evidence": f"{rate_seen[0][0]} > 0"}
+    return {"active": None, "evidence": "no wear channel in the data"}
+
+
 def predecir_degradacion_neumatico(dfs: list, df_laps) -> dict:
     """
-    Train a polynomial Ridge regression on session lap data to predict
-    tyre wear state and project remaining useful laps.
+    Tyre degradation estimate, consistent with the stint trend (analizar_degradacion_stint).
 
-    Returns dict with keys:
-        available, wear_pct, remaining_laps, current_delta_s,
-        degradation_rate_s_per_lap, n_laps_analyzed,
-        top_wear_factors, lap_data, projection,
-        front_temp_trend_c_per_lap, rear_temp_trend_c_per_lap,
-        left_mean_temp, right_mean_temp, tyre_temps_available
+    - If the session has no tyre wear (wear-rate channel 0 / rubber grip constant) nothing is
+      computed: available=False, wear_tracking=False.
+    - Degradation slope is >= 0 (a negative fit is fuel / track evolution / noise and is
+      reported separately in track_evolution_s_per_lap).
+    - Needs MIN_LAPS_FOR_TREND valid laps; factors and thermal trends need MIN_LAPS_FOR_FACTORS.
+    - remaining_laps only if the degradation is positive AND its CI excludes zero.
     """
-    try:
-        from sklearn.linear_model import Ridge
-        from sklearn.preprocessing import PolynomialFeatures, StandardScaler
-        from sklearn.pipeline import Pipeline
-        from sklearn.impute import SimpleImputer
-        import pandas as pd
-    except ImportError:
-        logger.warning("tyre_degradation: scikit-learn not found — skipped")
-        return {"available": False, "reason": "scikit-learn not installed"}
+    import pandas as pd
+    from src.analytics.stint import (analizar_degradacion_stint, _projection_laps,
+                                     MIN_LAPS_FOR_TREND)
 
-    # ── Filter flying laps ──────────────────────────────────────────────────
-    if 'is_pit_lap' in df_laps.columns:
-        flying = df_laps[~df_laps['is_pit_lap'] & df_laps['lap_time_s'].notna()]
-    else:
-        flying = df_laps[df_laps['lap_time_s'].notna()]
+    wear = detect_wear_tracking(dfs)
+    if wear["active"] is False:
+        return {"available": False, "wear_tracking": False, "reason_code": "wear_inactive",
+                "reason": _tr("tyre_wear_inactive"), "wear_evidence": wear["evidence"]}
 
-    if len(flying) < 3:
-        return {"available": False, "reason": "fewer than 3 flying laps"}
+    valid = _projection_laps(df_laps)
+    n = len(valid)
+    if n < MIN_LAPS_FOR_TREND:
+        return {"available": False, "wear_tracking": wear["active"], "low_confidence": True,
+                "confidence": "low", "n_laps_used": n, "reason_code": "insufficient_sample",
+                "reason": _tr("tyre_insufficient_laps", n=n, min=MIN_LAPS_FOR_TREND)}
 
-    lap_times = flying['lap_time_s'].values.astype(float)
-    best_time = float(np.nanmin(lap_times))
-    if best_time <= 0:
-        return {"available": False, "reason": "invalid lap times"}
+    st = analizar_degradacion_stint(df_laps)
+    if not st.get("available"):
+        return {"available": False, "wear_tracking": wear["active"], "reason": _tr("unavail_few_flying_laps_3")}
 
-    lap_nums = (
-        flying['lap_number'].values.astype(float)
-        if 'lap_number' in flying.columns
-        else np.arange(1, len(flying) + 1, dtype=float)
-    )
+    lap_arr = valid['lap_number'].values.astype(float)
+    times = valid['lap_time_s'].values.astype(float)
+    best_time = float(np.nanmin(times))
+    delta_arr = times - best_time
 
-    # ── Build per-lap feature table ─────────────────────────────────────────
-    records = []
-    for i, (row_idx, _) in enumerate(flying.iterrows()):
-        df_idx = list(df_laps.index).index(row_idx) if row_idx in df_laps.index else i
-        if df_idx >= len(dfs):
-            df_idx = i
-        if i >= len(dfs):
-            break
-        feats = _lap_features(dfs[df_idx] if df_idx < len(dfs) else dfs[i])
-        feats['lap_number']    = float(lap_nums[i])
-        feats['lap_time_s']    = float(lap_times[i])
-        feats['delta_vs_best'] = float(lap_times[i] - best_time)
-        records.append(feats)
+    fuel_eff = float(st["fuel_effect_s_per_lap"])
+    total = float(st["tasa_s_per_lap"])
+    deg = max(0.0, total - fuel_eff)
+    track_evo = min(0.0, total - fuel_eff)
+    se = float(st["slope_se_s_per_lap"])
+    ci = st.get("slope_ci")
+    ci_lo_deg = (ci[0] - fuel_eff) if ci else None
+    reliable = deg >= 0.01 and ci_lo_deg is not None and ci_lo_deg > 0
 
-    if len(records) < 3:
-        return {"available": False, "reason": "insufficient data after extraction"}
+    anchor_lap = float(st["anchor_lap"])
+    anchor_delta = float(st["anchor_time_s"]) - best_time
+    last = float(lap_arr[-1])
+    resid_sd = float(np.std(delta_arr - np.polyval(np.polyfit(lap_arr, delta_arr, 1), lap_arr), ddof=2))
+    sigma = max(resid_sd, 0.25)
 
-    rec_df = pd.DataFrame(records)
-    feat_cols = [c for c in rec_df.columns if c not in ('lap_time_s', 'delta_vs_best')]
-    # Drop entirely-NaN columns — sklearn imputer emits a warning and skips them anyway
-    feat_cols = [c for c in feat_cols if rec_df[c].notna().any()]
-    if not feat_cols:
-        feat_cols = ['lap_number']   # always available fallback
+    future_laps = np.arange(last + 1, last + 41)
+    proj = anchor_delta + deg * (future_laps - anchor_lap)
+    band = 1.28 * np.sqrt((se * (future_laps - anchor_lap)) ** 2 + sigma ** 2)
 
-    X = rec_df[feat_cols].values.astype(float)
-    y = rec_df['delta_vs_best'].values
+    remaining_laps = None
+    if reliable:
+        remaining_laps = ">40"
+        for fl, fd in zip(future_laps, proj):
+            if fd >= _CLIFF_S:
+                remaining_laps = int(fl - last)
+                break
 
-    # ── Fit model ───────────────────────────────────────────────────────────
-    degree = 2 if len(records) >= 6 else 1
-    import warnings as _warnings
-    with _warnings.catch_warnings():
-        _warnings.simplefilter('ignore')
-        pipeline = Pipeline([
-            ('imputer', SimpleImputer(strategy='median')),
-            ('scaler',  StandardScaler()),
-            ('poly',    PolynomialFeatures(degree=degree, include_bias=False)),
-            ('model',   Ridge(alpha=1.0)),
-        ])
-        pipeline.fit(X, y)
-
-    # ── Linear trend on delta (for projection) ──────────────────────────────
-    lap_arr    = rec_df['lap_number'].values.astype(float)
-    delta_arr  = rec_df['delta_vs_best'].values
-    coeffs     = np.polyfit(lap_arr, delta_arr, deg=1) if len(lap_arr) >= 2 else [0.0, 0.0]
-    slope      = float(coeffs[0])
-    intercept  = float(coeffs[1])
-
-    current_lap   = float(lap_arr[-1])
     current_delta = float(delta_arr[-1])
+    wear_pct = None
+    if reliable:
+        max_scale = max(_CLIFF_S, float(np.nanmax(delta_arr)) * 1.2, 0.3)
+        wear_pct = round(min(100.0, max(0.0, current_delta / max_scale * 100.0)), 1)
 
-    # ── Remaining laps to cliff ─────────────────────────────────────────────
-    future_laps = np.arange(current_lap + 1, current_lap + 41)
-    proj_deltas = slope * future_laps + intercept
-
-    remaining_laps: object = ">40"
-    for fl, fd in zip(future_laps, proj_deltas):
-        if fd >= _CLIFF_S:
-            remaining_laps = int(fl - current_lap)
-            break
-
-    # Wear state 0-100%
-    max_scale  = max(_CLIFF_S, float(np.nanmax(delta_arr)) * 1.2, 0.3)
-    wear_pct   = min(100.0, max(0.0, current_delta / max_scale * 100.0))
-
-    # ── Feature importance via correlation with delta ───────────────────────
-    imp = {}
-    for j, col in enumerate(feat_cols):
-        vals = rec_df[col].fillna(rec_df[col].median()).values
-        if np.nanstd(vals) > 0 and not np.all(np.isnan(vals)):
-            corr = float(np.corrcoef(vals, delta_arr)[0, 1])
-            if not np.isnan(corr):
-                imp[col] = abs(corr)
-    top_factors = sorted(imp.items(), key=lambda x: -x[1])[:6]
-
-    # ── Per-lap chart data ──────────────────────────────────────────────────
     lap_data = []
-    for i in range(len(records)):
-        ln = float(rec_df['lap_number'].iloc[i])
-        lap_data.append({
-            "lap":       int(ln),
-            "delta":     round(float(delta_arr[i]), 3),
-            "trend":     round(float(slope * ln + intercept), 3),
-        })
+    for ln, d in zip(lap_arr, delta_arr):
+        lap_data.append({"lap": int(ln), "delta": round(float(d), 3),
+                         "trend": round(float(anchor_delta + deg * (ln - anchor_lap)), 3)})
+    projection = [{"lap": int(fl), "projected": round(float(fd), 3),
+                   "p10": round(float(max(0.0, fd - b)), 3), "p90": round(float(fd + b), 3),
+                   "cliff": _CLIFF_S}
+                  for fl, fd, b in zip(future_laps[:25], proj[:25], band[:25])]
 
-    projection = [
-        {
-            "lap":       int(fl),
-            "projected": round(float(fd), 3),
-            "cliff":     _CLIFF_S,
-        }
-        for fl, fd in zip(future_laps[:25], proj_deltas[:25])
-    ]
+    # ── Per-lap features (factors / thermal) ────────────────────────────────
+    records = []
+    for row_idx, ln, dl in zip(valid.index, lap_arr, delta_arr):
+        i = int(row_idx)
+        if i >= len(dfs):
+            continue
+        f = _lap_features(dfs[i])
+        f['lap_number'] = float(ln)
+        f['delta_vs_best'] = float(dl)
+        records.append(f)
+    rec_df = pd.DataFrame(records)
 
-    # ── Axle / side temp trends ─────────────────────────────────────────────
-    def _temp_trend(cols):
-        valid = [c for c in cols if c in rec_df.columns and not rec_df[c].isna().all()]
-        if not valid or len(lap_arr) < 2:
-            return None
-        temps = rec_df[valid].mean(axis=1).bfill().ffill().values
-        return float(np.polyfit(lap_arr, temps, 1)[0])
+    top_factors, factors_reason = [], None
+    front_trend = rear_trend = None
+    thermal_reason = None
+    if len(rec_df) >= MIN_LAPS_FOR_FACTORS:
+        feat_cols = [c for c in rec_df.columns
+                     if c not in ('delta_vs_best', 'lap_number', 'mean_speed') and rec_df[c].notna().any()]
+        imp = {}
+        for col in feat_cols:
+            vals = rec_df[col].fillna(rec_df[col].median()).values
+            if np.nanstd(vals) > 0:
+                corr = float(np.corrcoef(vals, rec_df['delta_vs_best'].values)[0, 1])
+                if not np.isnan(corr):
+                    imp[col] = abs(corr)
+        top_factors = sorted(imp.items(), key=lambda x: -x[1])[:6]
 
-    front_trend = _temp_trend(['temp_fl', 'temp_fr'])
-    rear_trend  = _temp_trend(['temp_rl', 'temp_rr'])
+        def _temp_trend(cols):
+            valid_c = [c for c in cols if c in rec_df.columns and not rec_df[c].isna().all()]
+            if not valid_c:
+                return None
+            temps = rec_df[valid_c].mean(axis=1).bfill().ffill().values
+            return float(np.polyfit(rec_df['lap_number'].values, temps, 1)[0])
+        front_trend = _temp_trend(['temp_fl', 'temp_fr'])
+        rear_trend = _temp_trend(['temp_rl', 'temp_rr'])
+    else:
+        factors_reason = thermal_reason = _tr("tyre_factors_few_laps", n=len(rec_df), min=MIN_LAPS_FOR_FACTORS)
 
     def _mean_temp(cols):
-        valid = [c for c in cols if c in rec_df.columns]
-        if not valid:
-            return None
-        v = rec_df[valid].values.flatten()
+        cols = [c for c in cols if c in rec_df.columns]
+        v = rec_df[cols].values.flatten() if (len(rec_df) and cols) else np.array([])
         v = v[~np.isnan(v)]
         return round(float(np.mean(v)), 1) if len(v) else None
 
-    left_mean  = _mean_temp(['temp_fl', 'temp_rl'])
-    right_mean = _mean_temp(['temp_fr', 'temp_rr'])
-
-    tyre_temps_available = any(
+    tyre_temps_available = bool(len(rec_df)) and any(
         f'temp_{p}' in rec_df.columns and not rec_df[f'temp_{p}'].isna().all()
-        for p in ['fl', 'fr', 'rl', 'rr']
-    )
+        for p in ['fl', 'fr', 'rl', 'rr'])
 
-    logger.info(
-        "tyre_degradation: wear=%.1f%%, remaining=%s, slope=%.4fs/lap, n=%d",
-        wear_pct, remaining_laps, slope, len(records),
-    )
+    if reliable:
+        reason_code, reason = None, None
+    else:
+        reason_code, reason = "no_detectable_degradation", _tr("tyre_no_degradation")
+
+    logger.info("tyre_degradation: deg=%.4f s/lap reliable=%s n=%d", deg, reliable, n)
     return {
         "available":                    True,
-        "wear_pct":                     round(wear_pct, 1),
+        "wear_tracking":                wear["active"],
+        "wear_evidence":                wear["evidence"],
+        "wear_pct":                     wear_pct,
         "remaining_laps":               remaining_laps,
         "current_delta_s":              round(current_delta, 3),
         "cliff_threshold_s":            _CLIFF_S,
-        "degradation_rate_s_per_lap":   round(slope, 4),
-        "n_laps_analyzed":              len(records),
+        "degradation_rate_s_per_lap":   round(deg, 4),
+        "degradation_detected":         bool(reliable),
+        "track_evolution_s_per_lap":    round(track_evo, 4),
+        "fuel_effect_s_per_lap":        round(fuel_eff, 4),
+        "raw_slope_s_per_lap":          st.get("raw_slope_s_per_lap"),
+        "slope_ci":                     ci,
+        "confidence":                   st.get("confidence", "low"),
+        "low_confidence":               bool(st.get("low_confidence")),
+        "n_laps_used":                  n,
+        "n_laps_analyzed":              n,
+        "reason_code":                  reason_code,
+        "reason":                       reason,
         "top_wear_factors":             [{"factor": k, "correlation": round(v, 3)} for k, v in top_factors],
+        "wear_factors_reason":          factors_reason,
         "lap_data":                     lap_data,
         "projection":                   projection,
         "front_temp_trend_c_per_lap":   round(front_trend, 3) if front_trend is not None else None,
         "rear_temp_trend_c_per_lap":    round(rear_trend, 3) if rear_trend is not None else None,
-        "left_mean_temp":               left_mean,
-        "right_mean_temp":              right_mean,
+        "temp_trend_reason":            thermal_reason,
+        "left_mean_temp":               _mean_temp(['temp_fl', 'temp_rl']),
+        "right_mean_temp":              _mean_temp(['temp_fr', 'temp_rr']),
         "tyre_temps_available":         tyre_temps_available,
     }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Cell,
@@ -14,11 +15,21 @@ const PHASE_COLOR = {
 const AXIS_TICK = { fill: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)' };
 const clean = (s) => String(s ?? '').replace(/^[^\p{L}\p{N}(]+/u, '');
 const signed = (v, d) => `${v > 0 ? '+' : ''}${v.toFixed(d)}`;
+// A phase value is only meaningful when the backend flags it as measured (flag absent = available).
+const has = (c, phase) => c?.[`${phase}_available`] !== false;
 
 function CustomTooltip({ active, payload }) {
   const { t } = useLanguage();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
+  if (d.time_loss_seconds == null) {
+    return (
+      <div className={css.tip}>
+        <div className={css.tipHead}>{t.cornerLabel} {d.corner_number}</div>
+        <div className={css.tipFocus}>{t.rlNoData}</div>
+      </div>
+    );
+  }
   return (
     <div className={css.tip}>
       <div className={css.tipHead}>{t.cornerLabel} {d.corner_number}</div>
@@ -38,18 +49,29 @@ function CustomTooltip({ active, payload }) {
           </>
         )}
         <span>{clean(t.tooltipBrake)}</span>
-        <b>{signed(d.braking_delta_meters, 0)} m</b>
+        <b>{has(d, 'braking') ? `${signed(d.braking_delta_meters, 0)} m` : '—'}</b>
         <span>{clean(t.tooltipApex)}</span>
-        <b>{signed(d.apex_speed_delta_kmh, 1)} km/h</b>
+        <b>{has(d, 'apex') ? `${signed(d.apex_speed_delta_kmh, 1)} km/h` : '—'}</b>
         <span>{clean(t.tooltipThrottle)}</span>
-        <b>{signed(d.throttle_delta_meters, 0)} m</b>
+        <b>{has(d, 'throttle') ? `${signed(d.throttle_delta_meters, 0)} m` : '—'}</b>
       </div>
       {d.focus && <div className={css.tipFocus}>{clean(d.focus)}</div>}
     </div>
   );
 }
 
-function PhaseBar({ label, delta, unit, color }) {
+function PhaseBar({ label, delta, unit, color, available = true }) {
+  const { t } = useLanguage();
+  if (!available) {
+    return (
+      <div className={css.phase} title={t.cornerNoPhaseData}>
+        <span className={css.dot} style={{ background: 'var(--ink-4)' }} />
+        <span>{label}</span>
+        <div className={css.track} />
+        <span className={css.phaseVal}>{'—'}</span>
+      </div>
+    );
+  }
   if (Math.abs(delta) < 0.5) return null;
   return (
     <div className={css.phase}>
@@ -72,7 +94,7 @@ function TopCornerCard({ c, rank }) {
   return (
     <div className={css.card}>
       <div className={css.cardHead}>
-        <span className={css.rank}>{rank}</span>
+        <span className={css.rank} title={t.cornerPriorityRank(rank)} aria-label={t.cornerPriorityRank(rank)}>{rank}</span>
         <div>
           <div className={css.cardName}>{t.cornerLabel} {c.corner_number}</div>
           <div className={css.cardPhase}>
@@ -88,9 +110,9 @@ function TopCornerCard({ c, rank }) {
         </div>
       </div>
 
-      <PhaseBar label={PHASE_LABEL.frenada} delta={c.braking_delta_meters} unit=" m" color={PHASE_COLOR.frenada} />
-      <PhaseBar label={PHASE_LABEL.apex} delta={c.apex_speed_delta_kmh} unit=" km/h" color={PHASE_COLOR.apex} />
-      <PhaseBar label={PHASE_LABEL.salida} delta={c.throttle_delta_meters} unit=" m" color={PHASE_COLOR.salida} />
+      <PhaseBar label={PHASE_LABEL.frenada} delta={c.braking_delta_meters} unit=" m" color={PHASE_COLOR.frenada} available={has(c, 'braking')} />
+      <PhaseBar label={PHASE_LABEL.apex} delta={c.apex_speed_delta_kmh} unit=" km/h" color={PHASE_COLOR.apex} available={has(c, 'apex')} />
+      <PhaseBar label={PHASE_LABEL.salida} delta={c.throttle_delta_meters} unit=" m" color={PHASE_COLOR.salida} available={has(c, 'throttle')} />
 
       {c.focus && <div className={css.focus}>{clean(c.focus)}</div>}
       {c.description && <p className={css.desc}>{c.description}</p>}
@@ -103,19 +125,42 @@ export default function CornerAnalysisPanel({ result, metadata, sessionMode, ref
   const PHASE_LABEL = t.phaseLabel;
   const corners      = result?.corners || [];
   const cornerPrio   = result?.setup_advisor?.corner_priority || [];
+  const [sortBy, setSortBy] = useState('corner');
   const la = metadata?.label_a || 'A';
   const lb = metadata?.label_b || 'B';
 
   if (!corners.length) return null;
 
-  const barData = corners
-    .filter(c => c.time_loss_seconds != null)
-    .map(c => ({
+  // Every corner keeps its slot on the X axis (numeric order); corners without data render empty.
+  const byCorner = new Map(corners.map(c => [c.corner_number, c]));
+  const maxCorner = Math.max(...corners.map(c => c.corner_number));
+  const barData = Array.from({ length: maxCorner }, (_, i) => {
+    const n = i + 1;
+    const c = byCorner.get(n);
+    if (!c) return { corner_number: n, time_loss_seconds: null };
+    return {
       ...c,
       abs_loss: Math.abs(c.time_loss_seconds || 0),
-      ...(cornerPrio.find(cp => cp.corner_number === c.corner_number) || {}),
-    }))
-    .sort((a, b) => a.corner_number - b.corner_number);
+      ...(cornerPrio.find(cp => cp.corner_number === n) || {}),
+      time_loss_seconds: c.time_loss_seconds ?? null,
+    };
+  });
+  const missing = barData.filter(c => c.time_loss_seconds == null).map(c => c.corner_number);
+
+  // Priority rank = position in the impact-ordered list from the backend.
+  const byNum = Object.fromEntries(corners.map(c => [c.corner_number, c]));
+  const ranked = cornerPrio.slice(0, 6).map((c, i) => ({
+    c: {
+      ...c,
+      braking_available: c.braking_available ?? byNum[c.corner_number]?.braking_available,
+      apex_available: c.apex_available ?? byNum[c.corner_number]?.apex_available,
+      throttle_available: c.throttle_available ?? byNum[c.corner_number]?.throttle_available,
+    },
+    rank: i + 1,
+  }));
+  const shown = sortBy === 'corner'
+    ? [...ranked].sort((a, b) => a.c.corner_number - b.c.corner_number)
+    : ranked;
 
   const totalLoss = corners.reduce((s, c) => s + Math.max(0, c.time_loss_seconds || 0), 0);
 
@@ -169,14 +214,22 @@ export default function CornerAnalysisPanel({ result, metadata, sessionMode, ref
         <span className={css.legendItem}><span className={css.sw} style={{ background: 'var(--bad)' }} /> {t.cornerLosses(lb)}</span>
         <span className={css.legendItem}><span className={css.sw} style={{ background: 'var(--ok)' }} /> {t.cornerGains(lb)}</span>
         <span className={css.hover}>{clean(t.cornerHover)}</span>
+        {missing.length > 0 && <span className={css.hover}>{t.cornerNoDataFor(missing.join(', '))}</span>}
       </div>
 
       {cornerPrio.length > 0 && (
         <div className={css.section}>
           <div className="ui-eyebrow">{t.cornerPriorityTitle}</div>
+          <div role="group" aria-label={t.sortAria} style={{ margin: '8px 0' }}>
+            <div className="ui-seg">
+              {[['corner', t.sortByCorner], ['impact', t.sortByImpact]].map(([k, label]) => (
+                <button key={k} type="button" className="ui-seg__item" aria-pressed={sortBy === k} onClick={() => setSortBy(k)}>{label}</button>
+              ))}
+            </div>
+          </div>
           <div className={css.cards}>
-            {cornerPrio.slice(0, 6).map((c, i) => (
-              <TopCornerCard key={c.corner_number ?? i} c={c} rank={i + 1} />
+            {shown.map(({ c, rank }, i) => (
+              <TopCornerCard key={c.corner_number ?? i} c={c} rank={rank} />
             ))}
           </div>
           <div className={css.legend}>

@@ -261,7 +261,7 @@ export default function StintPanel() {
               }}
               metadata={{
                 label_a: `${t.timelineLap} ${result.curvas_sesion.reference_lap} (${t.anomalyReference})`,
-                label_b: `${t.timelineLap} ${result.curvas_sesion.n_laps_compared}`,
+                label_b: t.avgOfLaps(result.curvas_sesion.n_laps_compared),
               }}
               sessionMode
               referenceLap={result.curvas_sesion.reference_lap}

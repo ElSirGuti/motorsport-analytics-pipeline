@@ -15,19 +15,32 @@ from src.i18n import _ as t
 logger = logging.getLogger(__name__)
 
 
-def _describe_corner(num: int, loss: float, brake: float,
-                     apex: float, throttle: float, std: float,
+# Plausibility limits for per-lap deltas vs the reference lap. Beyond these the pairing is
+# almost certainly wrong (braking zone of another corner / previous straight), so the
+# value is "not measurable" and is excluded rather than displayed.
+MAX_PLAUSIBLE_BRAKE_DELTA_M = 150.0
+MAX_PLAUSIBLE_APEX_DELTA_KMH = 40.0
+MAX_PLAUSIBLE_THROTTLE_DELTA_M = 250.0
+
+
+def _plausible(values: list, limit: float) -> list:
+    return [v for v in values if v is not None and np.isfinite(v) and abs(v) <= limit]
+
+
+def _describe_corner(num: int, loss: float, brake,
+                     apex, throttle, std: float,
                      lang: str = "es") -> str:
+    """brake/apex/throttle may be None when not measurable: they are then omitted."""
     parts = []
-    if brake > 8:
+    if brake is not None and brake > 8:
         parts.append(t("sess_brake_late", lang=lang, brake=f"{brake:.0f}"))
-    elif brake < -8:
+    elif brake is not None and brake < -8:
         parts.append(t("sess_brake_early", lang=lang, brake=f"{brake:.0f}"))
-    if apex < -4:
+    if apex is not None and apex < -4:
         parts.append(t("sess_apex_slow", lang=lang, apex=f"{apex:.1f}"))
-    elif apex > 4:
+    elif apex is not None and apex > 4:
         parts.append(t("sess_apex_fast", lang=lang, apex=f"{apex:.1f}"))
-    if throttle > 8:
+    if throttle is not None and throttle > 8:
         parts.append(t("sess_throttle_late", lang=lang, throttle=f"{throttle:.0f}"))
     if std > 0.08:
         parts.append(t("sess_inconsistent", lang=lang, std=f"{std:.3f}"))
@@ -94,7 +107,7 @@ def analizar_curvas_sesion(
 
     if len(flying) < 2:
         logger.info("session_corner_analysis: <2 vueltas volantes — omitido")
-        return {"available": False, "reason": "fewer than 2 flying laps to compare"}
+        return {"available": False, "reason": t("unavail_few_flying_laps_2")}
 
     ref_idx = int(flying["lap_time_s"].idxmin())
     ref_lap_num = (
@@ -141,17 +154,26 @@ def analizar_curvas_sesion(
 
         mean_loss     = float(np.mean(losses))
         std_loss      = float(np.std(losses))
-        mean_brake    = float(np.mean(brakes))
-        mean_apex     = float(np.mean(apexes))
-        mean_throttle = float(np.mean(throttles))
+        ok_b = _plausible(brakes,    MAX_PLAUSIBLE_BRAKE_DELTA_M)
+        ok_a = _plausible(apexes,    MAX_PLAUSIBLE_APEX_DELTA_KMH)
+        ok_t = _plausible(throttles, MAX_PLAUSIBLE_THROTTLE_DELTA_M)
+        # Measurable only if the majority of laps gave a plausible value.
+        mean_brake    = float(np.mean(ok_b)) if ok_b and len(ok_b) * 2 >= len(brakes)    else None
+        mean_apex     = float(np.mean(ok_a)) if ok_a and len(ok_a) * 2 >= len(apexes)    else None
+        mean_throttle = float(np.mean(ok_t)) if ok_t and len(ok_t) * 2 >= len(throttles) else None
 
         corners_agg.append({
             "corner_number":          corner_num,
             "time_loss_seconds":      round(mean_loss, 3),
             "std_loss_seconds":       round(std_loss, 3),
-            "braking_delta_meters":   round(mean_brake, 1),
-            "apex_speed_delta_kmh":   round(mean_apex, 1),
-            "throttle_delta_meters":  round(mean_throttle, 1),
+            # Not-measurable deltas are reported as 0.0 (keeps numeric consumers safe)
+            # with the matching *_available flag set to False.
+            "braking_delta_meters":   round(mean_brake, 1) if mean_brake is not None else 0.0,
+            "apex_speed_delta_kmh":   round(mean_apex, 1) if mean_apex is not None else 0.0,
+            "throttle_delta_meters":  round(mean_throttle, 1) if mean_throttle is not None else 0.0,
+            "braking_available":      mean_brake is not None,
+            "apex_available":         mean_apex is not None,
+            "throttle_available":     mean_throttle is not None,
             "n_laps":                 len(laps),
             "consistency":            t("consistency_inconsistent", lang=lang) if std_loss > 0.08 else t("consistency_consistent", lang=lang),
             "description": _describe_corner(

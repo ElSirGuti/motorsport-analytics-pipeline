@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import os
 import logging
+from src.i18n import _ as _tr
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -341,10 +342,10 @@ def load_telemetry_data(filepath: str,
     logger.info(f"Cargando telemetría desde: {filepath}")
     
     if not os.path.exists(filepath):
-        raise DataLoaderException(f"No se encontró el archivo: {filepath}")
+        raise DataLoaderException(_tr("loader_not_found", path=filepath))
     
     if os.path.getsize(filepath) == 0:
-        raise DataLoaderException("El archivo CSV está vacío (0 bytes)")
+        raise DataLoaderException(_tr("loader_empty_0"))
 
     # Auto-detectar separador y cabecera
     detected_sep, header_idx, has_units = _detect_separator_and_header(filepath)
@@ -366,10 +367,10 @@ def load_telemetry_data(filepath: str,
             logger.info("  Se detectaron y eliminaron filas de metadatos/unidades de MoTeC")
             
     except Exception as e:
-        raise DataLoaderException(f"Error al leer CSV: {str(e)}")
+        raise DataLoaderException(_tr("loader_read_error", err=str(e)))
 
     if df.empty:
-        raise DataLoaderException("El archivo CSV está vacío")
+        raise DataLoaderException(_tr("loader_empty"))
 
     # 1. Limpieza de nombres de columnas
     df.columns = df.columns.str.strip()
@@ -382,8 +383,7 @@ def load_telemetry_data(filepath: str,
     if missing:
         available = list(df.columns)
         raise DataLoaderException(
-            f"Faltan canales esenciales: {missing}. "
-            f"Columnas disponibles: {available}"
+            _tr("loader_missing_channels", missing=missing, available=available)
         )
 
     # 4. Reemplazar comas por puntos en columnas de texto/objeto e intentar convertirlas a float
@@ -479,7 +479,7 @@ def load_telemetry_data(filepath: str,
     for ch in ESSENTIAL_CHANNELS:
         if ch in df.columns and df[ch].isnull().all():
             raise DataLoaderException(
-                f"El canal esencial '{ch}' no contiene valores numéricos válidos"
+                _tr("loader_channel_not_numeric", ch=ch)
             )
 
     # 7. Interpolar NaN en canales base
@@ -511,12 +511,12 @@ def load_multiple_laps(directory: str, pattern: str = "*.csv") -> dict[str, pd.D
     import glob
     
     if not os.path.isdir(directory):
-        raise DataLoaderException(f"Directorio no encontrado: {directory}")
+        raise DataLoaderException(_tr("loader_dir_not_found", path=directory))
     
     files = glob.glob(os.path.join(directory, pattern))
     
     if not files:
-        raise DataLoaderException(f"No se encontraron archivos '{pattern}' en: {directory}")
+        raise DataLoaderException(_tr("loader_no_files", pattern=pattern, path=directory))
     
     laps = {}
     for filepath in sorted(files):
@@ -528,7 +528,7 @@ def load_multiple_laps(directory: str, pattern: str = "*.csv") -> dict[str, pd.D
             logger.warning(f"  ✗ {filename}: {e}")
     
     if not laps:
-        raise DataLoaderException("No se pudo cargar ningún archivo de telemetría")
+        raise DataLoaderException(_tr("loader_none_loaded"))
     
     logger.info(f"  Total: {len(laps)} vueltas cargadas")
     return laps

@@ -130,8 +130,8 @@ def _analyse_fluid(dfs: list, candidates: list, warn: float, crit: float,
             per_lap.append({"lap": lap_idx + 1, "mean_c": round(v, 1)})
     if not per_lap:
         return {"available": False,
-                "reason": f"{name} temperature channel not found in the telemetry "
-                          f"(looked for: {', '.join(candidates[:3])}…)"}
+                "reason": _tr("thermal_fluid_no_channel", name=_tr(f"thermal_fluid_{name.lower()}"),
+                              cands=", ".join(candidates[:3]))}
     temps = [r["mean_c"] for r in per_lap]
     peak  = max(temps)
     trend = None
@@ -192,7 +192,7 @@ def _analyse_brake_temps(dfs: list) -> dict:
                 })
     if not found:
         return {"available": False,
-                "reason": "Brake temperature channels (Brake Temp FL/FR/RL/RR) not found in the telemetry"}
+                "reason": _tr("thermal_brake_no_channel")}
 
     # A channel that never moves (e.g. pinned at the ambient 26 °C) is a placeholder the
     # sim did not fill in, not a real reading: judging it would flag every brake as
@@ -202,8 +202,7 @@ def _analyse_brake_temps(dfs: list) -> dict:
     all_mins = [r.get("min_c", r["mean_c"]) for laps in corners_data.values() for r in laps]
     if all_means and (max(all_maxes) - min(all_mins)) < 1.0:
         return {"available": False,
-                "reason": f"Brake temperature channels are constant ({all_means[0]:.0f} °C) — "
-                          "the sim/export did not record real disc temperatures"}
+                "reason": _tr("thermal_brake_constant", temp=f"{all_means[0]:.0f}")}
 
     summary = {}
     for corner, laps in corners_data.items():
@@ -307,7 +306,7 @@ def _analyse_tyre_pressure(dfs: list) -> dict:
 
     if not found:
         return {"available": False,
-                "reason": "Tyre pressure channels (Tyre Press FL/FR/RL/RR) not found in the telemetry"}
+                "reason": _tr("thermal_press_no_channel")}
 
     summary = {}
     recommendations = []
@@ -392,7 +391,7 @@ def _analyse_brake_bias(dfs: list, brake_temps: dict | None = None) -> dict:
 
     if not values:
         return {"available": False,
-                "reason": "Brake bias channel (BrakeBias) not found in the telemetry"}
+                "reason": _tr("thermal_bias_no_channel")}
 
     current_pct = round(float(np.mean(values)), 1)
     recommendation = None

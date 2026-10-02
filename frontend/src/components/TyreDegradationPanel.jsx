@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, ReferenceLine, Legend,
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
-import { Panel, Stat, Badge } from './ui';
+import { Panel, Stat, Badge, EmptyState } from './ui';
 import s from './RecPanels.module.css';
 
 const wearTone = (pct) => (pct < 40 ? 'ok' : pct < 70 ? 'warn' : 'bad');
@@ -60,7 +60,20 @@ function TrendCard({ label, value, warn, sub }) {
 
 export default function TyreDegradationPanel({ data }) {
   const { t } = useLanguage();
-  if (!data?.available) return null;
+  if (!data) return null;
+  if (!data.available) {
+    // Backend explains why nothing was computed (wear tracking off, too few laps...).
+    if (!data.reason) return null;
+    const inactive = data.reason_code === 'wear_inactive';
+    return (
+      <Panel icon="tyre" title={t.tdTitle} actions={<Badge tone={inactive ? undefined : 'warn'}>{inactive ? t.tdWearInactiveBadge : t.tdInsufficientBadge}</Badge>}>
+        <EmptyState icon="info">
+          <div>{data.reason}</div>
+          {data.wear_evidence && <div style={{ marginTop: 6, fontSize: 'var(--fs-xs)', color: 'var(--ink-4)' }}>{data.wear_evidence}</div>}
+        </EmptyState>
+      </Panel>
+    );
+  }
 
   const {
     wear_pct, remaining_laps, current_delta_s, cliff_threshold_s,
@@ -68,7 +81,9 @@ export default function TyreDegradationPanel({ data }) {
     top_wear_factors, lap_data = [], projection = [],
     front_temp_trend_c_per_lap, rear_temp_trend_c_per_lap,
     left_mean_temp, right_mean_temp, tyre_temps_available,
+    degradation_detected, low_confidence, reason,
   } = data;
+  const noDegradation = degradation_detected === false || wear_pct == null;
 
   const wearColor = TONE_VAR[wearTone(wear_pct)];
   const chartData = [
@@ -76,13 +91,15 @@ export default function TyreDegradationPanel({ data }) {
     ...projection.map(d => ({ lap: d.lap, projected: d.projected, cliff: d.cliff })),
   ];
 
-  const rateSign = degradation_rate_s_per_lap > 0 ? '+' : '';
+  const rate = degradation_rate_s_per_lap ?? 0;
+  const rateSign = rate > 0 ? '+' : '';
   const remainingNum = typeof remaining_laps === 'number';
   const remainingTone = remainingNum ? (remaining_laps < 5 ? 'bad' : remaining_laps < 15 ? 'warn' : 'ok') : 'ok';
-  const remainingLabel = remainingNum ? t.tdLapsCount(remaining_laps) : remaining_laps;
+  const remainingLabel = remainingNum ? t.tdLapsCount(remaining_laps) : (remaining_laps ?? '—');
 
-  const deltaTone = current_delta_s > 0.5 ? 'bad' : current_delta_s > 0.15 ? 'warn' : 'ok';
-  const rateTone = degradation_rate_s_per_lap > 0.04 ? 'bad' : degradation_rate_s_per_lap > 0.015 ? 'warn' : 'ok';
+  const delta = current_delta_s ?? 0;
+  const deltaTone = delta > 0.5 ? 'bad' : delta > 0.15 ? 'warn' : 'ok';
+  const rateTone = rate > 0.04 ? 'bad' : rate > 0.015 ? 'warn' : 'ok';
 
   const pit = {
     bad:  { tone: 'bad',  text: t.tdPitBad },
@@ -98,16 +115,17 @@ export default function TyreDegradationPanel({ data }) {
       actions={<Badge>Ridge + Poly(2)</Badge>}
     >
       <div className={`${s.alert} ${s[pit.tone]}`} role="status" style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <Badge tone={pit.tone}>{remainingNum ? t.tdLapsLeft(remaining_laps) : t.tdStint}</Badge>
-        <span>{pit.text}</span>
+        <Badge tone={noDegradation ? undefined : pit.tone}>{remainingNum ? t.tdLapsLeft(remaining_laps) : t.tdStint}</Badge>
+        <span>{noDegradation ? t.tdNoDegradation : pit.text}</span>
+        {low_confidence && <Badge tone="warn" title={reason}>{t.tdLowConfidence}</Badge>}
       </div>
 
       <div className={s.pitBar}>
-        <WearGauge pct={wear_pct} />
+        {wear_pct != null ? <WearGauge pct={wear_pct} /> : null}
         <div className={s.kpis} style={{ flex: 1, minWidth: 260 }}>
           <Stat label={t.tdRemaining} value={remainingLabel} tone={remainingTone} hint={t.tdBeforeCliff} />
-          <Stat label={t.tdDeltaVsBest} value={`${current_delta_s > 0 ? '+' : ''}${current_delta_s.toFixed(3)} s`} tone={deltaTone} />
-          <Stat label={t.tdDegradation} value={`${rateSign}${degradation_rate_s_per_lap.toFixed(4)}`} tone={rateTone} hint={t.tdSecPerLap} />
+          <Stat label={t.tdDeltaVsBest} value={`${delta > 0 ? '+' : ''}${delta.toFixed(3)} s`} tone={deltaTone} />
+          <Stat label={t.tdDegradation} value={`${rateSign}${rate.toFixed(4)}`} tone={rateTone} hint={t.tdSecPerLap} />
           <Stat label={t.tdCliff} value={`+${cliff_threshold_s.toFixed(1)} s`} hint={t.tdThreshold} />
         </div>
       </div>
@@ -142,11 +160,11 @@ export default function TyreDegradationPanel({ data }) {
           <div className={s.cards} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))' }}>
             {front_temp_trend_c_per_lap != null && (
               <TrendCard label={t.tdFrontAxle} sub={t.tdThermalTrend} warn={Math.abs(front_temp_trend_c_per_lap) > 1.5}
-                value={`${front_temp_trend_c_per_lap > 0 ? '+' : ''}${front_temp_trend_c_per_lap.toFixed(2)} °C/lap`} />
+                value={`${front_temp_trend_c_per_lap > 0 ? '+' : ''}${front_temp_trend_c_per_lap.toFixed(2)} ${t.tdTempTrendUnit}`} />
             )}
             {rear_temp_trend_c_per_lap != null && (
               <TrendCard label={t.tdRearAxle} sub={t.tdThermalTrend} warn={Math.abs(rear_temp_trend_c_per_lap) > 1.5}
-                value={`${rear_temp_trend_c_per_lap > 0 ? '+' : ''}${rear_temp_trend_c_per_lap.toFixed(2)} °C/lap`} />
+                value={`${rear_temp_trend_c_per_lap > 0 ? '+' : ''}${rear_temp_trend_c_per_lap.toFixed(2)} ${t.tdTempTrendUnit}`} />
             )}
             {left_mean_temp != null && right_mean_temp != null && (
               <TrendCard label={t.tdLRAsym} warn={Math.abs(left_mean_temp - right_mean_temp) > 8}

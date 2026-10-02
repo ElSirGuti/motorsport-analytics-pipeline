@@ -9,11 +9,13 @@ import logging
 import numpy as np
 import pandas as pd
 
+from src.i18n import _ as _tr
+
 logger = logging.getLogger(__name__)
 
 CORNERS = ["FL", "FR", "RL", "RR"]
-CORNER_LABELS = {"FL": "Delantero Izq.", "FR": "Delantero Der.",
-                 "RL": "Trasero Izq.",   "RR": "Trasero Der."}
+def _corner_label(corner: str) -> str:
+    return _tr("tyre_pos_" + corner)
 ZONES   = ["Inner", "Middle", "Outer"]
 DOWNSAMPLE = 10   # 1 punto cada N metros para las series de distancia
 
@@ -56,7 +58,7 @@ def _corner_stats(df: pd.DataFrame, corner: str, suffix: str,
     if surf is None and core is None:
         return None
 
-    result: dict = {"corner": corner, "label": CORNER_LABELS[corner]}
+    result: dict = {"corner": corner, "label": _corner_label(corner)}
 
     for z in ZONES:
         c = f"TyreTemp{z}{corner}{suffix}"

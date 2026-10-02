@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon } from './ui';
 import s from './RecPanels.module.css';
@@ -44,7 +44,7 @@ function QHeatmap({ heatmap, current, optimal }) {
               const isOptimal = bl === optimal.brake && al === optimal.apex;
               const cls = `${s.qCell} ${isOptimal ? s.opt : isCurrent ? s.cur : ''}`;
               return (
-                <div key={al} className={cls} title={cell ? t.rlCellTip(q?.toFixed(4), cell.count) : t.rlNoData}>
+                <div key={al} className={cls} title={cell && q != null ? t.rlCellTip(q.toFixed(4), cell.count) : t.rlNoData}>
                   {q != null ? (q > 0 ? '+' : '') + q.toFixed(3) : '—'}
                 </div>
               );
@@ -109,10 +109,13 @@ function CornerCard({ corner }) {
 
 export default function RacingLinePanel({ data }) {
   const { t } = useLanguage();
+  const [sortBy, setSortBy] = useState('corner');
   if (!data?.available) return null;
 
   const { corners, total_potential_gain_s, n_corners } = data;
-  const byGain = [...corners].sort((a, b) => b.potential_gain_s - a.potential_gain_s);
+  const sorted = sortBy === 'corner'
+    ? [...corners].sort((a, b) => a.corner_number - b.corner_number)
+    : [...corners].sort((a, b) => b.potential_gain_s - a.potential_gain_s);
   const optimal = corners.filter(c => c.already_optimal).length;
 
   const gain = (
@@ -130,9 +133,16 @@ export default function RacingLinePanel({ data }) {
       subtitle={t.rlSubtitle(n_corners, optimal)}
       actions={gain}
     >
-      <div className={s.sectionHead}><span className={s.sectionTitle}>{t.rlRanked}</span></div>
+      <div className={s.sectionHead}>
+        <span className={s.sectionTitle}>{sortBy === 'corner' ? t.rlByCorner : t.rlRanked}</span>
+        <div className="ui-seg" role="group" aria-label={t.sortAria} style={{ marginLeft: 'auto' }}>
+          {[['corner', t.sortByCorner], ['impact', t.sortByImpact]].map(([k, label]) => (
+            <button key={k} type="button" className="ui-seg__item" aria-pressed={sortBy === k} onClick={() => setSortBy(k)}>{label}</button>
+          ))}
+        </div>
+      </div>
       <div className={s.cards}>
-        {byGain.map((c) => <CornerCard key={c.corner_number} corner={c} />)}
+        {sorted.map((c) => <CornerCard key={c.corner_number} corner={c} />)}
       </div>
 
       <p className={s.note}>{t.rlDisclaimer}</p>

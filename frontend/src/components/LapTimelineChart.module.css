@@ -10,3 +10,5 @@
 .legendItem { display: inline-flex; align-items: center; gap: 7px; }
 .chart { width: 100%; }
 .headBadges { display: flex; gap: 8px; align-items: center; }
+.notice { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; padding: 8px 12px; background: var(--warn-soft); border: 1px solid var(--warn-line); border-radius: var(--radius-md); font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.45; }
+.notice > :first-child { flex-shrink: 0; }

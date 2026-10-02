@@ -795,8 +795,8 @@ export default function App() {
     try {
       const data = await compareSessionLaps(files[0], 0, 0, lang);
       const meta = data?.metadata || {};
-      const lapA = parseInt(meta.label_a?.replace('V', '') || '0');
-      const lapB = parseInt(meta.label_b?.replace('V', '') || '0');
+      const lapA = parseInt(meta.label_a?.replace(/\D/g, '') || '0');
+      const lapB = parseInt(meta.label_b?.replace(/\D/g, '') || '0');
       setComparingLaps([lapA, lapB]);
       setCompareResult(data);
     } catch (err) {
@@ -1094,7 +1094,7 @@ export default function App() {
                         }}
                         metadata={{
                           label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
-                          label_b: `${t.avgTime} ${stintResult.curvas_sesion.n_laps_compared} ${t.timelineLap}`,
+                          label_b: t.avgOfLaps(stintResult.curvas_sesion.n_laps_compared),
                         }}
                         sessionMode
                         referenceLap={stintResult.curvas_sesion.reference_lap}
@@ -1105,7 +1105,7 @@ export default function App() {
                 </section>
               )}
 
-              {stintResult && (stintResult.thermal_analysis?.available || stintResult.setup_sesion?.available || stintResult.degradacion_neumatico?.available || stintResult.racing_line_rl?.available) && (
+              {stintResult && (stintResult.thermal_analysis?.available || stintResult.setup_sesion?.available || (stintResult.degradacion_neumatico?.available || stintResult.degradacion_neumatico?.reason) || stintResult.racing_line_rl?.available) && (
                 <section id="section-setup" className="shell-section">
                   <SectionHeader icon="wrench" title={sectionLabel('section-setup', t)} />
                   {stintResult.thermal_analysis?.available && (
@@ -1118,7 +1118,7 @@ export default function App() {
                       <SetupRecommendations setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
                     </div>
                   )}
-                  {stintResult.degradacion_neumatico?.available && (
+                  {(stintResult.degradacion_neumatico?.available || stintResult.degradacion_neumatico?.reason) && (
                     <div className="shell-gap">
                       <TyreDegradationPanel data={stintResult.degradacion_neumatico} />
                     </div>

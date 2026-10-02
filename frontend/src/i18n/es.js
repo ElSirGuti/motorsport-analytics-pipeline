@@ -30,11 +30,12 @@ const es = {
   validLaps: 'Vueltas Válidas',
   bestLap: 'Mejor Vuelta',
   avgTime: 'Tiempo Medio',
+  avgOfLaps: (n) => `Promedio de ${n} vueltas`,
   maxSpeed: 'Vel. Máxima',
   inBestLap: 'en mejor vuelta',
   degradation: 'Degradación',
   perLap: 'por vuelta',
-  pitExcluded: 'pit/outlier excluidas',
+  pitExcluded: 'vueltas excluidas (pit/atípicas)',
   inRace: 'en carrera',
 
   // Lap table
@@ -71,6 +72,11 @@ const es = {
   timelineTitle: 'Evolución de Tiempos · Proyección Monte Carlo',
   timelineLegendActual: 'Real',
   timelineLegendTrend: 'Tendencia',
+  timelineLegendRange: 'Rango estimado',
+  timelineRangeSep: 'Rango estimado →',
+  confidenceTitle: 'Confianza estadística de la tendencia y la proyección',
+  confidenceLabel: (c) => ({ low: 'Confianza: baja', medium: 'Confianza: media', high: 'Confianza: alta' }[c] || c),
+  confidenceLowBadge: 'Confianza baja',
   timelineLegendMC: 'Proyección MC',
   timelineLegendPit: 'Parada en boxes',
   timelineNoData: 'Sin datos de degradación disponibles',
@@ -128,6 +134,13 @@ const es = {
   cornerLosses: (lb) => `${lb} pierde tiempo`,
   cornerGains: (lb) => `${lb} gana tiempo`,
   cornerHover: 'Pase el cursor sobre las barras para ver detalle por fase',
+  sortAria: 'Ordenar curvas por',
+  sortByCorner: 'Por curva',
+  sortByImpact: 'Por impacto',
+  cornerPriorityRank: (n) => `Prioridad ${n}`,
+  cornerNoDataFor: (list) => `Sin datos: curva ${list}`,
+  rlByCorner: 'Curvas en orden de pista',
+  cornerNoPhaseData: 'Sin datos para esta fase',
   cornerPriorityTitle: 'Curvas Prioritarias — dónde se decide la vuelta',
   cornerLoss: 'pérdida',
   cornerGain: 'ganancia',
@@ -226,11 +239,11 @@ const es = {
   severityCritico: 'CRÍTICO',
 
   // Brake fade
-  brakeFadeTitle: 'Eficiencia de frenada — Brake fade',
+  brakeFadeTitle: 'Eficiencia de frenada — Fade de frenos',
   brakeFadeBadge: '|LonG| / (presión / 100)',
-  brakeFadeDescription: 'Ratio entre la desaceleración generada y la presión aplicada en el pedal. Una caída progresiva indica fade térmico. Las zonas sombreadas muestran dónde la eficiencia cae más del 15% respecto al baseline inicial.',
+  brakeFadeDescription: 'Ratio entre la desaceleración generada y la presión aplicada en el pedal. Una caída progresiva indica fade térmico. Las zonas sombreadas muestran dónde la eficiencia cae más del 15% respecto a la referencia inicial.',
   brakeFadeDrop: (pct) => `(${pct}% caída)`,
-  brakeFadeBaseline: (pct) => `${pct}% del baseline`,
+  brakeFadeBaseline: (pct) => `${pct}% de la referencia inicial`,
   brakeFadeZones: (label) => `Zonas de fade — ${label}`,
 
   // Brake Throttle
@@ -288,12 +301,12 @@ const es = {
   slipAngleBalanceLabel: 'Balance',
 
   // Suspension
-  suspensionTitle: 'Análisis de Suspensión — Pitch & Roll',
+  suspensionTitle: 'Análisis de Suspensión — Cabeceo y Balanceo',
   suspensionBadge: 'Recorrido susp. DI/DD/TI/TD',
-  suspensionDescription: 'Roll: diferencia de recorrido izquierda–derecha (+ = más carga a la derecha). Pitch: diferencia delantera–trasera (+ = morro bajo, típico de frenada). Los eventos de fondo detectan compresión extrema del amortiguador.',
-  suspensionRollFront: (label) => `Roll Ax. Del. [${label}]`,
-  suspensionRollRear: (label) => `Roll Ax. Tra. [${label}]`,
-  suspensionPitch: (label) => `Pitch max. [${label}]`,
+  suspensionDescription: 'Balanceo: diferencia de recorrido izquierda–derecha (+ = más carga a la derecha). Cabeceo: diferencia delantera–trasera (+ = morro bajo, típico de frenada). Los eventos de fondo detectan compresión extrema del amortiguador.',
+  suspensionRollFront: (label) => `Balanceo eje del. [${label}]`,
+  suspensionRollRear: (label) => `Balanceo eje tra. [${label}]`,
+  suspensionPitch: (label) => `Cabeceo máx. [${label}]`,
   suspensionBottoming: (label) => `Eventos de fondo — ${label}`,
 
   // Time delta
@@ -443,7 +456,7 @@ const es = {
   sessionSelectLap: (a) => `V${a} seleccionada — elige una segunda vuelta para comparar`,
 
   // Stint panel KPI sub-labels
-  stintExcluded: (n) => `${n} pit/outlier excluidas`,
+  stintExcluded: (n) => `${n} ${n === 1 ? 'vuelta excluida' : 'vueltas excluidas'} (pit/atípica)`,
   stintRacing: 'en carrera',
 
   // Dynamic events inlined in App ComparisonSection
@@ -557,6 +570,11 @@ const es = {
   tdFactor_mean_lat_g: 'G lateral medio',
   tdFactor_mean_brake_g: 'G de frenada medio',
   tdFactor_mean_speed: 'Velocidad media',
+  tdTempTrendUnit: '°C/vuelta',
+  tdFactor_pres_fl: 'Presión DI',
+  tdFactor_pres_fr: 'Presión DD',
+  tdFactor_pres_rl: 'Presión TI',
+  tdFactor_pres_rr: 'Presión TD',
   tdFactor_temp_fl: 'Temp. DI',
   tdFactor_temp_fr: 'Temp. DD',
   tdFactor_temp_rl: 'Temp. TI',
@@ -687,6 +705,10 @@ const es = {
   summaryPilotB: 'Piloto B',
   fastLabelFallback: 'Rápida',
   slowLabelFallback: 'Lenta',
+  tdWearInactiveBadge: 'Desgaste inactivo',
+  tdInsufficientBadge: 'Datos insuficientes',
+  tdNoDegradation: 'No se detecta degradación medible de neumáticos en esta sesión.',
+  tdLowConfidence: 'Confianza baja',
 };
 
 export default es;

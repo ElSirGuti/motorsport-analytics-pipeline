@@ -66,11 +66,11 @@ function Swatch({ color, dashed, dot, band }) {
   );
 }
 
-const Legend = ({ hasPitLaps, hasMC, t }) => (
+const Legend = ({ hasPitLaps, hasMC, lowConf, t }) => (
   <div className={css.legend}>
     <span className={css.legendItem}><Swatch color="var(--lap-a)" dot /> {t.timelineLegendActual}</span>
     <span className={css.legendItem}><Swatch color="var(--ink-3)" dashed /> {t.timelineLegendTrend}</span>
-    {hasMC && <span className={css.legendItem}><Swatch color="var(--warn)" dashed /> {t.timelineLegendMC}</span>}
+    {hasMC && <span className={css.legendItem}><Swatch color="var(--warn)" dashed /> {lowConf ? t.timelineLegendRange : t.timelineLegendMC}</span>}
     {hasMC && <span className={css.legendItem}><Swatch color="var(--warn)" band /> P10 – P90</span>}
     {hasPitLaps && <span className={css.legendItem}><Swatch color="var(--lap-e)" dot /> {clean(t.timelineLegendPit)}</span>}
   </div>
@@ -155,6 +155,10 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
   }
 
   const hasMC = !!montecarlo?.available;
+  const lowConf = !!(degradacion?.low_confidence || montecarlo?.low_confidence);
+  const confidence = degradacion?.confidence ?? montecarlo?.confidence;
+  const reason = degradacion?.reason ?? montecarlo?.reason;
+  const confTone = { low: 'warn', medium: 'accent', high: 'ok' }[confidence];
 
   return (
     <Panel
@@ -163,10 +167,17 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
       actions={(
         <span className={css.headBadges}>
           {pitLapNums.size > 0 && <Badge tone="warn">{clean(t.timelineLegendPit)} · {pitLapNums.size}</Badge>}
+          {confidence && <Badge tone={confTone} title={t.confidenceTitle}>{t.confidenceLabel(confidence)}</Badge>}
           {hasMC && <Badge title="Monte Carlo">σ = {montecarlo.sigma_real_s}s</Badge>}
         </span>
       )}
     >
+      {lowConf && (
+        <div className={css.notice} role="note">
+          <Badge tone="warn">{t.confidenceLowBadge}</Badge>
+          {reason && <span>{reason}</span>}
+        </div>
+      )}
       <div className={css.chart}>
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={chartData} margin={{ top: 12, right: 16, left: 0, bottom: 4 }}>
@@ -206,7 +217,7 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
                 x={separatorLap}
                 stroke="var(--ink-4)"
                 strokeDasharray="4 4"
-                label={{ value: clean(t.timelineProjection), fill: 'var(--ink-3)', fontSize: 10, position: 'insideTopRight' }}
+                label={{ value: lowConf ? t.timelineRangeSep : clean(t.timelineProjection), fill: 'var(--ink-3)', fontSize: 10, position: 'insideTopRight' }}
               />
             )}
 
@@ -215,7 +226,7 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
             <Area dataKey="band_bright"   stackId="mc" fill="var(--warn)" fillOpacity={0.2}  stroke="none" isAnimationActive={false} legendType="none" />
             <Area dataKey="band_dim_high" stackId="mc" fill="var(--warn)" fillOpacity={0.08} stroke="none" isAnimationActive={false} legendType="none" />
 
-            <Line dataKey="mc_p50" name={t.timelineLegendMC} stroke="var(--warn)" strokeWidth={1.5}
+            <Line dataKey="mc_p50" name={lowConf ? t.timelineLegendRange : t.timelineLegendMC} stroke="var(--warn)" strokeWidth={1.5}
               strokeDasharray="5 3" dot={false} isAnimationActive={false} connectNulls={false} />
 
             <Line dataKey="trend" name={t.timelineLegendTrend} stroke="var(--ink-3)" strokeWidth={1.25}
@@ -231,7 +242,7 @@ export default function LapTimelineChart({ degradacion, montecarlo, laps }) {
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <Legend hasPitLaps={pitLapNums.size > 0} hasMC={hasMC} t={t} />
+      <Legend hasPitLaps={pitLapNums.size > 0} hasMC={hasMC} lowConf={lowConf} t={t} />
     </Panel>
   );
 }

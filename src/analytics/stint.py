@@ -26,6 +26,15 @@ N_SIMULATIONS = 500
 N_FUTURE_LAPS = 12
 FUEL_SIGMA_SCALE = 1.65  # percentil 95
 
+# --- Projection realism ---
+MIN_LAPS_FOR_TREND = 5          # fewer valid race laps -> flat projection, low confidence
+MAX_ABS_SLOPE_S_PER_LAP = 0.15  # physically plausible |tyre+fuel+track| slope
+SLOPE_PRIOR_SD = 0.05           # prior sd (s/lap) of the slope around its physical prior mean
+FUEL_S_PER_L = 0.035            # lap-time gain per litre burned (mass effect)
+MIN_FUEL_BURN_L = 0.05          # below this the fuel channel is considered not logged
+LEVEL_DRIFT_SD = 0.08           # s/lap random-walk drift of the pace level (widens the band)
+SIGMA_FLOOR_S = 0.25
+
 
 def _find_channel(df, candidates):
     for c in candidates:
@@ -275,45 +284,162 @@ def extraer_metricas_por_vuelta(dfs):
     return df_result
 
 
-def analizar_degradacion_stint(df_laps):
+def _projection_laps(df_laps: pd.DataFrame) -> pd.DataFrame:
     """
-    Linear regression of lap time and G-sum vs lap number.
-    Projects N_FUTURE_LAPS laps forward.
-    Returns dict with trend, actual, and projected data.
+    Laps that may feed the trend: racing laps minus out-laps (the lap right after a
+    pit/outlier lap) and, when there is enough data, the session's first lap
+    (standing/rolling start on cold tyres).
     """
     valid = df_laps[_racing_laps_mask(df_laps)]
+    if "is_pit_lap" in df_laps.columns and len(valid) > MIN_LAPS_FOR_TREND:
+        pit_nums = set(df_laps.loc[df_laps["is_pit_lap"], "lap_number"].astype(int))
+        out_laps = {n + 1 for n in pit_nums}
+        keep = ~valid["lap_number"].astype(int).isin(out_laps)
+        if keep.sum() >= MIN_LAPS_FOR_TREND:
+            valid = valid[keep]
+    if len(valid) > MIN_LAPS_FOR_TREND and int(valid["lap_number"].iloc[0]) == 1:
+        valid = valid.iloc[1:]
+    return valid
+
+
+def _fit_trend(valid: pd.DataFrame) -> dict:
+    """
+    Robust slope estimate: OLS + 95% CI, empirical-Bayes shrinkage towards the known
+    physical effect (fuel burn) with prior sd SLOPE_PRIOR_SD, hard-clamped to
+    +/-MAX_ABS_SLOPE_S_PER_LAP. Below MIN_LAPS_FOR_TREND the slope used is the fuel
+    effect only (no extrapolated trend).
+    """
+    from scipy import stats
+
+    x = valid["lap_number"].astype(float).values
+    y = valid["lap_time_s"].astype(float).values
+    n = len(x)
+
+    # Explicit fuel-mass effect (negative = faster as the tank empties)
+    fuel_effect = 0.0
+    if "fuel_burned" in valid.columns:
+        fb = valid["fuel_burned"].dropna()
+        if len(fb) and float(fb.mean()) >= MIN_FUEL_BURN_L:
+            fuel_effect = -FUEL_S_PER_L * float(fb.mean())
+
+    slope_hat, se = 0.0, float("inf")
+    ci = [None, None]
+    r2 = 0.0
+    if n >= 3 and np.ptp(x) > 0:
+        slope_hat, intercept = np.polyfit(x, y, 1)
+        resid = y - (slope_hat * x + intercept)
+        ss_res = float(np.sum(resid ** 2))
+        ss_tot = float(np.sum((y - y.mean()) ** 2))
+        r2 = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        sxx = float(np.sum((x - x.mean()) ** 2))
+        se = float(np.sqrt(ss_res / (n - 2) / sxx))
+        tcrit = float(stats.t.ppf(0.975, n - 2))
+        ci = [float(slope_hat - tcrit * se), float(slope_hat + tcrit * se)]
+
+    if n < MIN_LAPS_FOR_TREND or not np.isfinite(se):
+        slope_used = float(np.clip(fuel_effect, -MAX_ABS_SLOPE_S_PER_LAP, MAX_ABS_SLOPE_S_PER_LAP))
+        slope_se = SLOPE_PRIOR_SD
+    else:
+        tau2, se2 = SLOPE_PRIOR_SD ** 2, se ** 2
+        w = tau2 / (tau2 + se2)
+        post = fuel_effect + w * (float(slope_hat) - fuel_effect)
+        slope_used = float(np.clip(post, -MAX_ABS_SLOPE_S_PER_LAP, MAX_ABS_SLOPE_S_PER_LAP))
+        slope_se = min(float(np.sqrt(w) * se), SLOPE_PRIOR_SD)
+
+    half = (ci[1] - ci[0]) / 2 if ci[0] is not None else float("inf")
+    if n < MIN_LAPS_FOR_TREND or half > 0.2:
+        confidence = "low"
+    elif n >= 10 and half <= 0.05:
+        confidence = "high"
+    else:
+        confidence = "medium"
+
+    return {
+        "n": n, "slope_hat": float(slope_hat), "slope_ci": ci, "r2": float(r2),
+        "slope_used": slope_used, "slope_se": slope_se,
+        "fuel_effect": fuel_effect, "confidence": confidence, "ci_half": half,
+    }
+
+
+def analizar_degradacion_stint(df_laps):
+    """
+    Lap-time trend vs lap number and a realistic projection N_FUTURE_LAPS ahead.
+
+    The projected slope is NOT the raw OLS slope: it is shrunk (by n and slope
+    uncertainty) towards the explicit fuel-burn effect and clamped to a plausible
+    range. With fewer than MIN_LAPS_FOR_TREND valid laps the projection is flat
+    around the recent pace and flagged low_confidence.
+    Existing keys are unchanged; `tasa_s_per_lap` is now the robust slope used
+    (raw OLS slope is in `raw_slope_s_per_lap`).
+    """
+    valid = _projection_laps(df_laps)
     if len(valid) < 3:
         return {"available": False}
 
-    X = valid[["lap_number"]].values
-    y = valid["lap_time_s"].values
+    fit = _fit_trend(valid)
+    n = fit["n"]
+    y = valid["lap_time_s"].astype(float).values
+    laps = valid["lap_number"].astype(float).values
 
-    model = LinearRegression().fit(X, y)
-    tasa = float(model.coef_[0])
+    # Descriptive OLS line over the actual laps
+    ols_slope, ols_icpt = np.polyfit(laps, y, 1)
+    y_pred = ols_slope * laps + ols_icpt
+    r2 = round(fit["r2"], 3)
 
-    y_pred = model.predict(X)
-    ss_res = float(np.sum((y - y_pred)**2))
-    ss_tot = float(np.sum((y - y.mean())**2))
-    r2 = round(1 - ss_res / ss_tot, 3) if ss_tot > 0 else 0.0
-
+    slope_used = fit["slope_used"]
     last_lap = int(valid["lap_number"].max())
     future_laps = list(range(last_lap + 1, last_lap + N_FUTURE_LAPS + 1))
-    future_X = np.array(future_laps).reshape(-1, 1)
 
+    # Anchor: median of the recent laps, at their mean lap number
+    k = min(3, n) if n >= MIN_LAPS_FOR_TREND else n
+    anchor_t = float(np.median(y[-k:]))
+    anchor_lap = float(np.mean(laps[-k:]))
+    proj = [anchor_t + slope_used * (l - anchor_lap) for l in future_laps]
+    # Never leave the observed range (+ small margin)
+    lo = float(y.min()) - 0.5
+    hi = float(y.max()) + max(1.5, abs(slope_used) * N_FUTURE_LAPS)
+    proj = [min(max(v, lo), hi) for v in proj]
+
+    low_conf = fit["confidence"] == "low"
+    if n < MIN_LAPS_FOR_TREND:
+        reason_code = "insufficient_sample"
+        reason = _tr("stint_proj_low_n", n=n, min=MIN_LAPS_FOR_TREND, median=round(float(np.median(y)), 3))
+    elif low_conf:
+        reason_code = "wide_slope_ci"
+        reason = _tr("stint_proj_wide_ci", hw=round(fit["ci_half"], 2))
+    else:
+        reason_code, reason = None, None
+
+    ci = fit["slope_ci"]
     result = {
         "available":       True,
-        "tasa_s_per_lap":  round(tasa, 4),
+        "tasa_s_per_lap":  round(slope_used, 4),
         "r_squared":       r2,
         "actual_laps":     valid["lap_number"].tolist(),
         "actual_times":    [round(float(t), 3) for t in y],
         "trend_laps":      valid["lap_number"].tolist(),
         "trend_times":     [round(float(t), 3) for t in y_pred],
         "projected_laps":  future_laps,
-        "projected_times": [round(float(t), 3) for t in model.predict(future_X)],
+        "projected_times": [round(float(t), 3) for t in proj],
+        # --- new fields ---
+        "confidence":      fit["confidence"],
+        "low_confidence":  low_conf,
+        "n_laps_used":     n,
+        "slope_ci":        [round(ci[0], 4), round(ci[1], 4)] if ci[0] is not None else None,
+        "raw_slope_s_per_lap":   round(fit["slope_hat"], 4),
+        "fuel_effect_s_per_lap": round(fit["fuel_effect"], 4),
+        "degradation_s_per_lap": round(slope_used - fit["fuel_effect"], 4),
+        "slope_se_s_per_lap":    round(fit["slope_se"], 4),
+        "reason_code":     reason_code,
+        "reason":          reason,
+        "anchor_time_s":   round(anchor_t, 3),
+        "anchor_lap":      round(anchor_lap, 2),
+        "min_laps_for_trend": MIN_LAPS_FOR_TREND,
     }
 
-    valid_g = df_laps[_racing_laps_mask(df_laps)].dropna(subset=["max_g_sum"])
+    valid_g = valid.dropna(subset=["max_g_sum"])
     if len(valid_g) >= 3:
+        future_X = np.array(future_laps).reshape(-1, 1)
         mg = LinearRegression().fit(valid_g[["lap_number"]].values, valid_g["max_g_sum"].values)
         result["grip_tasa_per_lap"] = round(float(mg.coef_[0]), 4)
         result["grip_trend"]        = [round(float(v), 3) for v in mg.predict(valid_g[["lap_number"]].values)]
@@ -386,39 +512,70 @@ def calcular_estrategia_combustible(df_laps, dfs: list | None = None):
 
 def simular_tiempos_stint(df_laps, degradacion, seed=42):
     """
-    Monte Carlo projection using real observed lap time variance.
-    Returns P10/P25/P50/P75/P90 bands — reproducible with seed.
+    Monte Carlo projection (reproducible with seed). Uncertainty has three parts that
+    make the P10-P90 band widen with the horizon: lap-to-lap noise, uncertainty of the
+    slope (slope_se * horizon) and a small random-walk drift of the pace level.
+    Projections are clipped to [best real lap - 0.5 s, worst real lap + margin].
     """
-    valid = df_laps[_racing_laps_mask(df_laps)]
+    valid = _projection_laps(df_laps)
     if len(valid) < 3 or not degradacion.get("available"):
         return {"available": False}
 
     rng = np.random.default_rng(seed)
-    tasa = degradacion["tasa_s_per_lap"]
-    sigma_real = float(valid["lap_time_s"].std())
-    ultimo_tiempo = float(valid["lap_time_s"].iloc[-1])
+    y = valid["lap_time_s"].astype(float).values
+    laps = valid["lap_number"].astype(float).values
+    n = len(y)
     n_future = N_FUTURE_LAPS
     last_lap = int(valid["lap_number"].max())
 
-    sims = np.zeros((N_SIMULATIONS, n_future))
-    for s in range(N_SIMULATIONS):
-        t = ultimo_tiempo
-        for lap in range(n_future):
-            t += tasa
-            noise = rng.normal(0, sigma_real)
-            noise = max(noise, -sigma_real * 0.5)
-            sims[s, lap] = t + noise
+    slope = float(degradacion.get("tasa_s_per_lap", 0.0))
+    slope_se = float(degradacion.get("slope_se_s_per_lap", SLOPE_PRIOR_SD))
+    anchor_t = float(degradacion.get("anchor_time_s", np.median(y[-3:])))
+    anchor_lap = float(degradacion.get("anchor_lap", np.mean(laps[-3:])))
+    confidence = degradacion.get("confidence", "low")
+    low_conf = bool(degradacion.get("low_confidence", n < MIN_LAPS_FOR_TREND))
+
+    # Lap-to-lap noise: residual spread (never below a floor); inflated for tiny samples
+    if n >= MIN_LAPS_FOR_TREND:
+        resid = y - np.polyval(np.polyfit(laps, y, 1), laps)
+        sigma = float(np.std(resid, ddof=2))
+    else:
+        sigma = float(np.std(y, ddof=1))
+    sigma = max(sigma, SIGMA_FLOOR_S)
+
+    h = np.arange(1, n_future + 1)
+    horizon_from_anchor = (last_lap + h) - anchor_lap
+
+    slope_draw = np.clip(rng.normal(slope, slope_se, size=(N_SIMULATIONS, 1)),
+                         -MAX_ABS_SLOPE_S_PER_LAP, MAX_ABS_SLOPE_S_PER_LAP)
+    level0 = rng.normal(0.0, sigma / np.sqrt(max(min(n, 3), 1)), size=(N_SIMULATIONS, 1))
+    drift = np.cumsum(rng.normal(0.0, LEVEL_DRIFT_SD, size=(N_SIMULATIONS, n_future)), axis=1)
+    noise = np.maximum(rng.normal(0.0, sigma, size=(N_SIMULATIONS, n_future)), -sigma)
+    sims = anchor_t + level0 + slope_draw * horizon_from_anchor + drift + noise
+
+    lo = float(y.min()) - 0.5
+    hi = float(y.max()) + max(1.5, 3 * sigma, abs(slope) * n_future)
+    sims = np.clip(sims, lo, hi)
 
     future_laps = list(range(last_lap + 1, last_lap + n_future + 1))
     return {
         "available":    True,
         "future_laps":  future_laps,
-        "sigma_real_s": round(sigma_real, 3),
+        "sigma_real_s": round(sigma, 3),
         "p10":  [round(float(v), 3) for v in np.percentile(sims, 10,  axis=0)],
         "p25":  [round(float(v), 3) for v in np.percentile(sims, 25,  axis=0)],
         "p50":  [round(float(v), 3) for v in np.percentile(sims, 50,  axis=0)],
         "p75":  [round(float(v), 3) for v in np.percentile(sims, 75,  axis=0)],
         "p90":  [round(float(v), 3) for v in np.percentile(sims, 90,  axis=0)],
+        # --- new fields ---
+        "confidence":     confidence,
+        "low_confidence": low_conf,
+        "n_laps_used":    n,
+        "slope_ci":       degradacion.get("slope_ci"),
+        "slope_used_s_per_lap": round(slope, 4),
+        "clip_range_s":   [round(lo, 3), round(hi, 3)],
+        "reason_code":    degradacion.get("reason_code"),
+        "reason":         degradacion.get("reason"),
     }
 
 
@@ -436,7 +593,7 @@ def calcular_evolucion_pista(df_laps: pd.DataFrame) -> dict:
         sel = df_laps[_racing_laps_mask(df_laps)]
     times = sel[time_col].dropna()
     if len(times) < 4:
-        return {"available": False, "reason": "fewer than 4 representative laps"}
+        return {"available": False, "reason": _tr("unavail_few_repr_laps_4")}
     lap_ids = (sel.loc[times.index, "lap_number"].astype(int).tolist()
                if "lap_number" in sel.columns else list(range(1, len(times) + 1)))
     window = min(3, len(times))

@@ -286,12 +286,12 @@ async def generate_pdf_report(
             logger.warning("Pipeline avanzado parcial en PDF: %s", exc, exc_info=False)
 
         result["metadata"] = {
-            "driver_a":          f"Vuelta {lap_a}",
+            "driver_a":          _("lap_n", n=lap_a),
             "vehicle_a":         session_file.filename,
-            "driver_b":          f"Vuelta {lap_b}",
+            "driver_b":          _("lap_n", n=lap_b),
             "vehicle_b":         session_file.filename,
-            "label_a":           f"V{lap_a}",
-            "label_b":           f"V{lap_b}",
+            "label_a":           _("lap_short", n=lap_a),
+            "label_b":           _("lap_short", n=lap_b),
             "same_driver":       True,
             "same_vehicle":      True,
             "session_file":      session_file.filename,
@@ -847,16 +847,16 @@ async def compare_session_laps_endpoint(
                 result["dynamic_events"] = []
 
         result["metadata"] = {
-            "driver_a":       f"Vuelta {lap_a}",
+            "driver_a":       _("lap_n", n=lap_a),
             "vehicle_a":      session_file.filename,
-            "driver_b":       f"Vuelta {lap_b}",
+            "driver_b":       _("lap_n", n=lap_b),
             "vehicle_b":      session_file.filename,
-            "driver_fast":    f"V{lap_a}",
-            "driver_slow":    f"V{lap_b}",
+            "driver_fast":    _("lap_short", n=lap_a),
+            "driver_slow":    _("lap_short", n=lap_b),
             "vehicle_fast":   session_file.filename,
             "vehicle_slow":   session_file.filename,
-            "label_a":        f"V{lap_a}",
-            "label_b":        f"V{lap_b}",
+            "label_a":        _("lap_short", n=lap_a),
+            "label_b":        _("lap_short", n=lap_b),
             "same_driver":    True,
             "same_vehicle":   True,
             "session_file":   session_file.filename,
@@ -1192,7 +1192,7 @@ async def analyze_stint_endpoint(
             if len(laps) < 3:
                 raise HTTPException(
                     status_code=422,
-                    detail="Se requieren mínimo 3 archivos CSV (uno por vuelta) o un único CSV de sesión.",
+                    detail=_("api_err_min_3_files"),
                 )
             for i, lap_file in enumerate(laps):
                 path = os.path.join(tmp_dir, f"lap_{i+1:02d}.csv")
@@ -1202,7 +1202,7 @@ async def analyze_stint_endpoint(
         if len(dfs) < 3:
             raise HTTPException(
                 status_code=422,
-                detail=f"Solo se detectaron {len(dfs)} vuelta(s). Se requieren mínimo 3 para el análisis de stint.",
+                detail=_("api_err_few_laps_stint", n=len(dfs)),
             )
 
         logger.info(f"Paso 1/4: {len(dfs)} vueltas cargadas. Extrayendo métricas...")

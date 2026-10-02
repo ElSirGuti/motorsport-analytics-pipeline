@@ -18,37 +18,37 @@ _PRIORITY_RANK = {"alta": 0, "media": 1, "baja": 2}
 
 _PILOT_NOTE_MAP: dict[str, str] = {
     # Understeer
-    "setup_problem_understeer":              "Car is pushing wide — try a later apex and smoother steering inputs",
-    "setup_problem_mild_understeer":         "Car is pushing wide — try a later apex and smoother steering inputs",
-    "setup_problem_understeer_session":      "Car is pushing wide — try a later apex and smoother steering inputs",
-    "setup_problem_mild_understeer_session": "Car is pushing wide — try a later apex and smoother steering inputs",
+    "setup_problem_understeer":              "pilot_note_understeer",
+    "setup_problem_mild_understeer":         "pilot_note_understeer",
+    "setup_problem_understeer_session":      "pilot_note_understeer",
+    "setup_problem_mild_understeer_session": "pilot_note_understeer",
     # Oversteer
-    "setup_problem_oversteer":         "Car is rotating early — be patient on throttle application",
-    "setup_problem_oversteer_session": "Car is rotating early — be patient on throttle application",
+    "setup_problem_oversteer":         "pilot_note_oversteer",
+    "setup_problem_oversteer_session": "pilot_note_oversteer",
     # Brake bias / thermal — front heavy
-    "setup_problem_thermal_front":  "Brakes feel heavy upfront — bias adjustment will improve feel",
-    "setup_problem_front_hotter":   "Brakes feel heavy upfront — bias adjustment will improve feel",
-    "setup_problem_fade":           "Brakes feel heavy upfront — bias adjustment will improve feel",
-    "setup_problem_brake_fade":     "Brakes feel heavy upfront — bias adjustment will improve feel",
-    "setup_problem_fade_zones":     "Brakes feel heavy upfront — bias adjustment will improve feel",
+    "setup_problem_thermal_front":  "pilot_note_front_brakes",
+    "setup_problem_front_hotter":   "pilot_note_front_brakes",
+    "setup_problem_fade":           "pilot_note_front_brakes",
+    "setup_problem_brake_fade":     "pilot_note_front_brakes",
+    "setup_problem_fade_zones":     "pilot_note_front_brakes",
     # Brake bias / thermal — rear heavy
-    "setup_problem_thermal_rear": "Rear locking under braking — bias adjustment coming",
-    "setup_problem_rear_hotter":  "Rear locking under braking — bias adjustment coming",
+    "setup_problem_thermal_rear": "pilot_note_rear_locking",
+    "setup_problem_rear_hotter":  "pilot_note_rear_locking",
     # Pressure / temperature in-window (when a pressure issue IS flagged the note explains it)
-    "setup_problem_overheat":      "Tyre feel should be neutral — no pressure adjustment needed",
-    "setup_problem_cold":          "Tyre feel should be neutral — no pressure adjustment needed",
-    "setup_problem_temp_overheat": "Tyre feel should be neutral — no pressure adjustment needed",
-    "setup_problem_temp_cold":     "Tyre feel should be neutral — no pressure adjustment needed",
+    "setup_problem_overheat":      "pilot_note_tyre_neutral",
+    "setup_problem_cold":          "pilot_note_tyre_neutral",
+    "setup_problem_temp_overheat": "pilot_note_tyre_neutral",
+    "setup_problem_temp_cold":     "pilot_note_tyre_neutral",
     # Ride height / bottoming
-    "setup_problem_bottoming":         "Setup change incoming — expect different kerb response next lap",
-    "setup_problem_bottoming_session": "Setup change incoming — expect different kerb response next lap",
+    "setup_problem_bottoming":         "pilot_note_bottoming",
+    "setup_problem_bottoming_session": "pilot_note_bottoming",
 }
 
-_PILOT_NOTE_DEFAULT = "Setup adjustment noted — check feel in next sector"
+_PILOT_NOTE_DEFAULT = "pilot_note_default"
 
 
 def _pilot_note_for(problem_key: str) -> str:
-    return _PILOT_NOTE_MAP.get(problem_key, _PILOT_NOTE_DEFAULT)
+    return _tr(_PILOT_NOTE_MAP.get(problem_key, _PILOT_NOTE_DEFAULT))
 
 
 def _rec(category: str, problem: str, root_cause: str, recommendation: str,
@@ -62,7 +62,7 @@ def _rec(category: str, problem: str, root_cause: str, recommendation: str,
         "recommendation": recommendation,
         "detail":        detail,
         "solves":        solves,
-        "expected_gain": f"{gain_lo:.2f}–{gain_hi:.2f}s/v",
+        "expected_gain": _tr("gain_per_lap", gain_lo=gain_lo, gain_hi=gain_hi),
         "gain_lo":       gain_lo,
         "gain_hi":       gain_hi,
         "priority":      priority,
@@ -112,7 +112,7 @@ def _analyse_tyres(result: dict, lang: str = "es") -> list:
             outer  = c.get("outer")
             status = c.get("window_status", "optima")
             surf   = c.get("surface_mean") or 0
-            axle   = "Front" if pos in ("FL", "FR") else "Rear"
+            axle   = _tr("axle_front") if pos in ("FL", "FR") else _tr("axle_rear")
 
             # Camber diagnosis (inner vs outer gradient)
             if inner is not None and outer is not None:
@@ -210,7 +210,7 @@ def _analyse_brakes(result: dict, lang: str = "es") -> list:
         return []
     recs = []
 
-    for suffix, label in [("a", "la vuelta A"), ("b", "la vuelta B")]:
+    for suffix, label in [("a", _tr("lbl_the_lap", x="A")), ("b", _tr("lbl_the_lap", x="B"))]:
         score    = brake.get(f"score_{suffix}")    or 0
         baseline = brake.get(f"baseline_{suffix}") or 1
         zones    = brake.get(f"fade_zones_{suffix}", [])
@@ -257,7 +257,7 @@ def _analyse_suspension(result: dict, lang: str = "es") -> list:
         return []
     recs = []
 
-    for suffix, label in [("a", "vuelta A"), ("b", "vuelta B")]:
+    for suffix, label in [("a", _tr("lbl_lap", x="A")), ("b", _tr("lbl_lap", x="B"))]:
         sa = susp.get(f"summary_{suffix}") or {}
         if not sa:
             continue
@@ -322,7 +322,7 @@ def _analyse_slip(result: dict, lang: str = "es") -> list:
         return []
     recs = []
 
-    for suffix, label in [("a", "vuelta A"), ("b", "vuelta B")]:
+    for suffix, label in [("a", _tr("lbl_lap", x="A")), ("b", _tr("lbl_lap", x="B"))]:
         sa  = slip.get(f"summary_{suffix}") or {}
         us  = sa.get("understeer_pct") or 0
         os_ = sa.get("oversteer_pct")  or 0
@@ -364,7 +364,7 @@ def _analyse_inputs(result: dict, lang: str = "es") -> list:
         return []
     recs = []
 
-    for suffix, label in [("a", "vuelta A"), ("b", "vuelta B")]:
+    for suffix, label in [("a", _tr("lbl_lap", x="A")), ("b", _tr("lbl_lap", x="B"))]:
         nerv  = inp.get(f"nervousness_score_{suffix}") or 0
         bands = inp.get(f"fft_bands_{suffix}")         or {}
         ov    = inp.get(f"overlap_pct_{suffix}")
@@ -558,14 +558,14 @@ def analizar_setup(result: dict, lang: str = "es") -> dict:
             worst = min(domain_list, key=lambda r: _PRIORITY_RANK.get(r["priority"], 9))
             areas_status.append({
                 "domain":   domain,
-                "label":    _DOMAIN_LABELS[domain],
+                "label":    _tr("domain_" + domain),
                 "status":   worst["priority"],
                 "n_issues": len(domain_list),
             })
         else:
             areas_status.append({
                 "domain":   domain,
-                "label":    _DOMAIN_LABELS[domain],
+                "label":    _tr("domain_" + domain),
                 "status":   "nominal",
                 "n_issues": 0,
             })
@@ -671,8 +671,8 @@ def _analyse_tyres_sesion(tel: dict, lang: str = "es") -> list:
         if "mean_temp" not in t:
             continue
         mean_t = t["mean_temp"]
-        axle   = "Delantero" if pos in ("FL", "FR") else "Trasero"
-        lado   = "Izquierdo" if pos in ("FL", "RL") else "Derecho"
+        axle   = _tr("axle_front") if pos in ("FL", "FR") else _tr("axle_rear")
+        lado   = _tr("side_left_cap") if pos in ("FL", "RL") else _tr("side_right_cap")
 
         if mean_t > T_MAX + 20:
             recs.append(_rec_t(
@@ -754,7 +754,7 @@ def _analyse_tyres_sesion(tel: dict, lang: str = "es") -> list:
     # Left/right asymmetry
     lr_delta = tyre.get("left_right_delta")
     if lr_delta is not None and abs(lr_delta) > 12:
-        lado = "izquierdo" if lr_delta > 0 else "derecho"
+        lado = _tr("side_left") if lr_delta > 0 else _tr("side_right")
         recs.append(_rec_t(
             "setup_cat_lateral_asymmetry", "setup_problem_lateral_asymmetry",
             "setup_rc_lateral_asymmetry", "setup_rec_lateral_asymmetry",

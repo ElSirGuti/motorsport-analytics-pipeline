@@ -28,7 +28,7 @@ class TestLoadTelemetryData:
         assert all(col in df.columns for col in ESSENTIAL_CHANNELS)
 
     def test_raises_on_missing_file(self, tmp_path):
-        with pytest.raises(DataLoaderException, match="No se encontró"):
+        with pytest.raises(DataLoaderException, match="No se encontró|File not found"):
             load_telemetry_data(str(tmp_path / "nonexistent.csv"))
 
     def test_raises_on_empty_file(self, tmp_path):
@@ -42,7 +42,7 @@ class TestLoadTelemetryData:
             0,100
             1,105
         """)
-        with pytest.raises(DataLoaderException, match="Faltan canales esenciales"):
+        with pytest.raises(DataLoaderException, match="Faltan canales esenciales|Essential channels missing"):
             load_telemetry_data(path)
 
     def test_resolves_column_aliases(self, tmp_path):

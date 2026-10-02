@@ -221,7 +221,10 @@ def segment_corners(
         next_d = apexes[i + 1]["distance"] if i + 1 < len(apexes) else np.inf
 
         # Encontrar el punto de frenado más cercano ANTES del apex
-        brake_candidates = [b for b in braking if prev_d < b["distance"] < apex_d]
+        # Ventana máxima: una frenada a >BRAKE_MAX_WINDOW_M del apex pertenece a la recta
+        # anterior / otra curva, no a esta (daba deltas de -600 m o más).
+        brake_candidates = [b for b in braking
+                            if max(prev_d, apex_d - BRAKE_MAX_WINDOW_M) < b["distance"] < apex_d]
         if not brake_candidates:
             continue
         # El inicio de la frenada PRINCIPAL: el primer flanco cuyo pico de freno hasta el
@@ -249,6 +252,7 @@ def segment_corners(
     return corners
 
 
+BRAKE_MAX_WINDOW_M = 300.0  # máx. distancia frenada->apex considerada de la misma curva
 PAIR_MAX_APEX_GAP_M = 150.0  # máx. separación entre apexes de dos vueltas para ser "la misma curva"
 
 

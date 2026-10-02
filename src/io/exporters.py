@@ -12,6 +12,13 @@ from src.i18n import _ as t
 logger = logging.getLogger(__name__)
 
 
+def _st(status, lang):
+    """Translate a status code (normal/too_cold/alta...) when a locale entry exists."""
+    key = "status_" + str(status)
+    out = t(key, lang=lang)
+    return str(status) if out == key else out
+
+
 def export_report_json(comparison_result: dict, filepath: str = None) -> str:
     """
     Serializa el resultado de la comparación a JSON.
@@ -57,7 +64,7 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
         lines.append(f"  {label_a}: {metadata.get('driver_a', '—')} | {metadata.get('vehicle_a', '—')}")
         lines.append(f"  {label_b}: {metadata.get('driver_b', '—')} | {metadata.get('vehicle_b', '—')}")
         if metadata.get("venue"):
-            lines.append(f"  Circuito: {metadata.get('venue')}")
+            lines.append("  " + t("export_venue", lang=lang, venue=metadata.get('venue')))
         if not metadata.get("same_vehicle", True):
             lines.append("")
             lines.append("  " + t("export_vehicle_diff_warning", lang=lang))
@@ -68,7 +75,7 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
 
     # ── Synthetic distance warning ───────────────────────────────────
     if metadata.get("distance_synthetic"):
-        lines.append("⚠️  " + t("export_synthetic_distance", lang=lang) + " ──────────────────────────────────────────")
+        lines.append(t("export_synthetic_distance", lang=lang) + " ──────────────────────────────────────────")
         lines.append("  " + t("export_synthetic_distance_msg", lang=lang))
         lines.append("  " + t("export_synthetic_distance_integrated", lang=lang))
         lines.append("  " + t("export_synthetic_distance_error", lang=lang))
@@ -81,9 +88,9 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
     lines.append("─── " + t("export_summary", lang=lang) + " ───")
     lines.append("")
     if delta > 0:
-        lines.append("  ⏱  " + t("export_slower", lang=lang, label_b=label_b, delta=f"{delta:.3f}"))
+        lines.append("  ⏱  " + t("export_slower", lang=lang, label_a=label_a, label_b=label_b, delta=f"{delta:.3f}"))
     elif delta < 0:
-        lines.append("  ⏱  " + t("export_faster", lang=lang, label_b=label_b, delta=f"{abs(delta):.3f}"))
+        lines.append("  ⏱  " + t("export_faster", lang=lang, label_a=label_a, label_b=label_b, delta=f"{abs(delta):.3f}"))
     else:
         lines.append("  ⏱  " + t("export_identical", lang=lang))
     lines.append("  📊  " + t("export_corners_analyzed", lang=lang, n=summary['num_corners_analyzed']))
@@ -119,12 +126,12 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
                 status = c.get("window_status", "—")
                 parts  = [f"  {icon} {c['corner']:2s}: {status:14s}"]
                 if surf is not None:
-                    parts.append(f"Sup {surf:.1f}°C")
+                    parts.append(t("export_tyre_surf", lang=lang, v=f"{surf:.1f}"))
                 if core is not None:
-                    parts.append(f"Núcleo {core:.1f}°C")
+                    parts.append(t("export_tyre_core", lang=lang, v=f"{core:.1f}"))
                 if dt is not None:
-                    stress_flag = "  ⚠️ estrés térmico" if stress > 20 else ""
-                    parts.append(f"ΔT {dt:.1f}°C  (estrés {stress:.0f}%){stress_flag}")
+                    stress_flag = t("export_tyre_stress_flag", lang=lang) if stress > 20 else ""
+                    parts.append(t("export_tyre_dt", lang=lang, dt=f"{dt:.1f}", stress=f"{stress:.0f}", flag=stress_flag))
                 lines.append("    " + "  |  ".join(parts))
 
             # Time in optimal window per corner
@@ -183,8 +190,8 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
                         sev_label = t("export_brake_fade_sev_moderate", lang=lang)
                     else:
                         sev_label = t("export_brake_fade_sev_severe", lang=lang)
-                    lines.append(f"    • {z.get('start', 0):.0f}m – {z.get('end', 0):.0f}m  "
-                                 f"severidad {sev*100:.0f}%  ({sev_label})")
+                    lines.append(t("export_brake_fade_zone_line", lang=lang, start=f"{z.get('start', 0):.0f}",
+                                   end=f"{z.get('end', 0):.0f}", sev=f"{sev*100:.0f}", label=sev_label))
             else:
                 lines.append("  " + t("export_brake_fade_zones_none", lang=lang, label=lap_label))
         lines.append("")
@@ -319,102 +326,106 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
     # ── Thermal Management ────────────────────────────────────────────────
     thermal = comparison_result.get("thermal_analysis", {})
     if thermal.get("available"):
-        lines.append("─── THERMAL MANAGEMENT ───")
+        lines.append("─── " + t("export_thermal_title", lang=lang) + " ───")
         lines.append("")
 
-        for fluid_key, fluid_label in [("water_temp", "Water Temp"), ("oil_temp", "Oil Temp")]:
+        for fluid_key, fluid_label in [("water_temp", t("export_water_temp", lang=lang)), ("oil_temp", t("export_oil_temp", lang=lang))]:
             fluid = thermal.get(fluid_key, {})
             if fluid.get("available"):
-                status_str = fluid.get("status", "normal").upper()
+                status_str = _st(fluid.get("status", "normal"), lang).upper()
                 trend = fluid.get("trend_c_per_lap")
-                trend_str = f"  trend {trend:+.2f}°C/lap" if trend is not None else ""
-                lines.append(f"  {fluid_label}: {fluid.get('mean_c')}°C mean / {fluid.get('max_c')}°C peak  [{status_str}]{trend_str}")
+                trend_str = t("export_fluid_trend", lang=lang, v=trend) if trend is not None else ""
+                lines.append(t("export_fluid_line", lang=lang, label=fluid_label, mean=fluid.get('mean_c'),
+                               max=fluid.get('max_c'), status=status_str, trend=trend_str))
                 if fluid.get("alert"):
                     lines.append(f"    ⚠  {fluid['alert']}")
         lines.append("")
 
         brake = thermal.get("brake_temps", {})
         if brake.get("available"):
-            lines.append("  Brake Temperatures:")
+            lines.append("  " + t("export_brake_temps", lang=lang))
             STATUS_ICON = {"too_cold": "🔵", "suboptimal": "🟡", "optimal": "🟢", "hot": "🟠", "critical": "🔴"}
             for corner, s in brake.get("corners", {}).items():
                 icon = STATUS_ICON.get(s.get("status", "optimal"), "  ")
-                lines.append(f"    {icon} {corner}: {s.get('mean_c')}°C mean / {s.get('max_c')}°C peak  [{s.get('status','').upper()}]")
+                lines.append(t("export_brake_temp_line", lang=lang, icon=icon, corner=corner, mean=s.get('mean_c'),
+                               max=s.get('max_c'), status=_st(s.get('status', ''), lang).upper()))
             if brake.get("duct_recs"):
                 lines.append("")
-                lines.append("  Duct Recommendations:")
+                lines.append("  " + t("export_duct_recs", lang=lang))
                 for rec in brake["duct_recs"]:
-                    prio = {"alta": "HIGH", "media": "MED"}.get(rec.get("priority", ""), "")
+                    prio = {"alta": t("export_prio_high_short", lang=lang), "media": t("export_prio_med_short", lang=lang)}.get(rec.get("priority", ""), "")
                     lines.append(f"    [{prio}] {rec.get('corner')} — {rec.get('reason')}")
             lines.append("")
 
         pres = thermal.get("tyre_pressure", {})
         if pres.get("available"):
-            lines.append("  Tyre Pressures (bar / PSI):")
+            lines.append("  " + t("export_tyre_pressures", lang=lang))
             for corner, s in pres.get("corners", {}).items():
                 hot  = s.get("hot",  {})
                 cold = s.get("cold", {})
                 dlt  = s.get("delta", {})
-                cold_str  = f"  cold {cold.get('bar')} bar / {cold.get('psi')} PSI" if cold else ""
+                cold_str  = t("export_press_cold", lang=lang, bar=cold.get('bar'), psi=cold.get('psi')) if cold else ""
                 delta_str = f"  Δ {dlt.get('bar')} bar / {dlt.get('psi')} PSI" if dlt else ""
-                lines.append(f"    {corner}: hot {hot.get('bar')} bar / {hot.get('psi')} PSI{cold_str}{delta_str}")
+                lines.append(t("export_press_line", lang=lang, corner=corner, bar=hot.get('bar'), psi=hot.get('psi'),
+                               cold=cold_str, delta=delta_str))
             if pres.get("recommendations"):
                 lines.append("")
-                lines.append("  Pressure Recommendations:")
+                lines.append("  " + t("export_press_recs", lang=lang))
                 for rec in pres["recommendations"]:
                     tc = rec.get("target_cold", {})
-                    lines.append(
-                        f"    {rec.get('corner')} — {rec.get('direction','').upper()} cold pressure to "
-                        f"{tc.get('bar')} bar / {tc.get('psi')} PSI  "
-                        f"(Δ {rec.get('delta_bar')} bar / {rec.get('delta_psi')} PSI)"
-                    )
+                    _dir = rec.get('direction', '')
+                    lines.append(t("export_press_rec_line", lang=lang, corner=rec.get('corner'),
+                                   direction=(t("export_dir_" + _dir, lang=lang) if _dir in ("increase", "decrease") else _dir.upper()),
+                                   bar=tc.get('bar'), psi=tc.get('psi'),
+                                   dbar=rec.get('delta_bar'), dpsi=rec.get('delta_psi')))
                     lines.append(f"      {rec.get('reason','')}")
             lines.append("")
 
         bias = thermal.get("brake_bias", {})
         if bias.get("available"):
-            lines.append(f"  Brake Bias: {bias.get('current_pct')}% front")
+            lines.append(t("export_bias_line", lang=lang, pct=bias.get('current_pct')))
             if bias.get("out_of_range"):
                 lines.append(f"    ⚠  {bias['out_of_range']}")
             if bias.get("recommendation"):
                 rec = bias["recommendation"]
-                lines.append(f"    → Suggest {rec.get('suggested_pct')}% front: {rec.get('reason','')}")
+                lines.append(t("export_bias_suggest", lang=lang, pct=rec.get('suggested_pct'), reason=rec.get('reason', '')))
             lines.append("")
 
     # ── Setup Recommendations ─────────────────────────────────────────────
     setup = comparison_result.get("setup_advisor", {})
     if setup.get("available"):
-        lines.append("─── SETUP RECOMMENDATIONS ───")
+        lines.append("─── " + t("export_setup_title", lang=lang) + " ───")
         lines.append("")
 
         areas = setup.get("areas_status", [])
         if areas:
-            lines.append("  Area Health Summary:")
+            lines.append("  " + t("export_area_summary", lang=lang))
             PRIO_ICON = {"alta": "🔴", "media": "🟡", "baja": "🟢", "nominal": "✅"}
             for area in areas:
                 icon    = PRIO_ICON.get(area.get("status", "nominal"), "  ")
-                status  = area.get("status", "nominal").upper()
+                status  = _st(area.get("status", "nominal"), lang).upper()
                 label   = area.get("label", "")
                 n       = area.get("n_issues", 0)
-                n_str   = f"  ({n} issue{'s' if n > 1 else ''})" if n > 0 else ""
+                n_str   = t("export_area_issues", lang=lang, n=n) if n > 0 else ""
                 lines.append(f"    {icon}  [{status:8s}]  {label}{n_str}")
             lines.append("")
 
         recs = setup.get("recommendations", [])
         if recs:
             gain = setup.get("total_gain_range", "")
-            lines.append(f"  {len(recs)} recommendations — estimated gain: {gain}s/v")
+            lines.append(t("export_recs_summary", lang=lang, n=len(recs), gain=gain))
             lines.append("")
             for i, r in enumerate(recs, 1):
-                prio_str = {"alta": "HIGH", "media": "MED", "baja": "LOW"}.get(r.get("priority", ""), r.get("priority", ""))
+                prio_str = {"alta": t("export_prio_high_short", lang=lang), "media": t("export_prio_med_short", lang=lang),
+                            "baja": t("export_prio_low_short", lang=lang)}.get(r.get("priority", ""), r.get("priority", ""))
                 lines.append(f"  {i:2d}. [{prio_str}] {r.get('category', '')} — {r.get('problem', '')}")
-                lines.append(f"      Root cause:  {r.get('root_cause', '')}")
-                lines.append(f"      Action:      {r.get('recommendation', '')}")
+                lines.append(f"      {t('export_root_cause', lang=lang):<12} {r.get('root_cause', '')}")
+                lines.append(f"      {t('export_action', lang=lang):<12} {r.get('recommendation', '')}")
                 if r.get("detail"):
-                    lines.append(f"      Data:        {r.get('detail', '')}")
+                    lines.append(f"      {t('export_data', lang=lang):<12} {r.get('detail', '')}")
                 if r.get("solves"):
-                    lines.append(f"      Solves:      {r.get('solves', '')}")
-                lines.append(f"      Est. gain:   {r.get('expected_gain', '')}")
+                    lines.append(f"      {t('export_solves', lang=lang):<12} {r.get('solves', '')}")
+                lines.append(f"      {t('export_est_gain', lang=lang):<12} {r.get('expected_gain', '')}")
                 lines.append("")
         lines.append("")
 
@@ -462,7 +473,7 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
         td = corner.get("throttle_delta_meters", 0)
         if abs(td) > 1:
             lines.append(f"  │")
-            lines.append("  │  Aceleración a fondo:")
+            lines.append("  │  " + t("export_throttle_full", lang=lang))
             if td > 0:
                 lines.append("  │    " + t("export_corner_throttle_late", lang=lang, delta=f"{td:.0f}"))
             else:

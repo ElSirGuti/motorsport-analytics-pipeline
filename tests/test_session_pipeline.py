@@ -200,17 +200,17 @@ def test_square_wave_clock_is_not_used_for_distance():
 def test_loader_rejects_empty_and_missing_channels(tmp_path):
     empty = tmp_path / "empty.csv"
     empty.write_text("")
-    with pytest.raises(DataLoaderException, match="vacío"):
+    with pytest.raises(DataLoaderException, match="vacío|empty"):
         load_telemetry_data(str(empty))
 
     nochan = tmp_path / "nochan.csv"
     nochan.write_text("a,b\n1,2\n")
-    with pytest.raises(DataLoaderException, match="esenciales"):
+    with pytest.raises(DataLoaderException, match="esenciales|Essential"):
         load_telemetry_data(str(nochan))
 
     text = tmp_path / "text.csv"
     text.write_text("Speed,Brake,Throttle\nx,y,z\nq,w,e\n")
-    with pytest.raises(DataLoaderException, match="numéricos"):
+    with pytest.raises(DataLoaderException, match="numéricos|numeric"):
         load_telemetry_data(str(text))
 
 
