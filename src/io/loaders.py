@@ -33,26 +33,16 @@ COLUMN_ALIASES = {
     "Distance": ["Distance", "distance", "DISTANCE", "Dist", "dist", "LapDistance", "lap_distance", "Lap Distance"],
     "Gear":     ["Gear", "gear", "GEAR", "GearNumber"],
     "RPM":      ["RPM", "rpm", "Rpm", "EngineRPM", "engine_rpm"],
-<<<<<<< HEAD
-    "SteerAngle":     ["SteerAngle", "steer_angle", "Steer", "SteeringAngle", "Steering Angle"],
-=======
     "SteerAngle":     ["SteerAngle", "steer_angle", "Steer", "SteeringWheelAngle",
                        "Steering Wheel Angle", "SteeringAngle", "Steering Angle"],
->>>>>>> origin/main
     "LateralG":       ["LateralG", "lateral_g", "LatG", "G_Lat", "AccG_Lateral",
                        "Lateral G", "Lat G", "G Lat", "G Force Lat", "Lateral Acc",
                        "Lat Acc", "AccLateral", "Lateral Accel",
                        "CG Accel Lateral"],
     "LongitudinalG":  ["LongitudinalG", "longitudinal_g", "LonG", "G_Lon", "AccG_Longitudinal",
-<<<<<<< HEAD
-                       "Longitudinal G", "Lon G", "G Lon", "G Force Lon", "Longitudinal Acc",
-                       "Lon Acc", "AccLongitudinal", "Longitudinal Accel", "Long G",
-                       "CG Accel Longitudinal"],
-=======
                        "Longitudinal G", "Lon G", "G Lon", "G Force Long", "G Force Lon",
                        "LongAccel", "Longitudinal Acc", "Lon Acc", "AccLongitudinal",
                        "Longitudinal Accel", "Long G", "CG Accel Longitudinal"],
->>>>>>> origin/main
     "LapTime":        ["LapTime", "lap_time", "Time", "time", "CurrentLapTime", "Lap Time"],
     # New aliases for weather and coordinates
     "AirTemp":        ["Air Temp", "AirTemp", "air_temp", "AmbientTemp"],
@@ -63,11 +53,7 @@ COLUMN_ALIASES = {
     "SessionLapCount": ["Session Lap Count", "session_lap_count", "Lap"],
     # ── Yaw rate ─────────────────────────────────────────────────
     "YawRate":         ["Chassis Yaw Rate", "Yaw Rate", "YawRate", "yaw_rate",
-<<<<<<< HEAD
-                        "Yaw Velocity", "YawVelocity"],
-=======
                         "Gyro - Yaw Velocity", "Yaw Velocity", "YawVelocity"],
->>>>>>> origin/main
     # ── Tire temps — 4 zones × 4 corners ─────────────────────────
     "TyreTempCoreFL":   ["Tire Temp Core FL", "Tyre Temp Core FL", "Tyre Core Temp FL",
                          "Tire Core Temp FL", "TyreCoreFL", "TyreTempCoreFL"],
@@ -78,40 +64,6 @@ COLUMN_ALIASES = {
     "TyreTempCoreRR":   ["Tire Temp Core RR", "Tyre Temp Core RR", "Tyre Core Temp RR",
                          "Tire Core Temp RR", "TyreCoreRR", "TyreTempCoreRR"],
     "TyreTempInnerFL":  ["Tire Temp Inner FL", "Tyre Temp (I) FL", "Tyre Temp I FL",
-<<<<<<< HEAD
-                         "TyreTempInnerFL", "Tire Temp I FL"],
-    "TyreTempInnerFR":  ["Tire Temp Inner FR", "Tyre Temp (I) FR", "Tyre Temp I FR",
-                         "TyreTempInnerFR", "Tire Temp I FR"],
-    "TyreTempInnerRL":  ["Tire Temp Inner RL", "Tyre Temp (I) RL", "Tyre Temp I RL",
-                         "TyreTempInnerRL", "Tire Temp I RL"],
-    "TyreTempInnerRR":  ["Tire Temp Inner RR", "Tyre Temp (I) RR", "Tyre Temp I RR",
-                         "TyreTempInnerRR", "Tire Temp I RR"],
-    "TyreTempMiddleFL": ["Tire Temp Middle FL", "Tyre Temp (M) FL", "Tyre Temp M FL",
-                         "TyreTempMiddleFL", "Tire Temp M FL"],
-    "TyreTempMiddleFR": ["Tire Temp Middle FR", "Tyre Temp (M) FR", "Tyre Temp M FR",
-                         "TyreTempMiddleFR", "Tire Temp M FR"],
-    "TyreTempMiddleRL": ["Tire Temp Middle RL", "Tyre Temp (M) RL", "Tyre Temp M RL",
-                         "TyreTempMiddleRL", "Tire Temp M RL"],
-    "TyreTempMiddleRR": ["Tire Temp Middle RR", "Tyre Temp (M) RR", "Tyre Temp M RR",
-                         "TyreTempMiddleRR", "Tire Temp M RR"],
-    "TyreTempOuterFL":  ["Tire Temp Outer FL", "Tyre Temp (O) FL", "Tyre Temp O FL",
-                         "TyreTempOuterFL", "Tire Temp O FL"],
-    "TyreTempOuterFR":  ["Tire Temp Outer FR", "Tyre Temp (O) FR", "Tyre Temp O FR",
-                         "TyreTempOuterFR", "Tire Temp O FR"],
-    "TyreTempOuterRL":  ["Tire Temp Outer RL", "Tyre Temp (O) RL", "Tyre Temp O RL",
-                         "TyreTempOuterRL", "Tire Temp O RL"],
-    "TyreTempOuterRR":  ["Tire Temp Outer RR", "Tyre Temp (O) RR", "Tyre Temp O RR",
-                         "TyreTempOuterRR", "Tire Temp O RR"],
-    # ── Suspension travel (mm compression) ───────────────────────
-    "SuspTravelFL":     ["Suspension Travel FL", "Susp Travel FL", "SuspTravel_FL",
-                         "SuspTravelFL", "Front Left Susp Travel"],
-    "SuspTravelFR":     ["Suspension Travel FR", "Susp Travel FR", "SuspTravel_FR",
-                         "SuspTravelFR", "Front Right Susp Travel"],
-    "SuspTravelRL":     ["Suspension Travel RL", "Susp Travel RL", "SuspTravel_RL",
-                         "SuspTravelRL", "Rear Left Susp Travel"],
-    "SuspTravelRR":     ["Suspension Travel RR", "Susp Travel RR", "SuspTravel_RR",
-                         "SuspTravelRR", "Rear Right Susp Travel"],
-=======
                          "TyreTempInnerFL", "Tire Temp I FL",
                          "Tyre Temp FL Inner", "LFtempCL", "LFtempL"],
     "TyreTempInnerFR":  ["Tire Temp Inner FR", "Tyre Temp (I) FR", "Tyre Temp I FR",
@@ -160,7 +112,6 @@ COLUMN_ALIASES = {
     "SuspTravelRR":     ["Suspension Travel RR", "Susp Travel RR", "SuspTravel_RR",
                          "SuspTravelRR", "Rear Right Susp Travel",
                          "RRshockDefl", "RRrideHeight", "Susp Pos RR", "Ride Height RR"],
->>>>>>> origin/main
     # ── Brake temperatures ────────────────────────────────────────
     "BrakeTempFL":      ["Brake Temp FL", "Brake Temperature FL", "BrakeTempFL",
                          "Brake Disc Temp FL"],
@@ -170,8 +121,6 @@ COLUMN_ALIASES = {
                          "Brake Disc Temp RL"],
     "BrakeTempRR":      ["Brake Temp RR", "Brake Temperature RR", "BrakeTempRR",
                          "Brake Disc Temp RR"],
-<<<<<<< HEAD
-=======
     # ── Fluids ────────────────────────────────────────────────────────────────────
     "WaterTemp": [
         "WaterTemp", "Water Temp", "Engine Temp", "CoolantTemp",
@@ -202,7 +151,6 @@ COLUMN_ALIASES = {
     "TyrePressColdFR": ["RFcoldPressure", "TyrePressColdFR"],
     "TyrePressColdRL": ["LRcoldPressure", "TyrePressColdRL"],
     "TyrePressColdRR": ["RRcoldPressure", "TyrePressColdRR"],
->>>>>>> origin/main
 }
 
 # Canales que DEBEN existir para que el pipeline funcione
@@ -447,8 +395,6 @@ def load_telemetry_data(filepath: str,
                 logger.info("  Canal '%s' en escala 0-1 → escalado a 0-100 %%", pedal_ch)
                 df[pedal_ch] = pedal_vals * 100.0
 
-<<<<<<< HEAD
-=======
     # 5c. Convertir suspensión de metros a milímetros (iRacing: LFshockDefl, etc. en m)
     # El módulo de suspensión y la UI trabajan en mm; iRacing exporta en metros.
     # Detección: si SuspTravelFL existe y su rango es < 1.0 → probablemente en metros.
@@ -486,7 +432,6 @@ def load_telemetry_data(filepath: str,
         if not _bias_vals.empty and float(_bias_vals.max()) <= 1.05:
             df["BrakeBias"] = pd.to_numeric(df["BrakeBias"], errors="coerce") * 100.0
             logger.info("  Canal 'BrakeBias' fracción → porcentaje (×100)")
->>>>>>> origin/main
 
     # 6. Sintetizar Distance desde Speed+tiempo si no está disponible o si el
     # canal presente tiene todos los valores en cero (frecuente en CSVs de MoTeC

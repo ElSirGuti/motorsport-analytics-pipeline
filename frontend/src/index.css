@@ -140,25 +140,11 @@ body::after {
 .app {
   max-width: 1440px;
   margin: 0 auto;
-<<<<<<< HEAD
-  padding: 0 var(--s5) var(--s8);
-=======
   padding: 64px var(--s5) var(--s8);
->>>>>>> origin/main
 }
 
 /* ── Top Bar ─────────────────────────────────────────────────────────────── */
 .topbar {
-<<<<<<< HEAD
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--s4) 0;
-  border-bottom: 1px solid var(--border-1);
-  margin-bottom: var(--s6);
-  gap: var(--s4);
-  flex-wrap: wrap;
-=======
   position: fixed;
   top: 0;
   left: 0;
@@ -174,7 +160,6 @@ body::after {
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-1);
   gap: var(--s4);
->>>>>>> origin/main
 }
 
 .topbar__brand {
@@ -1605,14 +1590,6 @@ body::after {
 .fade-up--d3 { animation-delay: 0.15s; opacity: 0; }
 .fade-up--d4 { animation-delay: 0.2s;  opacity: 0; }
 .fade-up--d5 { animation-delay: 0.25s; opacity: 0; }
-<<<<<<< HEAD
-
-/* ── Responsive ──────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .app { padding: 0 var(--s4) var(--s6); }
-
-  .topbar { margin-bottom: var(--s4); }
-=======
 .fade-up--d6 { animation-delay: 0.3s;  opacity: 0; }
 .fade-up--d7 { animation-delay: 0.35s; opacity: 0; }
 .fade-up--d8 { animation-delay: 0.4s;  opacity: 0; }
@@ -1622,7 +1599,6 @@ body::after {
   .app { padding: 64px var(--s4) var(--s6); }
 
   .topbar { padding: 0 var(--s4); }
->>>>>>> origin/main
 
   .hero { padding: var(--s5) 0 var(--s4); }
   .hero__title { font-size: 1.8rem; }

@@ -71,29 +71,18 @@ from src.analytics.ml_laptime import (calcular_tiempo_potencial,
                                        enriquecer_corners_con_historial)
 from src.analytics.stint import (extraer_metricas_por_vuelta, analizar_degradacion_stint,
                                   calcular_estrategia_combustible, simular_tiempos_stint,
-<<<<<<< HEAD
-                                  segmentar_vueltas_desde_csv)
-=======
                                   segmentar_vueltas_desde_csv, calcular_evolucion_pista)
->>>>>>> origin/main
 from src.analytics.thermodynamics import analizar_neumaticos_comparativo
 from src.analytics.brake_fade import analizar_eficiencia_frenado
 from src.analytics.driver_inputs import analizar_inputs_piloto
 from src.analytics.suspension import analizar_suspension
 from src.analytics.slip_angle import analizar_slip_angle
 from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
-<<<<<<< HEAD
-from src.analytics.session_corner_analysis import analizar_curvas_sesion
-from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
-from src.analytics.tyre_degradation import predecir_degradacion_neumatico
-from src.analytics.racing_line_rl import optimizar_trazada_rl
-=======
 from src.analytics.session_corner_analysis import analizar_curvas_sesion, get_corner_observations
 from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 from src.analytics.tyre_degradation import predecir_degradacion_neumatico
 from src.analytics.racing_line_rl import optimizar_trazada_rl
 from src.analytics.thermal_management import analizar_termica, analizar_termica_comparativa
->>>>>>> origin/main
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -121,11 +110,7 @@ async def _save_upload(upload: UploadFile, dest_path: str):
 
 
 import math
-<<<<<<< HEAD
-from src.i18n import DEFAULT_LANG
-=======
 from src.i18n import DEFAULT_LANG, set_language, _
->>>>>>> origin/main
 
 
 def _detect_lang(request: Request) -> str:
@@ -157,8 +142,6 @@ def _sanitize(obj):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
-<<<<<<< HEAD
-=======
 def _build_health_summary(result: dict) -> dict:
     thermal_ok = result.get("thermal_analysis", {}).get("available", False)
     modules = {
@@ -174,7 +157,6 @@ def _build_health_summary(result: dict) -> dict:
     return {**modules, "overall": overall}
 
 
->>>>>>> origin/main
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "service": "motorsport-analytics-api", "version": "1.2.0"}
@@ -192,10 +174,7 @@ async def generate_pdf_from_json(
     """
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
         pdf_bytes = export_report_pdf(result, lang=lang)
         meta      = result.get("metadata", {})
         label_a   = meta.get("label_a", "A")
@@ -229,10 +208,7 @@ async def generate_pdf_report(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_pdf_")
         path = os.path.join(tmp_dir, "session.csv")
         await _save_upload(session_file, path)
@@ -356,10 +332,7 @@ async def compare_laps_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_")
         path_a = os.path.join(tmp_dir, "lap_a.csv")
@@ -483,13 +456,8 @@ async def compare_laps_endpoint(
         meta_a = read_motec_metadata(path_a)
         meta_b = read_motec_metadata(path_b)
 
-<<<<<<< HEAD
-        driver_a = meta_a.get("driver") or "Piloto A"
-        driver_b = meta_b.get("driver") or "Piloto B"
-=======
         driver_a = meta_a.get("driver") or _("driver_pilot_a")
         driver_b = meta_b.get("driver") or _("driver_pilot_b")
->>>>>>> origin/main
         vehicle_a = meta_a.get("vehicle") or "?"
         vehicle_b = meta_b.get("vehicle") or "?"
         venue = meta_a.get("venue") or meta_b.get("venue")
@@ -504,13 +472,8 @@ async def compare_laps_endpoint(
             label_a = driver_a
             label_b = driver_b
         else:
-<<<<<<< HEAD
-            label_a = "Vuelta A (Ref)"
-            label_b = "Vuelta B"
-=======
             label_a = _("lap_ref_label")
             label_b = _("lap_b_label")
->>>>>>> origin/main
 
         result["metadata"] = {
             "lap_a_filename": lap_a.filename,
@@ -574,10 +537,7 @@ async def analyze_session_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_session_")
         path = os.path.join(tmp_dir, "session.csv")
@@ -649,10 +609,7 @@ async def compare_session_laps_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_csl_")
         path = os.path.join(tmp_dir, "session.csv")
@@ -727,8 +684,6 @@ async def compare_session_laps_endpoint(
             df_geo = procesar_geometria_pista_perfecta(df_a)
             apexes = detectar_apexes_perfectos(df_geo)
 
-<<<<<<< HEAD
-=======
             # Fallback: GPS/heading synthesis fails for iRacing (no real GPS track map).
             # metrics.py already found corners correctly via braking/throttle signals.
             _apex_source = "geometry"
@@ -746,7 +701,6 @@ async def compare_session_laps_endpoint(
                         len(apexes),
                     )
 
->>>>>>> origin/main
             logger.info("Paso avanzado 2/5: Alineación avanzada con Delta_Time...")
             canales_extra = [
                 "LateralG", "LongitudinalG", "SteerAngle", "Brake", "Throttle",
@@ -760,13 +714,10 @@ async def compare_session_laps_endpoint(
                 # brake thermals + yaw
                 "BrakeTempFL", "BrakeTempFR", "BrakeTempRL", "BrakeTempRR",
                 "YawRate",
-<<<<<<< HEAD
-=======
                 # thermal management
                 "WaterTemp", "OilTemp", "BrakeBias",
                 "TyrePressFL", "TyrePressFR", "TyrePressRL", "TyrePressRR",
                 "TyrePressColdFL", "TyrePressColdFR", "TyrePressColdRL", "TyrePressColdRR",
->>>>>>> origin/main
             ]
             df_adv = alinear_vueltas_y_calcular_delta(
                 df_a, df_b, paso_metros=1.0, canales_extra=canales_extra
@@ -791,11 +742,6 @@ async def compare_session_laps_endpoint(
             inputs_data  = analizar_inputs_piloto(df_adv)
             susp_data    = analizar_suspension(df_adv)
             slip_data    = analizar_slip_angle(df_adv)
-<<<<<<< HEAD
-
-            step_c = 1
-            df_curv = df_geo.iloc[::step_c].copy()
-=======
             termica_data = analizar_termica(laps, pd.DataFrame())
 
             if _apex_source == "telemetry" and "LateralG_Fast" in df_adv.columns:
@@ -816,7 +762,6 @@ async def compare_session_laps_endpoint(
                         apexes.at[_ia, "Curvature"] = float(_lat_sm.loc[_idx_a]) / _lat_max * 0.08
             else:
                 df_curv = df_geo.iloc[::1].copy()
->>>>>>> origin/main
             result["curvatura"]      = df_curv[["Distance", "Curvature"]].where(
                 df_curv[["Distance", "Curvature"]].notna(), None
             ).to_dict(orient="records")
@@ -833,31 +778,20 @@ async def compare_session_laps_endpoint(
             result["driver_inputs"]  = inputs_data
             result["suspension"]     = susp_data
             result["slip_angle"]     = slip_data
-<<<<<<< HEAD
-=======
             result["thermal_analysis"] = termica_data
->>>>>>> origin/main
             logger.info(
                 "✓ Pipeline avanzado completado: %d apexes, %d eventos",
                 len(apexes), len(eventos)
             )
-<<<<<<< HEAD
-            
-=======
 
->>>>>>> origin/main
             # Log missing modules as requested by user
             modules_status = {
                 "neumáticos": tyre_data.get("available"),
                 "frenado": brake_data.get("available"),
                 "inputs_piloto": inputs_data.get("available"),
                 "suspensión": susp_data.get("available"),
-<<<<<<< HEAD
-                "slip_angle": slip_data.get("available")
-=======
                 "slip_angle": slip_data.get("available"),
                 "thermal": termica_data.get("available"),
->>>>>>> origin/main
             }
             loaded = [k for k, v in modules_status.items() if v]
             not_loaded = [k for k, v in modules_status.items() if not v]
@@ -913,10 +847,7 @@ async def compare_session_laps_endpoint(
             logger.warning("setup_advisor (compare-session-laps): %s", _e)
             result["setup_advisor"] = {"available": False}
         result["text_report"] = export_report_text(result, lang=lang)
-<<<<<<< HEAD
-=======
         result["health_summary"] = _build_health_summary(result)
->>>>>>> origin/main
         logger.info("✓ Comparación de vueltas de sesión completada")
         return JSONResponse(content=_sanitize(result))
 
@@ -957,10 +888,7 @@ async def compare_telemetry_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_geo_")
         path_fast = os.path.join(tmp_dir, "lap_fast.csv")
@@ -1073,10 +1001,7 @@ async def analyze_telemetry_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_dyn_")
         path_fast = os.path.join(tmp_dir, "lap_fast.csv")
@@ -1221,10 +1146,7 @@ async def analyze_stint_endpoint(
     tmp_dir = None
     try:
         lang = _detect_lang(request)
-<<<<<<< HEAD
-=======
         set_language(lang)
->>>>>>> origin/main
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
         dfs = []
@@ -1263,11 +1185,7 @@ async def analyze_stint_endpoint(
         degradacion = analizar_degradacion_stint(df_laps)
 
         logger.info("Paso 3/4: Calculando estrategia de combustible...")
-<<<<<<< HEAD
-        combustible = calcular_estrategia_combustible(df_laps)
-=======
         combustible = calcular_estrategia_combustible(df_laps, dfs=dfs)
->>>>>>> origin/main
 
         logger.info("Paso 4/4: Simulación Monte Carlo...")
         montecarlo = simular_tiempos_stint(df_laps, degradacion)
@@ -1276,15 +1194,10 @@ async def analyze_stint_endpoint(
         curvas_sesion:     dict = {"available": False}
         telemetria_sesion: dict = {"available": False}
         setup_sesion:      dict = {"available": False}
-<<<<<<< HEAD
-        try:
-            curvas_sesion = analizar_curvas_sesion(dfs, df_laps, lang=lang)
-=======
         _corner_obs: dict = {}   # shared observations — computed once, reused by RL
         try:
             _corner_obs   = get_corner_observations(dfs, df_laps)
             curvas_sesion = analizar_curvas_sesion(dfs, df_laps, lang=lang, precomputed_obs=_corner_obs)
->>>>>>> origin/main
         except Exception as _exc:
             logger.warning("session_corner_analysis: %s", _exc)
         try:
@@ -1299,15 +1212,12 @@ async def analyze_stint_endpoint(
         except Exception as _exc:
             logger.warning("setup_sesion: %s", _exc)
 
-<<<<<<< HEAD
-=======
         termica_sesion: dict = {"available": False}
         try:
             termica_sesion = analizar_termica(dfs, df_laps)
         except Exception as _exc:
             logger.warning("thermal_management: %s", _exc)
 
->>>>>>> origin/main
         logger.info("Paso 6/7: Predicción de degradación de neumáticos...")
         degradacion_neumatico: dict = {"available": False}
         try:
@@ -1318,12 +1228,6 @@ async def analyze_stint_endpoint(
         logger.info("Paso 7/7: Optimización de trazada por RL...")
         racing_line_rl: dict = {"available": False}
         try:
-<<<<<<< HEAD
-            racing_line_rl = optimizar_trazada_rl(dfs, df_laps)
-        except Exception as _exc:
-            logger.warning("racing_line_rl: %s", _exc)
-
-=======
             racing_line_rl = optimizar_trazada_rl(
                 dfs, df_laps, precomputed_obs=_corner_obs or None
             )
@@ -1336,7 +1240,6 @@ async def analyze_stint_endpoint(
         except Exception as _exc:
             logger.warning("track_evolution: %s", _exc)
 
->>>>>>> origin/main
         laps_json = df_laps.where(df_laps.notna(), None).to_dict(orient="records")
 
         logger.info(
@@ -1345,11 +1248,7 @@ async def analyze_stint_endpoint(
             f"curvas={'sí' if curvas_sesion.get('available') else 'no'}, "
             f"combustible={'sí' if combustible.get('available') else 'no'}"
         )
-<<<<<<< HEAD
-        return JSONResponse(content=_sanitize({
-=======
         stint_result = {
->>>>>>> origin/main
             "status":             "success",
             "n_laps":             len(dfs),
             "laps":               laps_json,
@@ -1359,11 +1258,6 @@ async def analyze_stint_endpoint(
             "curvas_sesion":        curvas_sesion,
             "telemetria_sesion":    telemetria_sesion,
             "setup_sesion":         setup_sesion,
-<<<<<<< HEAD
-            "degradacion_neumatico": degradacion_neumatico,
-            "racing_line_rl":        racing_line_rl,
-        }))
-=======
             "thermal_analysis":     termica_sesion,
             "degradacion_neumatico": degradacion_neumatico,
             "racing_line_rl":        racing_line_rl,
@@ -1371,7 +1265,6 @@ async def analyze_stint_endpoint(
         }
         stint_result["health_summary"] = _build_health_summary(stint_result)
         return JSONResponse(content=_sanitize(stint_result))
->>>>>>> origin/main
 
     except HTTPException:
         raise

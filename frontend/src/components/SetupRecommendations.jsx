@@ -23,15 +23,6 @@ const CATEGORY_ICON = {
   'Aplicación de Gas':       '▶',
 };
 
-<<<<<<< HEAD
-function RecCard({ rec, index }) {
-  const { t } = useLanguage();
-  const [open, setOpen] = useState(false);
-  const PRIORITY_META = {
-    alta:  { label: t.priorityHigh, color: '#FF4444', bg: 'rgba(255,68,68,0.12)'  },
-    media: { label: t.priorityMed,  color: '#FFB800', bg: 'rgba(255,184,0,0.12)'  },
-    baja:  { label: t.priorityLow,  color: '#00CC66', bg: 'rgba(0,204,102,0.10)'  },
-=======
 function RecCard({ rec, index, isPilotMode }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
@@ -40,13 +31,10 @@ function RecCard({ rec, index, isPilotMode }) {
     media:   { label: t.priorityMed,  color: '#FFB800', bg: 'rgba(255,184,0,0.12)'    },
     baja:    { label: t.priorityLow,  color: '#00CC66', bg: 'rgba(0,204,102,0.10)'    },
     nominal: { label: 'NOMINAL',      color: '#3A5F8A', bg: 'rgba(58,95,138,0.12)'    },
->>>>>>> origin/main
   };
   const pm  = PRIORITY_META[rec.priority] || PRIORITY_META.baja;
   const icon = CATEGORY_ICON[rec.category] || '•';
 
-<<<<<<< HEAD
-=======
   if (isPilotMode) {
     return (
       <div style={{
@@ -77,7 +65,6 @@ function RecCard({ rec, index, isPilotMode }) {
     );
   }
 
->>>>>>> origin/main
   return (
     <div
       style={{
@@ -124,13 +111,10 @@ function RecCard({ rec, index, isPilotMode }) {
         <div style={{
           padding: '0 14px 14px',
           borderTop: '1px solid rgba(255,255,255,0.05)',
-<<<<<<< HEAD
-=======
           transition: 'max-height 0.2s ease, opacity 0.2s ease',
           maxHeight: open ? 600 : 0,
           opacity: open ? 1 : 0,
           overflow: 'hidden',
->>>>>>> origin/main
         }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
             <div>
@@ -170,21 +154,12 @@ function RecCard({ rec, index, isPilotMode }) {
   );
 }
 
-<<<<<<< HEAD
-export default function SetupRecommendations({ setup_advisor }) {
-  const { t } = useLanguage();
-  const [filter, setFilter] = useState('all');
-
-  if (!setup_advisor?.available) return null;
-  const { recommendations = [], total_gain_range, total_gain_lo, total_gain_hi } = setup_advisor;
-=======
 export default function SetupRecommendations({ setup_advisor, source, isPilotMode }) {
   const { t } = useLanguage();
   const [filter, setFilter] = useState('all');
 
   if (!setup_advisor?.available && !setup_advisor?.areas_status?.length) return null;
   const { recommendations = [], areas_status = [], total_gain_range, total_gain_lo, total_gain_hi } = setup_advisor;
->>>>>>> origin/main
 
   const counts = {
     all:   recommendations.length,
@@ -204,8 +179,6 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
       padding: 20,
       marginTop: 20,
     }}>
-<<<<<<< HEAD
-=======
       {source === 'compare' && (
         <div style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -217,7 +190,6 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
         </div>
       )}
 
->>>>>>> origin/main
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
         <div>
@@ -229,42 +201,6 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
           </p>
         </div>
         {/* Total gain badge */}
-<<<<<<< HEAD
-        <div style={{
-          background: 'rgba(0,212,255,0.08)',
-          border: '1px solid rgba(0,212,255,0.25)',
-          borderRadius: 8,
-          padding: '8px 16px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 10, color: '#506080', letterSpacing: 1 }}>{t.setupGainLabel}</div>
-          <div style={{ fontSize: 20, color: '#00D4FF', fontWeight: 700, fontFamily: 'monospace' }}>
-            {total_gain_range}s
-          </div>
-          <div style={{ fontSize: 9, color: '#406070' }}>{t.setupGainSub}</div>
-        </div>
-      </div>
-
-      {/* Priority filters */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-        {[
-          { key: 'all',   label: t.setupFilterAll(counts.all),    color: '#C0C8E0' },
-          { key: 'alta',  label: t.setupFilterHigh(counts.alta),  color: '#FF4444' },
-          { key: 'media', label: t.setupFilterMed(counts.media),  color: '#FFB800' },
-          { key: 'baja',  label: t.setupFilterLow(counts.baja),   color: '#00CC66' },
-        ].map(f => (
-          <button key={f.key} onClick={() => setFilter(f.key)} style={{
-            padding: '4px 12px', borderRadius: 20, fontSize: 11,
-            border: `1px solid ${filter === f.key ? f.color : 'rgba(255,255,255,0.1)'}`,
-            background: filter === f.key ? `${f.color}22` : 'transparent',
-            color: filter === f.key ? f.color : '#506080',
-            cursor: 'pointer', transition: 'all 0.15s',
-          }}>
-            {f.label}
-          </button>
-        ))}
-      </div>
-=======
         {recommendations.length > 0 && total_gain_range && (
           <div style={{
             background: 'rgba(0,212,255,0.08)',
@@ -337,16 +273,11 @@ export default function SetupRecommendations({ setup_advisor, source, isPilotMod
           ))}
         </div>
       )}
->>>>>>> origin/main
 
       {/* Recommendation cards */}
       <div>
         {visible.map((rec, i) => (
-<<<<<<< HEAD
-          <RecCard key={i} rec={rec} index={i} />
-=======
           <RecCard key={i} rec={rec} index={i} isPilotMode={isPilotMode} />
->>>>>>> origin/main
         ))}
         {visible.length === 0 && (
           <p style={{ color: '#506080', fontSize: 12, textAlign: 'center', padding: 20 }}>

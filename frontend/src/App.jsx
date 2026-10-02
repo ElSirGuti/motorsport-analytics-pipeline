@@ -21,10 +21,6 @@ import SlipAngleChart from './components/SlipAngleChart';
 import { analyzeSession, analyzeStint, compareLaps, analyzeTelemetry, compareSessionLaps, downloadPdfReport } from './api/telemetry';
 import CornerAnalysisPanel from './components/CornerAnalysisPanel';
 import SetupRecommendations from './components/SetupRecommendations';
-<<<<<<< HEAD
-import TyreDegradationPanel from './components/TyreDegradationPanel';
-import RacingLinePanel from './components/RacingLinePanel';
-=======
 import InfoButton from './components/InfoButton';
 import TyreDegradationPanel from './components/TyreDegradationPanel';
 import RacingLinePanel from './components/RacingLinePanel';
@@ -32,7 +28,6 @@ import ThermalManagementPanel from './components/ThermalManagementPanel';
 import HealthDashboard from "./components/HealthDashboard";
 import PilotEngineerToggle, { usePilotMode } from "./components/PilotEngineerToggle";
 import Sidebar from './components/Sidebar';
->>>>>>> origin/main
 
 const LAP_COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
 
@@ -102,11 +97,7 @@ function SessionKPIs({ sessionResult, stintResult }) {
   );
 }
 
-<<<<<<< HEAD
-function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, compareLoading, compareError }) {
-=======
 function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompare, compareLoading, compareError, compareResult }) {
->>>>>>> origin/main
   const { t } = useLanguage();
   const [lapA, lapB] = selectedLaps;
   const canCompare = selectedLaps.length === 2 && !compareLoading;
@@ -230,9 +221,6 @@ function SessionLapTable({ laps, fastestLap, selectedLaps, onToggleLap, onCompar
   );
 }
 
-<<<<<<< HEAD
-function ComparisonSection({ result, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading }) {
-=======
 function ModuleWithHelp({ children, title, helpContent }) {
   return (
     <div style={{ position: 'relative' }}>
@@ -245,7 +233,6 @@ function ModuleWithHelp({ children, title, helpContent }) {
 }
 
 function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick, activeCorner, zoomDomain, fixedDistance, onClearFixed, onChartClick, onResetZoom, copied, onCopyReport, onPdfDownload, pdfLoading, isPilotMode }) {
->>>>>>> origin/main
   const { t } = useLanguage();
   const meta = result?.metadata;
   const title = comparingLaps
@@ -295,185 +282,6 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
         </div>
       )}
 
-<<<<<<< HEAD
-      <SummaryCard summary={result.summary} metadata={result.metadata} />
-
-      {result.track_map?.length > 0 && (
-        <div className="fade-up fade-up--d1" style={{ marginTop: 'var(--s4)' }}>
-          <TrackMap
-            trackData={result.track_map}
-            fixedDistance={fixedDistance}
-            onClearFixed={onClearFixed}
-          />
-        </div>
-      )}
-
-      {zoomDomain && (
-        <div className="zoom-bar">
-          <span className="zoom-bar__label">
-            {t.zoomLap(zoomDomain[0], zoomDomain[1])}
-            {activeCorner != null && ` ${t.zoomCorner(activeCorner)}`}
-          </span>
-          <button className="zoom-reset-btn" onClick={onResetZoom}>{t.zoomReset}</button>
-        </div>
-      )}
-
-      <div className="charts-section fade-up fade-up--d2" style={{ marginTop: 'var(--s4)' }}>
-        <SpeedChart
-          data={{ ...result.speed_comparison, lap_labels: lapLabels }}
-          zoomDomain={zoomDomain}
-          onChartClick={onChartClick}
-        />
-        <BrakeThrottleChart
-          brakeData={{ ...result.brake_comparison, lap_labels: lapLabels }}
-          throttleData={{ ...result.throttle_comparison, lap_labels: lapLabels }}
-          zoomDomain={zoomDomain}
-          onChartClick={onChartClick}
-        />
-        <TimeDeltaChart
-          data={result.time_delta_series}
-          zoomDomain={zoomDomain}
-          onChartClick={onChartClick}
-        />
-      </div>
-
-      <CornerReport
-        corners={result.corners}
-        onCornerClick={onCornerClick}
-        activeCorner={activeCorner}
-      />
-
-      {result.dynamic_events && result.dynamic_events.length > 0 && (
-        <div className="card fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-          <div className="card__title">
-            <span className="card__title-icon">⚠</span>
-            {t.eventsTitle}
-            <span style={{
-              marginLeft: 'auto', fontSize: '0.68rem', padding: '3px 8px',
-              background: 'rgba(255,61,61,0.1)', color: 'var(--red)',
-              border: '1px solid rgba(255,61,61,0.25)', borderRadius: 4,
-              fontFamily: "'JetBrains Mono', monospace",
-            }}>
-              {t.eventsCount(result.dynamic_events.length)}
-            </span>
-          </div>
-          <div className="dynamic-events-list">
-            {result.dynamic_events.map((ev, i) => (
-              <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
-                <div className="dynamic-event__header">
-                  <span className="dynamic-event__tipo">
-                    {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
-                  </span>
-                  <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
-                  <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
-                  <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
-                    {ev.severidad?.toUpperCase()}
-                  </span>
-                </div>
-                <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {result.curvatura?.length > 0 && (
-        <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-          <CurvatureMap curvatura={result.curvatura} apexes={result.apexes} />
-        </div>
-      )}
-
-      {result.sectores?.length > 0 && (
-        <div className="fade-up fade-up--d4" style={{ marginTop: 'var(--s4)' }}>
-          <SectorTable
-            sectores={result.sectores}
-            totalDelta={result.metadata?.delta_total_s ?? result.summary?.total_time_delta}
-          />
-        </div>
-      )}
-
-      {(result.gg_diagram || result.g_limit) && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <GGDiagramChart ggData={result.gg_diagram} gLimit={result.g_limit} />
-        </div>
-      )}
-
-      {result.anomaly && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <AnomalyReport anomaly={result.anomaly} />
-        </div>
-      )}
-
-      {result.tyre_analysis?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <TyreHeatmap tyre_analysis={result.tyre_analysis} metadata={meta} />
-        </div>
-      )}
-
-      {result.brake_analysis?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <BrakeFadeChart brake_analysis={result.brake_analysis} metadata={meta} />
-        </div>
-      )}
-
-      {result.driver_inputs?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <DriverInputsChart driver_inputs={result.driver_inputs} metadata={meta} />
-        </div>
-      )}
-
-      {result.suspension?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <SuspensionChart suspension={result.suspension} metadata={meta} />
-        </div>
-      )}
-
-      {result.slip_angle?.available && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <SlipAngleChart slip_angle={result.slip_angle} metadata={meta} />
-        </div>
-      )}
-
-      {result.tiempo_potencial && (
-        <div className="fade-up fade-up--d5" style={{ marginTop: 'var(--s4)' }}>
-          <PotentialLapCard
-            tiempoPotencial={result.tiempo_potencial}
-            xgboostPred={result.xgboost_pred}
-            historySamples={result.metadata?.history_samples}
-          />
-        </div>
-      )}
-
-      {result.text_report && (
-        <div className="card report-card fade-up fade-up--d5">
-          <div className="report-header">
-            <div className="report-title">
-              <span>▤</span>
-              {t.reportTitle}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className={`copy-btn ${copied ? 'copy-btn--copied' : ''}`}
-                onClick={onCopyReport}
-                aria-label={t.reportCopyAria}
-              >
-                {copied ? `✓ ${t.copied}` : `⎘ ${t.copyReport}`}
-              </button>
-              <button
-                className="copy-btn"
-                onClick={onPdfDownload}
-                disabled={pdfLoading}
-                aria-label={t.reportDownloadAria}
-                style={{ opacity: pdfLoading ? 0.6 : 1 }}
-              >
-                {pdfLoading ? '⏳' : `⬇ ${t.pdfDownload}`}
-              </button>
-            </div>
-          </div>
-          <pre className="text-report">{result.text_report}</pre>
-        </div>
-      )}
-=======
       {result && result.health_summary && <HealthDashboard health_summary={result.health_summary} />}
 
       <SummaryCard summary={result.summary} metadata={result.metadata} rawTimeDelta={rawTimeDelta} />
@@ -744,7 +552,6 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
           </div>
         )}
       </div>
->>>>>>> origin/main
     </div>
   );
 }
@@ -774,8 +581,6 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
 
-<<<<<<< HEAD
-=======
   const [isPilotMode, togglePilotMode] = usePilotMode();
 
   const rawTimeDelta = useMemo(() => {
@@ -787,7 +592,6 @@ export default function App() {
     return Math.round((lapB.lap_time - lapA.lap_time) * 1000) / 1000;
   }, [comparingLaps, sessionResult]);
 
->>>>>>> origin/main
   const isSessionMode = files.length === 1;
 
   const addFiles = useCallback((incoming) => {
@@ -1010,10 +814,7 @@ export default function App() {
         >
           {t.langCurrent}
         </button>
-<<<<<<< HEAD
-=======
         <PilotEngineerToggle isPilotMode={isPilotMode} onToggle={togglePilotMode} />
->>>>>>> origin/main
       </div>
 
       {/* Hero */}
@@ -1119,110 +920,6 @@ export default function App() {
         </button>
       </section>
 
-<<<<<<< HEAD
-      {/* ── Session Results ── */}
-      {sessionResult && (
-        <div className="fade-up">
-          <div className="section">
-            <SessionKPIs sessionResult={sessionResult} stintResult={stintResult} />
-          </div>
-
-          {sessionResult.track_map?.length > 0 && (
-            <div className="section fade-up fade-up--d1">
-              <TrackMap trackData={sessionResult.track_map} />
-            </div>
-          )}
-
-          <div className="section fade-up fade-up--d2">
-            <SessionLapTable
-              laps={sessionResult.laps}
-              fastestLap={sessionResult.fastest_lap}
-              selectedLaps={selectedLaps}
-              onToggleLap={toggleLapSelection}
-              onCompare={handleCompareLaps}
-              compareLoading={compareLoading}
-              compareError={compareError}
-            />
-            <div style={{ marginTop: 'var(--s3)', display: 'flex', gap: 'var(--s2)' }}>
-              <button
-                className="btn-analyze"
-                onClick={handleCompareBestWorst}
-                disabled={compareLoading}
-                style={{ background: 'var(--surface-2)', color: 'var(--accent)', border: '1px solid var(--accent)', fontSize: '0.8rem', padding: '6px 14px' }}
-              >
-                {compareLoading ? t.appComparing : t.appCompareBestWorst}
-              </button>
-            </div>
-          </div>
-
-          {stintResult && (
-            <div className="section fade-up fade-up--d3">
-              <LapTimelineChart
-                degradacion={stintResult.degradacion}
-                montecarlo={stintResult.montecarlo}
-                laps={stintResult.laps}
-              />
-              {stintResult.combustible?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <PitWindowWidget combustible={stintResult.combustible} />
-                </div>
-              )}
-              {stintResult.curvas_sesion?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <CornerAnalysisPanel
-                    result={{
-                      corners: stintResult.curvas_sesion.corners,
-                      setup_advisor: stintResult.setup_sesion,
-                    }}
-                    metadata={{
-                      label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
-                      label_b: `${t.avgTime} ${stintResult.curvas_sesion.n_laps_compared} ${t.timelineLap}`,
-                    }}
-                    sessionMode
-                    referenceLap={stintResult.curvas_sesion.reference_lap}
-                    nLaps={stintResult.curvas_sesion.n_laps_compared}
-                  />
-                </div>
-              )}
-              {stintResult.setup_sesion?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <SetupRecommendations setup_advisor={stintResult.setup_sesion} />
-                </div>
-              )}
-              {stintResult.degradacion_neumatico?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <TyreDegradationPanel data={stintResult.degradacion_neumatico} />
-                </div>
-              )}
-              {stintResult.racing_line_rl?.available && (
-                <div style={{ marginTop: 'var(--s4)' }}>
-                  <RacingLinePanel data={stintResult.racing_line_rl} />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Direct Multi-File Comparison or Session-Lap Comparison ── */}
-      {compareResult && (
-        <div className="section" style={{ marginTop: sessionResult ? 'var(--s6)' : 0 }}>
-          <ComparisonSection
-            result={compareResult}
-            comparingLaps={comparingLaps}
-            onCornerClick={handleCornerClick}
-            activeCorner={activeCorner}
-            zoomDomain={zoomDomain}
-            fixedDistance={fixedDistance}
-            onClearFixed={handleClearFixed}
-            onChartClick={handleChartClick}
-            onResetZoom={resetZoom}
-            copied={copied}
-            onCopyReport={handleCopyReport}
-            onPdfDownload={handlePdfDownload}
-            pdfLoading={pdfLoading}
-          />
-=======
       {(sessionResult || compareResult) && (
         <div style={{ display: 'flex', alignItems: 'flex-start' }}>
           <Sidebar
@@ -1355,7 +1052,6 @@ export default function App() {
             )}
 
           </div>
->>>>>>> origin/main
         </div>
       )}
 

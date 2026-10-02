@@ -39,13 +39,6 @@ APEX_DISTANCE_MIN  = 80      # metros mínimos entre dos Apex consecutivos (era 
 APEX_THROTTLE_MAX  = 95.0    # % — en el apex real no se va al 100 %, pero sí se puede abrir un poco (era 85 %)
 
 
-<<<<<<< HEAD
-def _synthesize_coordinates_dead_reckoning(df: pd.DataFrame) -> pd.DataFrame:
-    """Synthesize CarCoordX and CarCoordY using dead reckoning if they are missing."""
-    if 'CarCoordX' in df.columns and 'CarCoordY' in df.columns:
-        return df
-
-=======
 _GPS_PAIRS = [
     ("Lat", "Lon"),
     ("GPSlat", "GPSlon"),
@@ -100,20 +93,10 @@ def _synthesize_coordinates_dead_reckoning(df: pd.DataFrame) -> pd.DataFrame:
                 df_new['CarCoordY'] = (lat - lat0) * _METERS_PER_DEG
                 return df_new
 
->>>>>>> origin/main
     if 'Speed' not in df.columns:
         return df
 
     speed_ms = pd.to_numeric(df['Speed'], errors='coerce').fillna(0) / 3.6
-<<<<<<< HEAD
-    time_col = next((c for c in ['LR Sample Clock', 'HR Sample Clock', 'MR Sample Clock', 'SessionTime', 'Session Time', 'Time', 'time'] if c in df.columns), None)
-    
-    if time_col:
-        t = pd.to_numeric(df[time_col], errors='coerce').ffill().bfill()
-        dt = t.diff().fillna(0).clip(lower=0, upper=0.5)
-    else:
-        dt = pd.Series(1.0 / 60.0, index=df.index)
-=======
 
     # Prefer computing dt from Distance/Speed so we don't depend on time channel
     # naming (the loader renames 'Time'→'LapTime', breaking time-based lookups).
@@ -133,7 +116,6 @@ def _synthesize_coordinates_dead_reckoning(df: pd.DataFrame) -> pd.DataFrame:
             dt = t.diff().fillna(0).clip(lower=0, upper=0.5)
         else:
             dt = pd.Series(1.0 / 60.0, index=df.index)
->>>>>>> origin/main
 
     heading_rate = None
     if 'YawRate' in df.columns:
@@ -141,14 +123,9 @@ def _synthesize_coordinates_dead_reckoning(df: pd.DataFrame) -> pd.DataFrame:
         if yr.abs().max() > 5.0:
             yr = np.deg2rad(yr)
         heading_rate = yr
-<<<<<<< HEAD
-    elif 'SteerAngle' in df.columns:
-        steer_deg = pd.to_numeric(df['SteerAngle'], errors='coerce').fillna(0)
-=======
     elif 'SteerAngle' in df.columns or 'SteeringWheelAngle' in df.columns:
         col = 'SteerAngle' if 'SteerAngle' in df.columns else 'SteeringWheelAngle'
         steer_deg = pd.to_numeric(df[col], errors='coerce').fillna(0)
->>>>>>> origin/main
         heading_rate = steer_deg * 0.003
 
     if heading_rate is None:
@@ -205,10 +182,6 @@ def procesar_geometria_pista_perfecta(df: pd.DataFrame) -> pd.DataFrame:
     dist_uniforme = np.arange(0, dist_max, RESAMPLE_STEP)
 
     # 2. Remuestreo lineal de las coordenadas horizontales al eje uniforme
-<<<<<<< HEAD
-    x_interp = np.interp(dist_uniforme, df["Distance"], df["CarCoordX"])
-    y_interp = np.interp(dist_uniforme, df["Distance"], df["CarCoordY"])
-=======
     # GPS channels may be sparse (e.g. 1 Hz vs 360 Hz telemetry) — use only
     # non-NaN rows so np.interp doesn't produce NaN-contaminated output.
     coord_mask = df["CarCoordX"].notna() & df["CarCoordY"].notna()
@@ -220,7 +193,6 @@ def procesar_geometria_pista_perfecta(df: pd.DataFrame) -> pd.DataFrame:
     y_c    = df.loc[coord_mask, "CarCoordY"].values
     x_interp = np.interp(dist_uniforme, dist_c, x_c)
     y_interp = np.interp(dist_uniforme, dist_c, y_c)
->>>>>>> origin/main
 
     # 3. Filtro Savitzky-Golay macroscópico
     #    Ventana de 75 m y grado 2: elimina el jitter del motor de física sin

@@ -12,12 +12,8 @@ from sklearn.linear_model import LinearRegression
 
 logger = logging.getLogger(__name__)
 
-<<<<<<< HEAD
-FUEL_CHANNELS = ["Fuel", "FuelLevel", "Fuel Level", "fuel_level", "FuelMass", "Fuel Mass"]
-=======
 FUEL_CHANNELS     = ["Fuel", "FuelLevel", "Fuel Level", "fuel_level", "FuelMass", "Fuel Mass"]
 MAX_FUEL_CHANNELS = ["Max Fuel", "MaxFuel", "max_fuel", "FuelCapacity", "Fuel Capacity"]
->>>>>>> origin/main
 TYRE_CHANNELS = {
     "FL": ["TyreTemp_FL", "Tyre Temp FL", "TyreTempFL"],
     "FR": ["TyreTemp_FR", "Tyre Temp FR", "TyreTempFR"],
@@ -293,17 +289,11 @@ def analizar_degradacion_stint(df_laps):
     return result
 
 
-<<<<<<< HEAD
-def calcular_estrategia_combustible(df_laps):
-    """
-    Computes per-lap consumption, std, and safe pit window (95th percentile).
-=======
 def calcular_estrategia_combustible(df_laps, dfs: list | None = None):
     """
     Computes per-lap consumption, std, and safe pit window (95th percentile).
     If dfs (raw per-lap DataFrames) is provided, also reads Max Fuel for
     tank-relative metrics.
->>>>>>> origin/main
     """
     valid = df_laps[_racing_laps_mask(df_laps)].dropna(subset=["fuel_burned"])
     if valid.empty or valid["fuel_burned"].abs().sum() < 0.01:
@@ -312,10 +302,7 @@ def calcular_estrategia_combustible(df_laps, dfs: list | None = None):
     consumo_medio = float(valid["fuel_burned"].mean())
     consumo_std   = float(valid["fuel_burned"].std()) if len(valid) > 1 else 0.0
     combustible_actual = float(df_laps["fuel_end"].dropna().iloc[-1]) if not df_laps["fuel_end"].isna().all() else 0.0
-<<<<<<< HEAD
-=======
     combustible_inicio = float(df_laps["fuel_start"].dropna().iloc[0]) if not df_laps["fuel_start"].isna().all() else 0.0
->>>>>>> origin/main
 
     consumo_conservador = consumo_medio + FUEL_SIGMA_SCALE * consumo_std if len(valid) > 3 else consumo_medio
     consumo_optimista   = max(0.01, consumo_medio - consumo_std * 0.5)
@@ -324,13 +311,6 @@ def calcular_estrategia_combustible(df_laps, dfs: list | None = None):
     vueltas_max = int(combustible_actual // consumo_optimista)   if consumo_optimista   > 0 else 0
     vuelta_actual = int(df_laps["lap_number"].max())
 
-<<<<<<< HEAD
-    return {
-        "available":             True,
-        "consumo_medio_l":       round(consumo_medio, 3),
-        "consumo_std_l":         round(consumo_std, 3),
-        "combustible_actual_l":  round(combustible_actual, 2),
-=======
     # Per-lap trend: positive slope = consumption increasing (fuel weight effect or tyre/track changes)
     trend = None
     if len(valid) >= 4:
@@ -345,15 +325,10 @@ def calcular_estrategia_combustible(df_laps, dfs: list | None = None):
         "combustible_inicio_l":  round(combustible_inicio, 2),
         "combustible_actual_l":  round(combustible_actual, 2),
         "combustible_usado_l":   round(combustible_inicio - combustible_actual, 2),
->>>>>>> origin/main
         "vueltas_restantes_min": vueltas_min,
         "vueltas_restantes_max": vueltas_max,
         "pit_window":            [max(0, vuelta_actual + vueltas_min - 1), vuelta_actual + vueltas_max],
         "fuel_per_lap":          valid[["lap_number", "fuel_burned"]].to_dict(orient="records"),
-<<<<<<< HEAD
-    }
-
-=======
         "trend_l_per_lap":       trend,
     }
 
@@ -373,7 +348,6 @@ def calcular_estrategia_combustible(df_laps, dfs: list | None = None):
 
     return result
 
->>>>>>> origin/main
 
 def simular_tiempos_stint(df_laps, degradacion, seed=42):
     """
@@ -411,8 +385,6 @@ def simular_tiempos_stint(df_laps, degradacion, seed=42):
         "p75":  [round(float(v), 3) for v in np.percentile(sims, 75,  axis=0)],
         "p90":  [round(float(v), 3) for v in np.percentile(sims, 90,  axis=0)],
     }
-<<<<<<< HEAD
-=======
 
 
 def calcular_evolucion_pista(df_laps: pd.DataFrame) -> dict:
@@ -444,4 +416,3 @@ def calcular_evolucion_pista(df_laps: pd.DataFrame) -> dict:
         "note": note,
         "per_lap": per_lap,
     }
->>>>>>> origin/main

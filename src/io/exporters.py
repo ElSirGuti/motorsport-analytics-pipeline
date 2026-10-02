@@ -316,8 +316,6 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
                 lines.append("  " + t("export_slip_more_slide", lang=lang, more=more_slide, delta=f"{abs(diff_beta):.1f}"))
                 lines.append("")
 
-<<<<<<< HEAD
-=======
     # ── Thermal Management ────────────────────────────────────────────────
     thermal = comparison_result.get("thermal_analysis", {})
     if thermal.get("available"):
@@ -420,7 +418,6 @@ def export_report_text(comparison_result: dict, filepath: str = None, lang: str 
                 lines.append("")
         lines.append("")
 
->>>>>>> origin/main
     # ── Detailed corner analysis ──────────────────────────────────────────
     lines.append("─── " + t("export_corner_detail", lang=lang) + " ───")
     lines.append("")

@@ -3,15 +3,6 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-<<<<<<< HEAD
-import { setCursorDistance } from '../api/cursorStore';
-import { useLanguage } from '../context/LanguageContext';
-
-const COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
-
-const SpeedChart = ({ data, zoomDomain, onChartClick }) => {
-  const { t } = useLanguage();
-=======
 import { useCursorWriter } from '../hooks/useCursorWriter';
 
 const COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'];
@@ -19,7 +10,6 @@ const COLORS = ['#00D4FF', '#FF3D3D', '#00E676', '#FFB300', '#FF69B4', '#A78BFA'
 // labels: translations object passed from parent
 const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
   const cursorHandlers = useCursorWriter();
->>>>>>> origin/main
   const chartData = useMemo(() => {
     if (!data?.distance) return [];
     const rows = data.distance.map((dist, i) => {
@@ -39,11 +29,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
       <div className="chart-card">
         <div className="chart-empty">
           <span className="chart-empty__icon">◌</span>
-<<<<<<< HEAD
-          {t.speedNoData}
-=======
           {labels?.speedNoData ?? ''}
->>>>>>> origin/main
         </div>
       </div>
     );
@@ -57,11 +43,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
       <div className="chart-header">
         <div className="chart-title">
           <span>⚡</span>
-<<<<<<< HEAD
-          {t.speedTitle}
-=======
           {labels?.speedTitle ?? ''}
->>>>>>> origin/main
         </div>
         {zoomDomain && (
           <span className="chart-zoom-badge">
@@ -75,12 +57,7 @@ const SpeedChart = ({ data, zoomDomain, onChartClick, labels }) => {
             data={chartData}
             margin={{ top: 6, right: 12, left: -16, bottom: 0 }}
             syncId="distanceSync"
-<<<<<<< HEAD
-            onMouseMove={(state) => { if (state?.activeLabel != null) setCursorDistance(state.activeLabel); }}
-            onMouseLeave={() => setCursorDistance(null)}
-=======
             {...cursorHandlers}
->>>>>>> origin/main
             onClick={(state) => { if (state?.activeLabel != null) onChartClick?.(state.activeLabel); }}
           >
             <CartesianGrid strokeDasharray="3 3" vertical={false} />

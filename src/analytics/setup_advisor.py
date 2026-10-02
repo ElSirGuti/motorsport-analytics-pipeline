@@ -16,11 +16,6 @@ _PRIORITY_RANK = {"alta": 0, "media": 1, "baja": 2}
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-<<<<<<< HEAD
-def _rec(category: str, problem: str, root_cause: str, recommendation: str,
-         gain_lo: float, gain_hi: float, priority: str,
-         detail: str = "", solves: str = "") -> dict:
-=======
 _PILOT_NOTE_MAP: dict[str, str] = {
     # Understeer
     "setup_problem_understeer":              "Car is pushing wide — try a later apex and smoother steering inputs",
@@ -60,7 +55,6 @@ def _rec(category: str, problem: str, root_cause: str, recommendation: str,
          gain_lo: float, gain_hi: float, priority: str,
          detail: str = "", solves: str = "",
          _problem_key: str = "") -> dict:
->>>>>>> origin/main
     return {
         "category":      category,
         "problem":       problem,
@@ -72,10 +66,7 @@ def _rec(category: str, problem: str, root_cause: str, recommendation: str,
         "gain_lo":       gain_lo,
         "gain_hi":       gain_hi,
         "priority":      priority,
-<<<<<<< HEAD
-=======
         "pilot_note":    _pilot_note_for(_problem_key),
->>>>>>> origin/main
     }
 
 
@@ -93,10 +84,7 @@ def _rec_t(t_cat, t_prob, t_rc, t_rec, t_det, t_sol,
         detail=_tr(t_det, lang=lang, **t_fmt) if t_det else "",
         solves=_tr(t_sol, lang=lang, **t_fmt) if t_sol else "",
         gain_lo=gain_lo, gain_hi=gain_hi, priority=priority,
-<<<<<<< HEAD
-=======
         _problem_key=t_prob,
->>>>>>> origin/main
     )
 
 
@@ -124,11 +112,7 @@ def _analyse_tyres(result: dict, lang: str = "es") -> list:
             outer  = c.get("outer")
             status = c.get("window_status", "optima")
             surf   = c.get("surface_mean") or 0
-<<<<<<< HEAD
-            axle   = "Delantero" if pos in ("FL", "FR") else "Trasero"
-=======
             axle   = "Front" if pos in ("FL", "FR") else "Rear"
->>>>>>> origin/main
 
             # Camber diagnosis (inner vs outer gradient)
             if inner is not None and outer is not None:
@@ -530,8 +514,6 @@ def _corner_priority(result: dict, top_n: int = 8, lang: str = "es") -> list:
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-<<<<<<< HEAD
-=======
 _DOMAIN_LABELS = {
     "tyres":      "Tyres",
     "brakes":     "Brakes",
@@ -542,21 +524,10 @@ _DOMAIN_LABELS = {
 }
 
 
->>>>>>> origin/main
 def analizar_setup(result: dict, lang: str = "es") -> dict:
     """
     Analyse all available telemetry sections and return structured setup
     recommendations with priority ordering and estimated time gains.
-<<<<<<< HEAD
-    """
-    recs = []
-    recs += _analyse_tyres(result, lang=lang)
-    recs += _analyse_brakes(result, lang=lang)
-    recs += _analyse_suspension(result, lang=lang)
-    recs += _analyse_slip(result, lang=lang)
-    recs += _analyse_inputs(result, lang=lang)
-    recs += _analyse_corners(result, lang=lang)
-=======
     Always returns areas_status for every analyzed domain (nominal when no issues found).
     """
     domain_recs = {
@@ -598,7 +569,6 @@ def analizar_setup(result: dict, lang: str = "es") -> dict:
                 "status":   "nominal",
                 "n_issues": 0,
             })
->>>>>>> origin/main
 
     # De-duplicate by (category + problem) and keep highest-priority version
     seen: dict = {}
@@ -616,20 +586,12 @@ def analizar_setup(result: dict, lang: str = "es") -> dict:
         len(recs), gain_lo, gain_hi
     )
     return {
-<<<<<<< HEAD
-        "available":       bool(recs),
-        "recommendations": recs,
-        "corner_priority": _corner_priority(result, lang=lang),
-        "total_gain_lo":   gain_lo,
-        "total_gain_hi":   gain_hi,
-=======
         "available":        bool(recs or areas_status),
         "recommendations":  recs,
         "areas_status":     areas_status,
         "corner_priority":  _corner_priority(result, lang=lang),
         "total_gain_lo":    gain_lo,
         "total_gain_hi":    gain_hi,
->>>>>>> origin/main
         "total_gain_range": f"{gain_lo:.2f}–{gain_hi:.2f}",
     }
 

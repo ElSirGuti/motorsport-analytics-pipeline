@@ -36,41 +36,16 @@ def _describe_corner(num: int, loss: float, brake: float,
     return t("sess_curve_format", lang=lang, num=num, parts=", ".join(parts))
 
 
-<<<<<<< HEAD
-def analizar_curvas_sesion(dfs: list, df_laps, lang: str = "es") -> dict:
-    """
-    Compare each non-pit flying lap against the fastest (reference) lap.
-
-    Args:
-        dfs:     List of per-lap DataFrames (same order as df_laps rows).
-        df_laps: DataFrame from extraer_metricas_por_vuelta — must have columns
-                 is_pit_lap, lap_time_s, lap_number (optional), lap_time_str (optional).
-
-    Returns:
-        {
-            "available": bool,
-            "corners":   [per-corner aggregated dict],   # same shape as compare_laps
-            "total_loss": float,
-            "reference_lap": int,
-            "n_laps_compared": int,
-        }
-    """
-    # Deferred imports to avoid circular deps and keep module load fast
-=======
 def get_corner_observations(dfs: list, df_laps) -> dict:
     """
     Extract per-lap, per-corner raw observations without aggregating.
     Returns {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
     Exposed so the RL module can reuse alignments already computed here.
     """
->>>>>>> origin/main
     from src.processing.alignment import align_pair
     from src.telemetry.lap_comparator import _estimate_corner_time_loss
     from src.telemetry.metrics import segment_corners
 
-<<<<<<< HEAD
-    # ── Identify reference (fastest non-pit) lap ──────────────────────────────
-=======
     flying_mask = ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
     flying = df_laps[flying_mask]
     if len(flying) < 2:
@@ -116,7 +91,6 @@ def analizar_curvas_sesion(
         lang:             Language code for description strings.
         precomputed_obs:  If provided (from get_corner_observations), skip re-aligning.
     """
->>>>>>> origin/main
     flying_mask = ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
     flying = df_laps[flying_mask]
 
@@ -125,11 +99,6 @@ def analizar_curvas_sesion(
         return {"available": False}
 
     ref_idx = int(flying["lap_time_s"].idxmin())
-<<<<<<< HEAD
-    ref_df = dfs[ref_idx]
-
-=======
->>>>>>> origin/main
     ref_lap_num = (
         int(df_laps.loc[ref_idx, "lap_number"])
         if "lap_number" in df_laps.columns
@@ -145,37 +114,6 @@ def analizar_curvas_sesion(
         ref_lap_num, ref_time_str, len(flying) - 1,
     )
 
-<<<<<<< HEAD
-    # ── Accumulate per-corner across all other laps ───────────────────────────
-    corner_data: dict = defaultdict(list)
-
-    for idx in flying.index:
-        if idx == ref_idx:
-            continue
-        lap_df = dfs[idx]
-        try:
-            aligned_a, aligned_b = align_pair(ref_df, lap_df)
-            corners_a = segment_corners(aligned_a)
-            corners_b = segment_corners(aligned_b)
-            n = min(len(corners_a), len(corners_b))
-
-            for i in range(n):
-                ca = corners_a[i]
-                cb = corners_b[i]
-                tl = _estimate_corner_time_loss(aligned_a, aligned_b, ca, cb)
-                bd = cb["braking_point"]["distance"] - ca["braking_point"]["distance"]
-                ad = cb["apex"]["speed"] - ca["apex"]["speed"]
-                td = cb["full_throttle"]["distance"] - ca["full_throttle"]["distance"]
-
-                corner_data[i + 1].append({
-                    "time_loss":      float(tl),
-                    "brake_delta":    float(bd),
-                    "apex_delta":     float(ad),
-                    "throttle_delta": float(td),
-                })
-        except Exception as exc:
-            logger.debug("session_corner_analysis: idx=%d falló: %s", idx, exc)
-=======
     # ── Use pre-computed or compute fresh ────────────────────────────────────
     if precomputed_obs:
         # Translate from {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
@@ -216,7 +154,6 @@ def analizar_curvas_sesion(
                     })
             except Exception as exc:
                 logger.debug("session_corner_analysis: idx=%d falló: %s", idx, exc)
->>>>>>> origin/main
 
     if not corner_data:
         logger.info("session_corner_analysis: sin datos de curvas — omitido")

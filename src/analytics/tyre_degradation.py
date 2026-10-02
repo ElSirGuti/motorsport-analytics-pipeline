@@ -12,19 +12,6 @@ logger = logging.getLogger(__name__)
 
 # Channel name candidates ---------------------------------------------------
 _TYRE_CORE: dict = {
-<<<<<<< HEAD
-    'FL': ['TyreTempCore_FL', 'TyreTemp_CoreFL', 'Tyre Temp Core FL',
-           'TyreTempFL', 'Tyre Temp FL', 'TyreTempInnerFL', 'Tyre Temp Inner FL'],
-    'FR': ['TyreTempCore_FR', 'TyreTemp_CoreFR', 'Tyre Temp Core FR',
-           'TyreTempFR', 'Tyre Temp FR', 'TyreTempInnerFR', 'Tyre Temp Inner FR'],
-    'RL': ['TyreTempCore_RL', 'TyreTemp_CoreRL', 'Tyre Temp Core RL',
-           'TyreTempRL', 'Tyre Temp RL', 'TyreTempInnerRL', 'Tyre Temp Inner RL'],
-    'RR': ['TyreTempCore_RR', 'TyreTemp_CoreRR', 'Tyre Temp Core RR',
-           'TyreTempRR', 'Tyre Temp RR', 'TyreTempInnerRR', 'Tyre Temp Inner RR'],
-}
-_LAT_G  = ['LateralAcc', 'Lateral Acc', 'LateralG', 'Lateral G', 'G Force Lat']
-_LONG_G = ['LongitudinalAcc', 'Longitudinal Acc', 'LongitudinalG', 'G Force Long']
-=======
     # iRacing native: LFtempCM/LFtempM = centre-strip (most representative)
     # MoTeC export names: "Tyre Temp FL Centre / Inner / Outer"
     'FL': ['Tyre Temp FL Centre', 'LFtempCM', 'LFtempM',
@@ -49,7 +36,6 @@ _TYRE_PRES: dict = {
 _LAT_G  = ['LateralG', 'Lateral G', 'G Force Lat', 'LatAccel', 'LateralAcc', 'Lateral Acc']
 _LONG_G = ['LongitudinalG', 'Longitudinal G', 'G Force Long', 'LongAccel',
            'LongitudinalAcc', 'Longitudinal Acc']
->>>>>>> origin/main
 _SPEED  = ['Speed', 'Ground Speed', 'GPS Speed', 'VehicleSpeed']
 
 _OPT_MIN = 75.0   # °C — lower bound of optimal tyre window
@@ -83,8 +69,6 @@ def _lap_features(df) -> dict:
             feat[f'temp_{key}']   = np.nan
             feat[f'stress_{key}'] = np.nan
 
-<<<<<<< HEAD
-=======
     for pos, cands in _TYRE_PRES.items():
         ch = _col(df, cands)
         key = pos.lower()
@@ -94,7 +78,6 @@ def _lap_features(df) -> dict:
         else:
             feat[f'pres_{key}'] = np.nan
 
->>>>>>> origin/main
     lat_ch = _col(df, _LAT_G)
     feat['mean_lat_g'] = float(df[lat_ch].abs().dropna().mean()) if lat_ch else np.nan
 
@@ -173,28 +156,16 @@ def predecir_degradacion_neumatico(dfs: list, df_laps) -> dict:
 
     rec_df = pd.DataFrame(records)
     feat_cols = [c for c in rec_df.columns if c not in ('lap_time_s', 'delta_vs_best')]
-<<<<<<< HEAD
-=======
     # Drop entirely-NaN columns — sklearn imputer emits a warning and skips them anyway
     feat_cols = [c for c in feat_cols if rec_df[c].notna().any()]
     if not feat_cols:
         feat_cols = ['lap_number']   # always available fallback
 
->>>>>>> origin/main
     X = rec_df[feat_cols].values.astype(float)
     y = rec_df['delta_vs_best'].values
 
     # ── Fit model ───────────────────────────────────────────────────────────
     degree = 2 if len(records) >= 6 else 1
-<<<<<<< HEAD
-    pipeline = Pipeline([
-        ('imputer', SimpleImputer(strategy='median')),
-        ('scaler',  StandardScaler()),
-        ('poly',    PolynomialFeatures(degree=degree, include_bias=False)),
-        ('model',   Ridge(alpha=1.0)),
-    ])
-    pipeline.fit(X, y)
-=======
     import warnings as _warnings
     with _warnings.catch_warnings():
         _warnings.simplefilter('ignore')
@@ -205,7 +176,6 @@ def predecir_degradacion_neumatico(dfs: list, df_laps) -> dict:
             ('model',   Ridge(alpha=1.0)),
         ])
         pipeline.fit(X, y)
->>>>>>> origin/main
 
     # ── Linear trend on delta (for projection) ──────────────────────────────
     lap_arr    = rec_df['lap_number'].values.astype(float)
@@ -265,11 +235,7 @@ def predecir_degradacion_neumatico(dfs: list, df_laps) -> dict:
         valid = [c for c in cols if c in rec_df.columns and not rec_df[c].isna().all()]
         if not valid or len(lap_arr) < 2:
             return None
-<<<<<<< HEAD
-        temps = rec_df[valid].mean(axis=1).fillna(method='bfill').fillna(method='ffill').values
-=======
         temps = rec_df[valid].mean(axis=1).bfill().ffill().values
->>>>>>> origin/main
         return float(np.polyfit(lap_arr, temps, 1)[0])
 
     front_trend = _temp_trend(['temp_fl', 'temp_fr'])
