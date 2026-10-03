@@ -60,6 +60,10 @@ CORS is involved. In development the frontend still calls `http://localhost:8000
 | `AC_SETUPS_DIR` | backend | Assetto Corsa setups folder | usually unset; optional read-only bind mount |
 | `UVICORN_WORKERS` | container entrypoint | n/a | `1` |
 | `RUN_MIGRATIONS` | container entrypoint | n/a | `1` in compose runs `alembic upgrade head` on start |
+| `UPLOAD_DIR` | backend | `<STORAGE_DIR>/uploads` if `STORAGE_DIR` is set, else `<TEMP_DIR>/uploads` | unset (uses the `storage` volume / PVC) |
+| `UPLOAD_TTL_HOURS` | backend | `24` | uploads unused for this long are deleted |
+| `SESSION_CACHE_MAX_MB` | backend | `1024` | per process; keep below the pod memory limit minus one analysis |
+| `SESSION_CACHE_TTL_MIN` | backend | `60` | idle time before a parsed session leaves memory |
 
 `MAX_UPLOAD_MB` is enforced for real: the backend rejects an upload larger than the limit with
 HTTP 413 (translated message, partial file deleted) while streaming it to disk, and rejects
@@ -180,6 +184,27 @@ kubectl -n motorsport get pods -w
 5. `kubectl apply -k k8s/overlays/prod`
 
 Render without applying: `kubectl kustomize k8s/overlays/prod`.
+
+### Upload once (`file_id`) and the analysis cache
+
+The UI uploads a session file once with `POST /api/files` and the analysis endpoints
+(`analyze-session`, `stint/analyze`, `optimal-lap`, `compare-session-laps`, `telemetry/analyze`,
+`setups/detect`) accept the returned `file_id` (the SHA-256 of the content) instead of the file.
+Sending the file as before still works.
+
+- **Disk is the source of truth, memory is a cache.** The file lives in `UPLOAD_DIR` (default: the
+  `storage` volume in the container images). Each process keeps parsed/filtered DataFrames in an LRU
+  bounded by `SESSION_CACHE_MAX_MB` with a `SESSION_CACHE_TTL_MIN` idle TTL; callers get private copies.
+- **Several replicas.** Memory is never shared between pods/workers. If a replica does not have the
+  frames it re-parses the stored file (a few seconds for a large CSV, then cached locally). That only
+  works if all replicas see the same `UPLOAD_DIR`: use an RWX volume (or sticky sessions). Without a
+  shared volume, a request that lands on a replica that never received the upload gets **HTTP 410**
+  (translated message) and the UI uploads the file again and retries once, so it is slower but correct.
+- **Cleanup.** Uploads older than `UPLOAD_TTL_HOURS` (by last use) are removed by a throttled
+  background thread. Size the volume for roughly `uploads per day x file size`. If `UPLOAD_DIR` falls
+  back to `TEMP_DIR` on a tmpfs, those files count against the pod memory.
+- Analysis endpoints run in the thread pool (they no longer block the event loop); simultaneous
+  requests for the same file parse it once (lock per cache key).
 
 ## What is production-ready and what is NOT
 

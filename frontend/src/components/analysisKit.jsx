@@ -1,17 +1,17 @@
 /* eslint-disable react-refresh/only-export-components -- shared chart constants and helpers */
 import styles from './Analysis.module.css';
 
-export const COLOR_A = '#4da3ff'; // --lap-a
-export const COLOR_B = '#f0616d'; // --lap-b
-export const COLOR_C = '#3dd68c';
-export const COLOR_D = '#f5a524';
-export const COLOR_E = '#c084fc';
-export const COLOR_F = '#2dd4bf';
+export const COLOR_A = 'var(--lap-a)';
+export const COLOR_B = 'var(--lap-b)';
+export const COLOR_C = 'var(--lap-c)';
+export const COLOR_D = 'var(--lap-d)';
+export const COLOR_E = 'var(--lap-e)';
+export const COLOR_F = 'var(--lap-f)';
 
-export const AXIS_TICK = { fontSize: 11, fill: '#6f7a8a' };
-export const AXIS_LINE = { stroke: '#323b48' };
-export const GRID_PROPS = { stroke: '#262d38', strokeDasharray: '3 3', vertical: false };
-export const REF_ZERO = '#4a5361';
+export const AXIS_TICK = { fontSize: 11, fill: 'var(--ink-3)' };
+export const AXIS_LINE = { stroke: 'var(--line-strong)' };
+export const GRID_PROPS = { stroke: 'var(--line)', strokeDasharray: '3 3', vertical: false };
+export const REF_ZERO = 'var(--ink-4)';
 export const CHART_MARGIN = { top: 6, right: 12, bottom: 0, left: 0 };
 export const fmtDist = (v) => `${Number(v).toFixed(0)} m`;
 

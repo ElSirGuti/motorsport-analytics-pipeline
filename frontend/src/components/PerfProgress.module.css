@@ -1,0 +1,32 @@
+/* Stage progress (upload / session / stint / optimal lap) and the stint loading skeleton. */
+.wrap { margin: 16px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-0); }
+.track { height: 4px; border-radius: 2px; background: var(--surface-3); overflow: hidden; margin-bottom: 12px; }
+.fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.25s ease; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.step { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--ink-3); }
+.step[data-state='running'] { color: var(--ink-1); }
+.step[data-state='done'] { color: var(--ink-2); }
+.step[data-state='error'] { color: var(--bad); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--surface-3); flex-shrink: 0; }
+.step[data-state='running'] .dot { background: var(--accent); animation: perfPulse 1.1s ease-in-out infinite; }
+.step[data-state='done'] .dot { background: var(--ok); }
+.step[data-state='error'] .dot { background: var(--bad); }
+.pct { font-variant-numeric: tabular-nums; color: var(--ink-3); }
+.hint { margin-top: 8px; font-size: var(--fs-xs); color: var(--ink-3); }
+
+.skeleton { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-0); padding: 16px; display: grid; gap: 12px; }
+.skTitle { font-size: var(--fs-sm); color: var(--ink-1); display: flex; align-items: center; gap: 10px; }
+.skSub { font-size: var(--fs-xs); color: var(--ink-3); margin-top: -6px; }
+.skChart, .skRow { border-radius: var(--radius-sm); background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: perfShimmer 1.4s linear infinite; }
+.skChart { height: 180px; }
+.skRow { height: 14px; }
+.skRow:nth-child(odd) { width: 86%; }
+.skRow:nth-child(even) { width: 64%; }
+
+@keyframes perfPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes perfShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .dot, .skChart, .skRow { animation: none !important; }
+  .fill { transition: none; }
+}
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

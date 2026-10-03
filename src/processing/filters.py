@@ -74,7 +74,7 @@ def remove_outliers(series: pd.Series, z_threshold: float = 3.0) -> pd.Series:
     return series
 
 
-def apply_standard_filters(df: pd.DataFrame) -> pd.DataFrame:
+def apply_standard_filters(df: pd.DataFrame, deep: bool = True) -> pd.DataFrame:
     """
     Aplica filtros estándar recomendados a un DataFrame de telemetría.
     
@@ -84,11 +84,16 @@ def apply_standard_filters(df: pd.DataFrame) -> pd.DataFrame:
     
     Args:
         df: DataFrame de telemetría.
+        deep: True (default) devuelve un DataFrame totalmente independiente. False comparte los
+              arrays de los canales no filtrados con ``df`` (ahorra ~60 MB en una sesión larga);
+              solo es seguro si ni ``df`` ni el resultado se modifican in situ (lo usa la caché).
     
     Returns:
         DataFrame con filtros aplicados.
     """
-    df = df.copy()
+    # deep=False: only the handful of filtered columns are replaced below (``df[col] = ...``
+    # never writes into the shared arrays), so the other ~160 channels are not duplicated.
+    df = df.copy(deep=deep)
     
     # Suavizar canales ruidosos
     g_channels = ["LateralG", "LongitudinalG"]

@@ -274,6 +274,11 @@ def _resolve_meta(session: Optional[dict], stint: Optional[dict], comp: Optional
                 if v not in (None, ""):
                     merged[k] = v
     venue = prettify_name(merged.get("venue"))
+    for _src in (comp, stint, session):  # recognised circuit (length confirmed) -> its proper name
+        _circ = _get(_src, "circuit")
+        if isinstance(_circ, dict) and _circ.get("matched") and _circ.get("name"):
+            venue = str(_circ["name"])
+            break
     vehicle_raw = merged.get("vehicle")
     if not vehicle_raw:
         for k in ("vehicle_a", "vehicle_fast"):
@@ -585,7 +590,7 @@ def _corners_session(ctx: Ctx) -> list[dict]:
     out = []
     for c in cs.get("corners", []) or []:
         out.append({
-            "n": c.get("corner_number"), "loss": c.get("time_loss_seconds"),
+            "n": c.get("corner_number"), "name": c.get("corner_name"), "loss": c.get("time_loss_seconds"),
             "sigma": c.get("std_loss_seconds"),
             "brake": c.get("braking_delta_meters") if c.get("braking_available", True) else None,
             "apex": c.get("apex_speed_delta_kmh") if c.get("apex_available", True) else None,
@@ -598,12 +603,27 @@ def _corners_compare(ctx: Ctx) -> list[dict]:
     out = []
     for c in _get(ctx.comp, "corners", default=[]) or []:
         out.append({
-            "n": c.get("corner_number"), "loss": c.get("time_loss_seconds"), "sigma": None,
+            "n": c.get("corner_number"), "name": c.get("corner_name"), "loss": c.get("time_loss_seconds"), "sigma": None,
             "brake": c.get("braking_delta_meters") if c.get("braking_delta_available", True) else None,
             "apex": c.get("apex_speed_delta_kmh"),
             "throttle": c.get("throttle_delta_meters") if c.get("throttle_delta_available", True) else None,
         })
     return sorted([c for c in out if c["n"] is not None], key=lambda c: c["n"])
+
+
+def _clabel(c: dict, markup: bool = True) -> str:
+    """'4 · Tamburello' when the circuit was recognised, otherwise just the number."""
+    name = str(c.get("name") or "").strip()
+    label = f"{c['n']} · {name}" if name else str(c["n"])
+    return esc(label) if markup else label
+
+
+def _name_of(n, corners: list) -> str:
+    """Corner label for a bare corner number, looked up in a corner list."""
+    for c in corners or []:
+        if c.get("n") == n:
+            return _clabel(c, markup=False)
+    return str(n)
 
 
 def _dominant_phase(c: dict) -> Optional[str]:
@@ -734,7 +754,7 @@ def _conclusions_session(ctx: Ctx, laps, pace, corners) -> list[str]:
         parts = []
         for c in top:
             ph = _dominant_phase(c)
-            parts.append(t("pdf_c_corner_item", n=c["n"], loss=N(c["loss"], 3, True),
+            parts.append(t("pdf_c_corner_item", n=_clabel(c), loss=N(c["loss"], 3, True),
                            phase=t(ph).lower() if ph else t("pdf_phase_none")))
         out.append(t("pdf_c_worst_corners", items="; ".join(parts)))
     elif corners:
@@ -755,7 +775,7 @@ def _conclusions_session(ctx: Ctx, laps, pace, corners) -> list[str]:
     if sig_corners:
         worst = max(sig_corners, key=lambda c: c["sigma"])
         if worst["sigma"] >= 0.15:
-            out.append(t("pdf_c_inconsistent_corner", n=worst["n"], s=N(worst["sigma"], 2)))
+            out.append(t("pdf_c_inconsistent_corner", n=_clabel(worst), s=N(worst["sigma"], 2)))
     fuel = _get(ctx.stint, "combustible", default={}) or {}
     if _avail(fuel) and _fin(fuel.get("consumo_medio_l")):
         out.append(t("pdf_c_fuel", rate=N(fuel["consumo_medio_l"], 2),
@@ -788,12 +808,12 @@ def _conclusions_compare(ctx: Ctx, corners) -> list[str]:
         parts = []
         for c in top:
             ph = _dominant_phase(c)
-            parts.append(t("pdf_c_corner_item", n=c["n"], loss=N(c["loss"], 3, True),
+            parts.append(t("pdf_c_corner_item", n=_clabel(c), loss=N(c["loss"], 3, True),
                            phase=t(ph).lower() if ph else t("pdf_phase_none")))
         out.append(t("pdf_c_worst_corners", items="; ".join(parts)))
     gains = sorted([c for c in corners if _fin(c.get("loss")) and c["loss"] < -0.02], key=lambda c: c["loss"])[:2]
     if gains:
-        out.append(t("pdf_c_cmp_gains", items=", ".join(f"{t('pdf_corner_short', n=c['n'])} ({N(c['loss'], 3, True)} s)"
+        out.append(t("pdf_c_cmp_gains", items=", ".join(f"{t('pdf_corner_short', n=_clabel(c))} ({N(c['loss'], 3, True)} s)"
                                                        for c in gains), b=esc(ctx.lb)))
     brake = _get(ctx.comp, "brake_analysis", default={}) or {}
     if _avail(brake):
@@ -829,7 +849,7 @@ def _actions(ctx: Ctx, corners: list[dict]) -> list[str]:
             ph = _dominant_phase(c)
             if not ph:
                 continue
-            acts.append(esc(t("pdf_a_corner", n=c["n"], focus=t(_PHASE_FOCUS[ph]), loss=N(abs(c["loss"]), 3))))
+            acts.append(esc(t("pdf_a_corner", n=_clabel(c, markup=False), focus=t(_PHASE_FOCUS[ph]), loss=N(abs(c["loss"]), 3))))
     if len(acts) < 3 and ctx.session and not ctx.stint:
         acts.append(t("pdf_a_run_stint"))
     return acts[:3]
@@ -898,7 +918,7 @@ def _exec_summary(ctx: Ctx, laps, pace, corners_s, corners_c) -> list:
         wc = summ.get("worst_corner")
         wl = summ.get("worst_corner_loss")
         tiles.append(_tile(S, t("pdf_k_worst_corner"),
-                           esc(t("pdf_corner_short", n=wc)) if wc not in (None, 0, "") else "—",
+                           esc(t("pdf_corner_short", n=_name_of(wc, corners_c))) if wc not in (None, 0, "") else "—",
                            _loss_markup(wl, 3, 0.0005, " s") if wc not in (None, 0, "") else ""))
         corners = corners_c
         concl = _conclusions_compare(ctx, corners_c)
@@ -973,9 +993,10 @@ def _priority_table(ctx: Ctx, corners: list[dict]) -> list:
     rows = [[t("pdf_th_corner"), t("pdf_th_loss"), t("pdf_th_phase"), t("pdf_th_focus")]]
     for c in top:
         ph = _dominant_phase(c)
-        rows.append([f"<b>{esc(c['n'])}</b>", _loss_markup(c["loss"]), esc(t(ph)) if ph else "—",
+        rows.append([f"<b>{_clabel(c)}</b>", _loss_markup(c["loss"]), esc(t(ph)) if ph else "—",
                      esc(t(_PHASE_FOCUS[ph])) if ph else "—"])
-    el.append(make_table(S, rows, [2.0, 2.6, 3.4, 9.4], num_cols=(0, 1)))
+    named = any(c.get("name") for c in top)
+    el.append(make_table(S, rows, [4.2, 2.6, 3.4, 7.2] if named else [2.0, 2.6, 3.4, 9.4], num_cols=(0, 1)))
     return el
 
 
@@ -1010,7 +1031,7 @@ def _section_corners(ctx: Ctx, corners: list[dict], kind: str) -> list:
     for c in corners:
         ph = _dominant_phase(c)
         full = [
-            f"<b>{esc(c['n'])}</b>", _loss_markup(c["loss"]),
+            f"<b>{_clabel(c)}</b>", _loss_markup(c["loss"]),
             N(c.get("sigma"), 2) if use_sigma else "",
             N(c.get("brake"), 0, True) if _fin(c.get("brake")) and abs(c["brake"]) >= 0.5 else "—",
             N(c.get("apex"), 1, True) if _fin(c.get("apex")) and abs(c["apex"]) >= 0.05 else "—",
@@ -1020,6 +1041,8 @@ def _section_corners(ctx: Ctx, corners: list[dict], kind: str) -> list:
         ]
         rows.append([full[i] for i in cols])
     widths_full = [1.6, 1.9, 1.4, 1.9, 1.9, 1.9, 2.2, 5.2]
+    if any(c.get("name") for c in corners):  # room for "4 · Tamburello"; the reading column absorbs it
+        widths_full = [3.6, 1.9, 1.4, 1.8, 1.8, 1.8, 2.1, 3.6]
     widths = [widths_full[i] for i in cols]
     nums = [k for k, i in enumerate(cols) if i in (0, 1, 2, 3, 4, 5)]
     phase_col = cols.index(6)

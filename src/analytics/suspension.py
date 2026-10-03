@@ -44,30 +44,22 @@ def _bottoming_events(distance: pd.Series, travel: pd.Series,
     if max_t < 1.0:
         return []
     threshold = max_t * BOTTOM_FRACTION
-    bottoming = travel_smooth >= threshold
-    events, in_ev, start_idx = [], False, 0
-
-    for i in range(len(bottoming)):
-        if bottoming.iloc[i] and not in_ev:
-            in_ev, start_idx = True, i
-        elif not bottoming.iloc[i] and in_ev:
-            in_ev = False
-            start_m = float(distance.iloc[start_idx])
-            end_m   = float(distance.iloc[i - 1])
-            if end_m - start_m >= MIN_DURATION_M:
-                seg_max = float(travel_smooth.iloc[start_idx:i].max())
-                events.append({
-                    "corner":     corner_label,
-                    "start_m":    round(start_m, 0),
-                    "end_m":      round(end_m, 0),
-                    "max_travel": round(seg_max, 1),
-                    "severity":   round(seg_max / max_t, 3),
-                })
-    if in_ev:
-        start_m = float(distance.iloc[start_idx])
-        end_m   = float(distance.iloc[-1])
+    # Contiguous True runs found with a diff on the padded mask (was a per-sample iloc loop:
+    # ~1M pandas scalar lookups per lap pair).
+    mask = (travel_smooth >= threshold).to_numpy(dtype=bool)
+    if not mask.any():
+        return []
+    edges = np.diff(np.concatenate(([0], mask.astype(np.int8), [0])))
+    starts = np.flatnonzero(edges == 1)
+    ends = np.flatnonzero(edges == -1) - 1          # inclusive index of the last sample in the run
+    dist_v = distance.to_numpy(dtype=float)
+    trav_v = travel_smooth.to_numpy(dtype=float)
+    events = []
+    for s_i, e_i in zip(starts, ends):
+        start_m = float(dist_v[s_i])
+        end_m   = float(dist_v[e_i])
         if end_m - start_m >= MIN_DURATION_M:
-            seg_max = float(travel_smooth.iloc[start_idx:].max())
+            seg_max = float(np.nanmax(trav_v[s_i:e_i + 1]))
             events.append({
                 "corner":     corner_label,
                 "start_m":    round(start_m, 0),

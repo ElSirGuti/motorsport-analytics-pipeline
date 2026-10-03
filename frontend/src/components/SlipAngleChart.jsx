@@ -11,8 +11,8 @@ import {
   CHART_MARGIN, fmtDist, makeTooltip, Legend,
 } from './analysisKit';
 
-const COLOR_US = '#4da3ff';
-const COLOR_OS = '#f0616d';
+const COLOR_US = 'var(--lap-a)';
+const COLOR_OS = 'var(--lap-b)';
 
 const tooltip = makeTooltip((v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}°`);
 
@@ -138,7 +138,7 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
               <CartesianGrid {...GRID_PROPS} />
               <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit="°" width={40} domain={['auto', 'auto']} />
-              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
               <ReferenceLine y={0} stroke={REF_ZERO} />
               {hasA && (
                 <Area type="monotone" dataKey="beta_a" name={`β ${labelA}`} stroke={COLOR_A} strokeWidth={1.5}
@@ -167,7 +167,7 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
               <CartesianGrid {...GRID_PROPS} />
               <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit="°" width={40} domain={['auto', 'auto']} />
-              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
               <ReferenceLine y={0} stroke={REF_ZERO} />
               <ReferenceLine y={2} stroke={COLOR_US} strokeOpacity={0.4} strokeDasharray="3 3" />
               <ReferenceLine y={-2} stroke={COLOR_OS} strokeOpacity={0.4} strokeDasharray="3 3" />

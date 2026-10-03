@@ -14,6 +14,8 @@ import { Panel, Stat, Badge, Icon } from './ui';
 import { LAP_COLORS, clean } from './chartTheme';
 import styles from './AdvancedComparePanel.module.css';
 import FormatBadge from './FormatBadge';
+import CircuitBadge from './CircuitBadge';
+import { cornerShort } from '../utils/cornerLabel';
 import { isSupportedFile, ACCEPT_ATTR, MAX_FILE_MB } from '../utils/formats';
 
 function FileSlot({ label, color, file, onChange, t }) {
@@ -50,7 +52,7 @@ function FileSlot({ label, color, file, onChange, t }) {
   );
 }
 
-function MetaCards({ meta, t }) {
+function MetaCards({ meta, circuit, t }) {
   if (!meta) return null;
   const { driver_fast, driver_slow, vehicle_fast, vehicle_slow,
           venue, delta_total_s, apexes_detected, samples_fast, samples_slow } = meta;
@@ -68,7 +70,7 @@ function MetaCards({ meta, t }) {
         />
       </Panel>
       <Panel>
-        <Stat label={clean(t.advCircuit)} value={<span className={styles.statText}>{venue || '—'}</span>} hint={t.advCornersDetected(apexes_detected)} />
+        <Stat label={clean(t.advCircuit)} value={circuit?.recognized ? <CircuitBadge circuit={circuit} /> : <span className={styles.statText}>{venue || '—'}</span>} hint={t.advCornersDetected(apexes_detected)} />
       </Panel>
       <Panel className={styles.lapA}>
         <Stat label={clean(t.advFastLap)} value={<span className={styles.statText}>{driver_fast}</span>} hint={t.advSamples(vehicle_fast, samples_fast)} />
@@ -103,7 +105,7 @@ function ApexTable({ apexes, t }) {
               const tone = radio > 90 ? 'ok' : radio > 40 ? 'warn' : 'bad';
               return (
                 <tr key={i}>
-                  <td className={styles.muted}>{i + 1}</td>
+                  <td className={styles.muted}>{cornerShort(i + 1, a.corner_name)}</td>
                   <td className="is-num">{a.Distance?.toFixed(0)} m</td>
                   <td className="is-num">{a.Speed?.toFixed(1)} km/h</td>
                   <td className="is-num">{a.Throttle?.toFixed(1)} %</td>
@@ -256,7 +258,7 @@ const AdvancedComparePanel = () => {
       {/* Results */}
       {results && (
         <div className={`${styles.results} fade-up`}>
-          <MetaCards meta={results.metadata} t={t} />
+          <MetaCards meta={results.metadata} circuit={results.circuit} t={t} />
 
           <CurvatureMap curvatura={results.curvatura} apexes={results.apexes} />
 

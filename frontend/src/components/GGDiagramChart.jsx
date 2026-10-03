@@ -1,5 +1,6 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from 'react';
 import { useLanguage } from '../context/LanguageContext';
+import useThemeColors, { parseRgb } from '../hooks/useThemeColors';
 import { Panel, Badge, Stat } from './ui';
 import styles from './GGDiagramChart.module.css';
 
@@ -16,15 +17,17 @@ function makeCoordFns(cssW, limit) {
   return { toX, toY, plotW, plotH, range };
 }
 
-const effColor = (eff, alpha = 1) => {
-  if (eff >= 90) return `rgba(61,214,140,${alpha})`;
-  if (eff >= 72) return `rgba(245,165,36,${alpha})`;
-  return `rgba(240,97,109,${alpha})`;
+// Canvas needs literal colours: resolve theme tokens (computed values) and apply alpha.
+const withAlpha = (color, alpha) => {
+  const rgb = parseRgb(color);
+  return rgb ? `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})` : color;
 };
+const effColor = (colors, eff, alpha = 1) => withAlpha(eff >= 90 ? colors.ok : eff >= 72 ? colors.warn : colors.bad, alpha);
 const effTone = (eff) => (eff >= 90 ? 'ok' : eff >= 72 ? 'warn' : 'bad');
 
 const GGDiagramChart = ({ ggData, gLimit }) => {
   const { t } = useLanguage();
+  const colors = useThemeColors();
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
@@ -61,7 +64,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     const ticks = [-limit, -limit * 0.5, 0, limit * 0.5, limit];
 
     // Grid lines
-    ctx.strokeStyle = 'rgba(163,173,187,0.10)';
+    ctx.strokeStyle = withAlpha(colors.ink2, 0.16);
     ctx.lineWidth = 1;
     ticks.forEach(v => {
       ctx.beginPath(); ctx.moveTo(toX(v), PAD.top); ctx.lineTo(toX(v), PAD.top + plotH); ctx.stroke();
@@ -72,7 +75,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     const cx = toX(0);
     const cy = toY(0);
     const r = Math.max(0, limit / range * plotW);
-    ctx.strokeStyle = 'rgba(163,173,187,0.55)';
+    ctx.strokeStyle = withAlpha(colors.ink2, 0.7);
     ctx.lineWidth = 1.25;
     ctx.setLineDash([5, 5]);
     ctx.beginPath();
@@ -81,13 +84,13 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     ctx.setLineDash([]);
 
     // Centre axes
-    ctx.strokeStyle = 'rgba(163,173,187,0.30)';
+    ctx.strokeStyle = withAlpha(colors.ink2, 0.4);
     ctx.beginPath(); ctx.moveTo(cx, PAD.top); ctx.lineTo(cx, PAD.top + plotH); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(PAD.left, cy); ctx.lineTo(PAD.left + plotW, cy); ctx.stroke();
 
     // Quadrant labels
     ctx.font = `600 10px ${MONO}`;
-    ctx.fillStyle = 'rgba(163,173,187,0.55)';
+    ctx.fillStyle = withAlpha(colors.ink2, 0.85);
     ctx.textAlign = 'right';
     ctx.fillText(t.ggQuadBraking, cx - 8, cy - 5);
     ctx.textAlign = 'left';
@@ -101,18 +104,18 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     slowPoints.forEach(({ lat, lon, eff }) => {
       ctx.beginPath();
       ctx.arc(toX(lon), toY(lat), 2.4, 0, Math.PI * 2);
-      ctx.strokeStyle = effColor(eff, 0.55);
+      ctx.strokeStyle = effColor(colors, eff, 0.7);
       ctx.stroke();
     });
     fastPoints.forEach(({ lat, lon, eff }) => {
       ctx.beginPath();
       ctx.arc(toX(lon), toY(lat), 2, 0, Math.PI * 2);
-      ctx.fillStyle = effColor(eff, 0.85);
+      ctx.fillStyle = effColor(colors, eff, 0.85);
       ctx.fill();
     });
 
     // Axis tick values + titles
-    ctx.fillStyle = 'rgba(163,173,187,0.7)';
+    ctx.fillStyle = colors.ink3;
     ctx.font = `10px ${MONO}`;
     ticks.forEach(v => {
       ctx.textAlign = 'center';
@@ -124,7 +127,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     ctx.fillText(t.ggLonG, PAD.left + plotW, PAD.top + plotH + 32);
     ctx.textAlign = 'left';
     ctx.fillText(t.ggLatG, 2, PAD.top - 10);
-  }, [fastPoints, slowPoints, limit, t]);
+  }, [fastPoints, slowPoints, limit, t, colors]);
 
   useEffect(() => {
     draw();

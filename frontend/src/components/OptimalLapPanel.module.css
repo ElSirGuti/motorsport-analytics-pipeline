@@ -14,7 +14,7 @@
 .mapWrap { margin-top: 10px; }
 .map { display: block; width: 100%; height: auto; max-height: 360px; background: var(--surface-0); border: 1px solid var(--line); border-radius: var(--radius-md); }
 .map line { cursor: crosshair; }
-.mapLabel { font: 600 11px var(--font-mono); paint-order: stroke; stroke: #0d1014; stroke-width: 3px; }
+.mapLabel { font: 600 11px var(--font-mono); paint-order: stroke; stroke: var(--surface-0); stroke-width: 3px; }
 .mapLegend { display: flex; align-items: center; gap: 8px; margin-top: 8px; font: var(--fs-xs) var(--font-mono); color: var(--ink-2); }
 .ramp { width: 96px; height: 8px; border-radius: 4px; }
 .mapLegendTxt { margin-left: auto; font-family: var(--font-sans, inherit); color: var(--ink-3); }

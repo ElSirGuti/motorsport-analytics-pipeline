@@ -28,6 +28,7 @@ const CurvatureMap = ({ curvatura, apexes }) => {
       x: ((a.Distance || 0) / maxD) * W,
       y: H - ((a.Curvature || 0) / maxK) * (H * 0.85) - H * 0.05,
       num: i + 1,
+      name: a.corner_name,
       speed: a.Speed,
       dist: a.Distance,
     }));
@@ -61,7 +62,9 @@ const CurvatureMap = ({ curvatura, apexes }) => {
         {apexPoints.map((a) => (
           <g key={a.num}>
             <line x1={a.x} y1={a.y + 4} x2={a.x} y2={120} stroke={COLOR.warn} strokeWidth="1" strokeDasharray="3 2" strokeOpacity={0.5} />
-            <circle cx={a.x} cy={a.y} r={4} fill={COLOR.warn} stroke="#12161c" strokeWidth={1.5} />
+            <circle cx={a.x} cy={a.y} r={4} fill={COLOR.warn} stroke={COLOR.halo} strokeWidth={1.5}>
+              {a.name && <title>{`${a.num} · ${a.name}`}</title>}
+            </circle>
             <text x={a.x} y={a.y - 10} textAnchor="middle" fontSize="10" fill={COLOR.warn} fontFamily={MONO} fontWeight="600">
               {a.num}
             </text>

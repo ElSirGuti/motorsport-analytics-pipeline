@@ -65,31 +65,37 @@ async def _save(upload: UploadFile, dest: str, lang: str) -> None:
 
 
 @router.post("/optimal-lap")
-async def optimal_lap_endpoint(
+def optimal_lap_endpoint(
     request: Request,
-    session_file: UploadFile = File(..., description="CSV con la sesión completa"),
+    session_file: Optional[UploadFile] = File(None, description="CSV con la sesión completa (o usa file_id)"),
+    file_id: Optional[str] = Form(None, description="id devuelto por POST /api/files"),
     lang_form: Optional[str] = Form(None, alias="lang"),
     lang_query: Optional[str] = Query(None, alias="lang"),
     microsector_m: float = Form(25.0, description="Longitud del microsector (m)"),
     speed_tol_kmh: float = Form(3.0, description="Tolerancia de velocidad para cambiar de vuelta"),
 ):
     """Devuelve la vuelta óptima teórica (suma de mínimos) y realista (con continuidad)."""
-    from src.io.loaders import load_telemetry_data, DataLoaderException
-    from src.processing.filters import apply_standard_filters
+    from src.io.loaders import DataLoaderException
     from src.analytics.optimal_lap import calcular_vuelta_optima_desde_df
+    from src.api.files import resolve_input
 
     lang = _pick_lang(request, lang_form or lang_query)
     tmp_dir = tempfile.mkdtemp(prefix="motorsport_optlap_")
     try:
-        path = os.path.join(tmp_dir, "session.csv")
-        await _save(session_file, path, lang)
-        df = load_telemetry_data(path)
+        inp = resolve_input(session_file, file_id, lang, into_dir=tmp_dir)
+        path = inp.path
+        df = inp.filtered()  # parsed + filtered once per file (cache); private copy
         synthetic = bool(df.attrs.get("distance_synthetic", False))
-        df = apply_standard_filters(df)
         result = calcular_vuelta_optima_desde_df(
             df, microsector_m=microsector_m, speed_tol_kmh=speed_tol_kmh,
             lang=lang, distance_synthetic=synthetic,
         )
+        try:  # circuito conocido + nombres de curva (aditivo; nunca rompe el análisis)
+            from src.analytics.circuits import enrich_optimal_lap
+            from src.io.loaders import read_motec_metadata
+            enrich_optimal_lap(result, read_motec_metadata(path).get("venue"))
+        except Exception as exc:
+            logger.warning("optimal-lap: circuits: %s", exc)
         return JSONResponse(content=_sanitize(result))
     except HTTPException:
         raise

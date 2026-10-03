@@ -1,5 +1,6 @@
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge } from './ui';
+import { sectorLabel } from '../utils/cornerLabel';
 import styles from './SectorTable.module.css';
 
 const sign = (v) => (v > 0 ? '+' : '');
@@ -42,7 +43,7 @@ const SectorTable = ({ sectores, totalDelta }) => {
               return (
                 <tr key={s.sector}>
                   <td className={styles.num}>{s.sector}</td>
-                  <td className={styles.zone}>{s.descripcion}</td>
+                  <td className={styles.zone}>{sectorLabel(t, s) ?? s.descripcion}</td>
                   <td className="is-num">{longitud} m</td>
                   <td className="is-num" style={{ color, fontWeight: 600 }}>
                     {sign(s.delta_parcial)}{s.delta_parcial.toFixed(3)} s

@@ -71,7 +71,7 @@ const TimeDeltaChart = ({ data, zoomDomain, onChartClick, labels: labelsProp }) 
             <ReferenceLine y={0} stroke={COLOR.ink3} strokeOpacity={0.6} />
             <Area type="monotone" dataKey="loss" name={lossLabel} stroke="none" fill={COLOR.bad} fillOpacity={0.22} isAnimationActive={false} activeDot={false} />
             <Area type="monotone" dataKey="gain" name={gainLabel} stroke="none" fill={COLOR.ok} fillOpacity={0.22} isAnimationActive={false} activeDot={false} />
-            <Area type="monotone" dataKey="delta" name="Delta" stroke="#e8ecf2" strokeWidth={1.5} fill="none" activeDot={ACTIVE_DOT} isAnimationActive={false} />
+            <Area type="monotone" dataKey="delta" name="Delta" stroke="var(--ink-1)" strokeWidth={1.5} fill="none" activeDot={ACTIVE_DOT} isAnimationActive={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>

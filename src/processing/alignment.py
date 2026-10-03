@@ -12,7 +12,7 @@ cada 1 metro) usando interpolación cúbica de scipy.
 
 import numpy as np
 import pandas as pd
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, make_interp_spline
 import logging
 
 logger = logging.getLogger(__name__)
@@ -73,35 +73,60 @@ def align_by_distance(df: pd.DataFrame, distance_step: float = 1.0) -> pd.DataFr
         return "nearest"
 
     # Interpolar cada canal
-    result = {"Distance": new_distance}
-    channels_to_interpolate = [col for col in df.columns if col != "Distance"]
+    numeric_channels = [
+        col for col in df.columns
+        if col != "Distance" and df[col].dtype in [np.float64, np.float32, np.int64, np.int32, float, int]
+    ]
+    for col in df.columns:
+        if col != "Distance" and col not in numeric_channels:
+            logger.debug(f"  Canal '{col}' no es numérico, se omite en la interpolación.")
 
-    for channel in channels_to_interpolate:
-        if df[channel].dtype in [np.float64, np.float32, np.int64, np.int32, float, int]:
-            col_vals = df[channel].values
+    x_old = df["Distance"].values
+    cols_out = ["Distance"] + numeric_channels
+    out = np.empty((len(cols_out), len(new_distance)), dtype=np.float64)
+    out[0] = new_distance
+    row_of = {c: i + 1 for i, c in enumerate(numeric_channels)}
 
-            # Try primary method, fall back progressively: cubic → linear → nearest
-            for method in [_pick_method(channel), "linear", "nearest"]:
-                try:
-                    interpolator = interp1d(
-                        df["Distance"].values,
-                        col_vals,
-                        kind=method,
-                        bounds_error=False,
-                        fill_value="extrapolate",
-                    )
-                    result[channel] = interpolator(new_distance)
+    # Camino rapido: una sola spline cubica multi-columna (misma matematica que interp1d por
+    # columna, pero la factorizacion banded se hace una vez en vez de ~170).
+    batch = [c for c in numeric_channels if c != "Gear"] if n_pts >= 4 else []
+    if batch:
+        try:
+            y = df[batch].to_numpy(dtype=np.float64)
+            spline = make_interp_spline(x_old, y, k=3, axis=0, check_finite=False)
+            res = spline(new_distance)
+            for j, c in enumerate(batch):
+                out[row_of[c]] = res[:, j]
+        except Exception as e:
+            logger.debug(f"  spline por lotes falló ({e}); interpolación columna a columna.")
+            batch = []
+    batched = set(batch)
+
+    for channel in numeric_channels:
+        if channel in batched:
+            continue
+        col_vals = df[channel].values
+
+        # Try primary method, fall back progressively: cubic → linear → nearest
+        for method in [_pick_method(channel), "linear", "nearest"]:
+            try:
+                interpolator = interp1d(
+                    x_old,
+                    col_vals,
+                    kind=method,
+                    bounds_error=False,
+                    fill_value="extrapolate",
+                )
+                out[row_of[channel]] = interpolator(new_distance)
+                break
+            except Exception as e:
+                if method == "nearest":
+                    # Last resort: fill with the only available value
+                    out[row_of[channel]] = np.full(len(new_distance), col_vals[0] if len(col_vals) else np.nan)
                     break
-                except Exception as e:
-                    if method == "nearest":
-                        # Last resort: fill with the only available value
-                        result[channel] = np.full(len(new_distance), col_vals[0] if len(col_vals) else np.nan)
-                        break
-                    logger.debug(f"  método '{method}' falló en '{channel}': {e}. Probando siguiente.")
-        else:
-            logger.debug(f"  Canal '{channel}' no es numérico, se omite en la interpolación.")
+                logger.debug(f"  método '{method}' falló en '{channel}': {e}. Probando siguiente.")
 
-    df_aligned = pd.DataFrame(result)
+    df_aligned = pd.DataFrame(out.T, columns=cols_out)
 
     # Post-procesamiento: clipear valores que no deben ser negativos
     for col in ["Speed", "Brake", "Throttle", "RPM"]:
@@ -118,7 +143,8 @@ def align_by_distance(df: pd.DataFrame, distance_step: float = 1.0) -> pd.DataFr
     return df_aligned
 
 
-def align_pair(df_a: pd.DataFrame, df_b: pd.DataFrame, distance_step: float = 1.0):
+def align_pair(df_a: pd.DataFrame, df_b: pd.DataFrame, distance_step: float = 1.0,
+               pre_a: pd.DataFrame = None):
     """
     Alinea dos vueltas a un vector de distancia común.
     
@@ -129,6 +155,7 @@ def align_pair(df_a: pd.DataFrame, df_b: pd.DataFrame, distance_step: float = 1.
         df_a: DataFrame de la vuelta A (referencia).
         df_b: DataFrame de la vuelta B (a comparar).
         distance_step: Intervalo de distancia en metros.
+        pre_a: align_by_distance(df_a, distance_step) ya calculado (solo lectura; se reutiliza).
     
     Returns:
         Tuple (df_a_aligned, df_b_aligned) con el mismo número de filas
@@ -137,7 +164,8 @@ def align_pair(df_a: pd.DataFrame, df_b: pd.DataFrame, distance_step: float = 1.
     logger.info("Alineando par de vueltas a vector de distancia común...")
     
     # Alinear cada una individualmente
-    df_a_aligned = align_by_distance(df_a, distance_step)
+    # pre_a: resultado ya calculado de align_by_distance(df_a) (misma referencia en N pares)
+    df_a_aligned = pre_a if pre_a is not None else align_by_distance(df_a, distance_step)
     df_b_aligned = align_by_distance(df_b, distance_step)
     
     # Encontrar el rango de distancia compartido

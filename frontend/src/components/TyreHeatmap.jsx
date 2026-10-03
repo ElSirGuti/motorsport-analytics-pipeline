@@ -133,11 +133,11 @@ const TyreHeatmap = ({ tyre_analysis, metadata }) => {
               <CartesianGrid {...GRID_PROPS} />
               <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit=" °C" width={52} domain={['auto', 'auto']} />
-              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
-              <ReferenceLine y={t_min} stroke="#4da3ff" strokeOpacity={0.45} strokeDasharray="4 3"
-                label={{ value: `${t_min}°`, position: 'insideBottomLeft', fontSize: 10, fill: '#4da3ff' }} />
-              <ReferenceLine y={t_max} stroke="#f5a524" strokeOpacity={0.45} strokeDasharray="4 3"
-                label={{ value: `${t_max}°`, position: 'insideTopLeft', fontSize: 10, fill: '#f5a524' }} />
+              <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
+              <ReferenceLine y={t_min} stroke="var(--accent)" strokeOpacity={0.45} strokeDasharray="4 3"
+                label={{ value: `${t_min}°`, position: 'insideBottomLeft', fontSize: 10, fill: 'var(--accent)' }} />
+              <ReferenceLine y={t_max} stroke="var(--warn)" strokeOpacity={0.45} strokeDasharray="4 3"
+                label={{ value: `${t_max}°`, position: 'insideTopLeft', fontSize: 10, fill: 'var(--warn)' }} />
               {CORNERS.map((c) => (
                 <Line key={c} type="monotone" dataKey={`${c}_s`} name={t[cornerLabelKey(c)]}
                   stroke={CORNER_COLORS[c]} strokeWidth={1.5} dot={false}

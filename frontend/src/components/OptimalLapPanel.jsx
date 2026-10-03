@@ -8,21 +8,19 @@ import { analyzeOptimalLap, isCancelled } from '../api/optimalLap';
 import { Panel, Stat, Badge, EmptyState, Icon } from './ui';
 import { ChartTooltip, SeriesLegend } from './chartKit';
 import { COLOR, TICK, AXIS_LINE, GRID_PROPS, CURSOR, fmtDist } from './chartTheme';
+import { cornerLabel, cornerNameMap } from '../utils/cornerLabel';
 import css from './OptimalLapPanel.module.css';
 
 const MICRO_SIZES = [10, 25, 50, 100];
 const VIEWS = ['cumulative', 'perMicro', 'speed'];
-const NEUTRAL = [58, 67, 80];
-const WARN = [245, 165, 36];
-const BAD = [240, 97, 109];
 
 const fmt = (s, vars) => String(s ?? '').replace(/\{(\w+)\}/g, (_, k) => (vars?.[k] ?? `{${k}}`));
 const secs = (v, d = 3) => `${Math.abs(v).toFixed(d)}`;
 
-const lerp = (a, b, t) => a.map((x, i) => Math.round(x + (b[i] - x) * t));
+// Heat ramp neutral -> warn -> bad, built with color-mix on theme tokens so it follows light/dark.
+const mix = (to, from, t) => `color-mix(in srgb, var(${to}) ${Math.round(t * 100)}%, var(${from}))`;
 function heat(t) {
-  const c = t < 0.5 ? lerp(NEUTRAL, WARN, t * 2) : lerp(WARN, BAD, (t - 0.5) * 2);
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+  return t < 0.5 ? mix('--warn', '--heat-neutral', t * 2) : mix('--bad', '--warn', (t - 0.5) * 2);
 }
 
 function useOptimalLap(file, lang, microsectorM, attempt) {
@@ -32,14 +30,15 @@ function useOptimalLap(file, lang, microsectorM, attempt) {
   useEffect(() => {
     if (!file) return undefined;
     const ctrl = new AbortController();
-    analyzeOptimalLap(file, lang, { microsectorM, signal: ctrl.signal })
+    // Joins the request the app already started right after the upload (see prefetchOptimalLap).
+    analyzeOptimalLap(file, lang, { microsectorM, signal: ctrl.signal, fresh: attempt > 0 })
       .then((data) => setState({ key, data }))
       .catch((error) => {
         if (isCancelled(error)) return;
         setState({ key, error: error.message || String(error) });
       });
     return () => ctrl.abort();
-  }, [file, lang, microsectorM, key]);
+  }, [file, lang, microsectorM, key, attempt]);
 
   if (!key) return { status: 'idle' };
   if (!state || state.key !== key) return { status: 'loading' };
@@ -78,7 +77,7 @@ function TrackHeat({ data, active, onHover, hovered }) {
         <g strokeLinecap="round" strokeLinejoin="round" fill="none">
           {micro.map((m) => (pts[m.index + 1] && inZone(m)) && (
             <line key={`z${m.index}`} x1={pts[m.index].x} y1={pts[m.index].y} x2={pts[m.index + 1].x} y2={pts[m.index + 1].y}
-              stroke="#e8ecf2" strokeOpacity="0.45" strokeWidth="13" />
+              stroke="var(--ink-1)" strokeOpacity="0.45" strokeWidth="13" />
           ))}
           {micro.map((m) => pts[m.index + 1] && (
             <line key={m.index} x1={pts[m.index].x} y1={pts[m.index].y} x2={pts[m.index + 1].x} y2={pts[m.index + 1].y}
@@ -86,7 +85,7 @@ function TrackHeat({ data, active, onHover, hovered }) {
               onMouseEnter={() => onHover(m.index)} onMouseLeave={() => onHover(null)} />
           ))}
         </g>
-        <circle cx={pts[0].x} cy={pts[0].y} r="5" fill={COLOR.ok} stroke="#0d1014" strokeWidth="2" />
+        <circle cx={pts[0].x} cy={pts[0].y} r="5" fill={COLOR.ok} stroke="var(--map-halo)" strokeWidth="2" />
         <text x={pts[0].x + 9} y={pts[0].y + 4} fill={COLOR.ok} className={css.mapLabel}>S/F</text>
       </svg>
       <div className={css.mapLegend}>
@@ -181,6 +180,7 @@ function MainChart({ data, view }) {
 
 function CornersChart({ data }) {
   const { t } = useLanguage();
+  const nameOf = cornerNameMap(data.corners);
   const rows = data.corners.map((c) => ({
     name: c.corner_number, real: c.gain_realistic_s, theo: c.gain_theoretical_s,
   }));
@@ -201,7 +201,7 @@ function CornersChart({ data }) {
             <YAxis tick={TICK} axisLine={false} tickLine={false} width={44} tickFormatter={(v) => v.toFixed(1)} />
             <Tooltip
               content={<ChartTooltip nameMap={names} valueFormatter={(v) => `${v.toFixed(3)} s`}
-                labelFormatter={(l) => fmt(t.optLapCornerLabel, { n: l })} />}
+                labelFormatter={(l) => cornerLabel(t, l, nameOf[l])} />}
               cursor={{ fill: COLOR.line, fillOpacity: 0.5 }}
             />
             <Bar dataKey="theo" fill={COLOR.warn} fillOpacity={0.45} radius={[2, 2, 0, 0]} maxBarSize={18} isAnimationActive={false} />
@@ -240,7 +240,7 @@ function ZonesTable({ zones, active, onActive }) {
             >
               <td className="num">{z.rank}</td>
               <td className={`num ${css.nowrap}`}>{z.d_start.toFixed(0)} - {z.d_end.toFixed(0)} m</td>
-              <td className={css.nowrap}>{z.corner_label ? <Badge>{z.corner_label}</Badge> : '-'}</td>
+              <td className={css.nowrap}>{z.corner_number != null ? <Badge>{cornerLabel(t, z.corner_number, z.corner_name)}</Badge> : (z.corner_label ? <Badge>{z.corner_label}</Badge> : '-')}</td>
               <td className="is-num" style={{ color: 'var(--bad)' }}>{secs(z.loss_realistic_s)} s</td>
               <td className="is-num" style={{ color: 'var(--ink-3)' }}>{secs(z.loss_theoretical_s)} s</td>
               <td className={css.nowrap}><Badge tone="accent">{fmt(t.optLapKpiBestHint, { n: z.donor_lap })}</Badge></td>

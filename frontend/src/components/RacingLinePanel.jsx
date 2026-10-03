@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon } from './ui';
+import { cornerLabel } from '../utils/cornerLabel';
 import s from './RecPanels.module.css';
 
 
@@ -62,7 +63,7 @@ function QHeatmap({ heatmap, current, optimal }) {
 
 function CornerCard({ corner }) {
   const { t } = useLanguage();
-  const { corner_number, n_laps, mean_time_loss_s, potential_gain_s,
+  const { corner_number, corner_name, n_laps, mean_time_loss_s, potential_gain_s,
     current_execution, optimal_execution, already_optimal, recommendations } = corner;
 
   const tone = already_optimal ? 'ok' : potential_gain_s > 0.15 ? 'bad' : potential_gain_s > 0.05 ? 'warn' : 'ok';
@@ -72,7 +73,7 @@ function CornerCard({ corner }) {
     <div className={`${s.card} ${cls}`}>
       <div className={s.cardHead}>
         <div>
-          <div className={s.cardTitle}>{t.rlCorner(corner_number)}</div>
+          <div className={s.cardTitle}>{cornerLabel(t, corner_number, corner_name)}</div>
           <div className={s.cardSub}>{t.rlLapsAvgLoss(n_laps)} <span className={s.mono}>{mean_time_loss_s > 0 ? '+' : ''}{mean_time_loss_s.toFixed(3)} s</span></div>
         </div>
         <div style={{ textAlign: 'right' }}>

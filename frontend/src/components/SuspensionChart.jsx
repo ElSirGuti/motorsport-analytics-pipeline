@@ -112,7 +112,7 @@ const SuspensionChart = ({ suspension, metadata }) => {
               <CartesianGrid {...GRID_PROPS} />
               <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit=" mm" width={52} domain={['auto', 'auto']} />
-              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
               <ReferenceLine y={0} stroke={REF_ZERO} />
               {seriesA && (
                 <>

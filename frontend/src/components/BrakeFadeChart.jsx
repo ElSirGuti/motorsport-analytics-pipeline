@@ -94,7 +94,7 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
             <Legend items={[
               ...(hasA ? [{ label: labelA, color: COLOR_A }] : []),
               ...(hasB ? [{ label: labelB, color: COLOR_B }] : []),
-              ...(hasA && data.baseline_a > 0 ? [{ label: t.baselineLabel, color: '#6f7a8a', dashed: true }] : []),
+              ...(hasA && data.baseline_a > 0 ? [{ label: t.baselineLabel, color: 'var(--ink-3)', dashed: true }] : []),
             ]} />
           </div>
           <ResponsiveContainer width="100%" height={210}>
@@ -102,7 +102,7 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
               <CartesianGrid {...GRID_PROPS} />
               <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} domain={[0, 'auto']} width={44} />
-              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
               {hasA && data.baseline_a > 0 && (
                 <ReferenceLine y={data.baseline_a} stroke={COLOR_A} strokeDasharray="4 3" strokeOpacity={0.5} />
               )}
@@ -112,7 +112,7 @@ const BrakeFadeChart = ({ brake_analysis, metadata }) => {
               {data.fade_zones_a?.map((z, i) => (
                 <Area key={`fade_a_${i}`}
                   data={chartData.filter((d) => d.distance >= z.start && d.distance <= z.end)}
-                  type="monotone" dataKey="eff_a" stroke="none" fill="rgba(240,97,109,0.18)"
+                  type="monotone" dataKey="eff_a" stroke="none" fill="var(--bad-soft)"
                   isAnimationActive={false} legendType="none" tooltipType="none" />
               ))}
               {hasA && (

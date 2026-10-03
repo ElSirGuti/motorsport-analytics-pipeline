@@ -37,7 +37,7 @@
 .stepDone .stepMark { background: var(--ok-soft); border-color: var(--ok-line); color: var(--ok); }
 .stepActive .stepMark { border-color: var(--accent-line); }
 .spinner { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--accent-line); border-top-color: var(--accent); animation: spin .8s linear infinite; display: inline-block; }
-.actions .spinner { border-color: rgba(10, 22, 36, .3); border-top-color: var(--accent-ink); width: 14px; height: 14px; }
+.actions .spinner { border-color: color-mix(in srgb, var(--accent-ink) 30%, transparent); border-top-color: var(--accent-ink); width: 14px; height: 14px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .error { display: flex; gap: 10px; align-items: flex-start; margin-top: 16px; padding: 12px 14px; background: var(--bad-soft); border: 1px solid var(--bad-line); border-radius: var(--radius-md); color: var(--ink-1); font-size: var(--fs-sm); }

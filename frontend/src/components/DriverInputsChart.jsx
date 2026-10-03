@@ -60,7 +60,7 @@ const PilotCard = ({ scoreKey, labelKey, bandsKey, overlapKey, data, lapLabel, l
         <div style={{ marginBottom: 8 }}>
           <BandBar label={t.driverInputsLowFreq} value={bands.low} color={COLOR_C} />
           <BandBar label={t.driverInputsMidFreq} value={bands.mid} color={COLOR_D} />
-          <BandBar label={t.driverInputsHighFreq} value={bands.high} color="#f0616d" />
+          <BandBar label={t.driverInputsHighFreq} value={bands.high} color="var(--bad)" />
         </div>
       )}
       {overlap != null && (
@@ -127,7 +127,7 @@ const DriverInputsChart = ({ driver_inputs, metadata }) => {
               <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
               <YAxis domain={[0, 1]} tick={AXIS_TICK} axisLine={false} tickLine={false}
                 tickFormatter={(v) => `${(v * 100).toFixed(0)}%`} width={44} />
-              <Tooltip content={tooltip} cursor={{ stroke: '#323b48' }} />
+              <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
               {data.available_a && (
                 <Area type="monotone" dataKey="nerv_a" name={labelA} stroke={COLOR_A} strokeWidth={1.5}
                   fill="url(#nervGradA)" isAnimationActive={false} dot={false} connectNulls />

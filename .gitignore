@@ -45,3 +45,6 @@ graphify-out/
 
 # Local compose override (machine-specific paths)
 docker-compose.override.yml
+
+# e2e visual diffs (generated on failure)
+tests/e2e/_artifacts/

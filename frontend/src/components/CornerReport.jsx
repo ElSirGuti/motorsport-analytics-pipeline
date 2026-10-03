@@ -1,5 +1,6 @@
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon } from './ui';
+import { cornerLabel } from '../utils/cornerLabel';
 import styles from './CornerReport.module.css';
 
 const SEV_MAP = { leve: 'severityLeve', media: 'severityMedia', critico: 'severityCritico' };
@@ -39,11 +40,13 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
     xgboostPred.corner_predictions.forEach((p) => { xgbByCorner[p.corner_number] = p; });
   }
 
+  const activeName = corners.find((c) => c.corner_number === activeCorner)?.corner_name;
+
   return (
     <Panel
       icon="flag"
       title={t.cornerReportTitle}
-      actions={activeCorner != null && <Badge tone="accent">{t.cornerReportSelected(activeCorner)}</Badge>}
+      actions={activeCorner != null && <Badge tone="accent">{t.cornerReportSelected(activeCorner)}{activeName ? ` · ${activeName}` : ''}</Badge>}
       className="fade-up fade-up--d4"
     >
       <div className={styles.grid}>
@@ -76,7 +79,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                 );
               }}
               role={hasZoom ? 'button' : undefined}
-              aria-label={hasZoom ? t.cornerReportCorner(corner.corner_number) : undefined}
+              aria-label={hasZoom ? cornerLabel(t, corner.corner_number, corner.corner_name) : undefined}
               aria-pressed={hasZoom ? isActive : undefined}
               tabIndex={hasZoom ? 0 : undefined}
               onKeyDown={hasZoom ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } } : undefined}
@@ -84,7 +87,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
             >
               <div className={styles.head}>
                 <div>
-                  <div className={styles.name}>{t.cornerReportCorner(corner.corner_number)}</div>
+                  <div className={styles.name}>{cornerLabel(t, corner.corner_number, corner.corner_name)}</div>
                   {corner.start_distance != null && (
                     <div className={styles.zone}>
                       {corner.start_distance.toFixed(0)} – {corner.end_distance.toFixed(0)} m

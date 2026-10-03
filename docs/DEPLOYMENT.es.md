@@ -61,6 +61,10 @@ CORS. En desarrollo el frontend sigue llamando directamente a `http://localhost:
 | `AC_SETUPS_DIR` | backend | carpeta de setups de Assetto Corsa | normalmente sin definir; bind-mount opcional de solo lectura |
 | `UVICORN_WORKERS` | entrypoint del contenedor | n/a | `1` |
 | `RUN_MIGRATIONS` | entrypoint del contenedor | n/a | `1` en compose ejecuta `alembic upgrade head` al arrancar |
+| `UPLOAD_DIR` | backend | `<STORAGE_DIR>/uploads` si hay `STORAGE_DIR`, si no `<TEMP_DIR>/uploads` | sin definir (usa el volumen / PVC `storage`) |
+| `UPLOAD_TTL_HOURS` | backend | `24` | las subidas sin uso durante este tiempo se borran |
+| `SESSION_CACHE_MAX_MB` | backend | `1024` | por proceso; mantenlo por debajo del límite de memoria del pod menos un análisis |
+| `SESSION_CACHE_TTL_MIN` | backend | `60` | minutos de inactividad antes de sacar una sesión de memoria |
 
 `MAX_UPLOAD_MB` se aplica de verdad: el backend rechaza con HTTP 413 (mensaje traducido, archivo
 parcial borrado) cualquier subida que supere el límite mientras la copia a disco, y también los
@@ -180,6 +184,29 @@ kubectl -n motorsport get pods -w
 5. `kubectl apply -k k8s/overlays/prod`
 
 Renderizar sin aplicar: `kubectl kustomize k8s/overlays/prod`.
+
+### Subir una vez (`file_id`) y la caché de análisis
+
+La interfaz sube la sesión una sola vez con `POST /api/files` y los endpoints de análisis
+(`analyze-session`, `stint/analyze`, `optimal-lap`, `compare-session-laps`, `telemetry/analyze`,
+`setups/detect`) aceptan el `file_id` devuelto (el SHA-256 del contenido) en lugar del archivo.
+Enviar el archivo como antes sigue funcionando.
+
+- **El disco es la fuente de verdad, la memoria es una caché.** El archivo vive en `UPLOAD_DIR` (por
+  defecto el volumen `storage` en las imágenes). Cada proceso mantiene los DataFrames ya leídos y
+  filtrados en un LRU acotado por `SESSION_CACHE_MAX_MB` con TTL de inactividad
+  `SESSION_CACHE_TTL_MIN`; cada petición recibe copias privadas.
+- **Varias réplicas.** La memoria nunca se comparte entre pods/workers. Si una réplica no tiene los
+  frames, vuelve a leer el archivo guardado (unos segundos con un CSV grande; luego queda en su
+  caché). Eso solo funciona si todas las réplicas ven el mismo `UPLOAD_DIR`: usa un volumen RWX (o
+  afinidad de sesión). Sin volumen compartido, una petición que cae en una réplica que nunca recibió la
+  subida obtiene **HTTP 410** (mensaje traducido) y la interfaz vuelve a subir el archivo y reintenta
+  una vez: es más lento pero correcto.
+- **Limpieza.** Las subidas con más de `UPLOAD_TTL_HOURS` sin uso se borran en un hilo en segundo plano
+  con frecuencia limitada. Dimensiona el volumen para `subidas por día x tamaño del archivo`. Si
+  `UPLOAD_DIR` cae en `TEMP_DIR` sobre un tmpfs, esos archivos cuentan contra la memoria del pod.
+- Los endpoints de análisis se ejecutan en el pool de hilos (ya no bloquean el event loop); varias
+  peticiones simultáneas del mismo archivo lo leen una sola vez (bloqueo por clave de caché).
 
 ## Qué está listo para producción y qué NO
 

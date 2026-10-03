@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from typing import List
+from typing import List, Optional
 from fastapi import FastAPI, File, Form, UploadFile, HTTPException, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -65,6 +65,24 @@ from src.io.exporters import export_report_text
 from src.io.pdf_exporter import (
     export_report_pdf, export_session_report_pdf, build_report_filename, read_session_header,
 )
+import threading as _threading
+import functools as _functools
+
+# PDF charts use matplotlib.pyplot (global state, not thread-safe) and the endpoints now run in the
+# thread pool: serialise report generation (one PDF at a time; they take well under a second each).
+_PDF_LOCK = _threading.Lock()
+
+
+def _serialised(fn):
+    @_functools.wraps(fn)
+    def wrapper(*a, **k):
+        with _PDF_LOCK:
+            return fn(*a, **k)
+    return wrapper
+
+
+export_report_pdf = _serialised(export_report_pdf)
+export_session_report_pdf = _serialised(export_session_report_pdf)
 from src.processing.alignment import align_pair
 from src.processing.filters import apply_standard_filters
 from src.telemetry.lap_comparator import compare_laps
@@ -93,6 +111,7 @@ from src.analytics.suspension import analizar_suspension
 from src.analytics.slip_angle import analizar_slip_angle
 from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
 from src.analytics.session_corner_analysis import analizar_curvas_sesion, get_corner_observations
+from src.analytics import circuits as circuits_db  # circuitos conocidos y nombres de curva
 from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 from src.analytics.tyre_degradation import predecir_degradacion_neumatico
 from src.analytics.racing_line_rl import optimizar_trazada_rl
@@ -139,11 +158,20 @@ app.include_router(setups_api.router)
 from src.api import optimal_lap as optimal_lap_api  # vuelta óptima por microsectores
 app.include_router(optimal_lap_api.router)
 
+from src.api import files as files_api  # subir una vez (file_id) y analizar muchas veces
+from src.api.files import resolve_input
+app.include_router(files_api.router)
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 import shutil
 
 async def _save_upload(upload: UploadFile, dest_path: str):
+    """Async wrapper kept for compatibility; endpoints are sync (threadpool) and call the sync one."""
+    _save_upload_sync(upload, dest_path)
+
+
+def _save_upload_sync(upload: UploadFile, dest_path: str):
     """Guarda un UploadFile directamente a disco usando chunks para no saturar la RAM."""
     written = 0
     try:
@@ -234,7 +262,7 @@ async def health_check():
 
 
 @app.post("/api/report/pdf-from-json")
-async def generate_pdf_from_json(
+def generate_pdf_from_json(
     request: Request,
     result: dict = Body(...),
 ):
@@ -297,7 +325,7 @@ async def generate_session_pdf_from_json(
 
 
 @app.post("/api/report/pdf")
-async def generate_pdf_report(
+def generate_pdf_report(
     request: Request,
     session_file: UploadFile = File(..., description="CSV con la sesión completa"),
     lap_a: int = Form(0, description="Vuelta A (1-based). 0 = auto-selecciona la más rápida"),
@@ -317,7 +345,7 @@ async def generate_pdf_report(
         set_language(lang)
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_pdf_")
         path = os.path.join(tmp_dir, "session.csv")
-        await _save_upload(session_file, path)
+        _save_upload_sync(session_file, path)
 
         df = load_telemetry_data(path)
         df = apply_standard_filters(df)
@@ -415,7 +443,7 @@ async def generate_pdf_report(
 
 
 @app.post("/api/compare-laps")
-async def compare_laps_endpoint(
+def compare_laps_endpoint(
     request: Request,
     lap_a: UploadFile = File(..., description="CSV de la vuelta de referencia"),
     lap_b: UploadFile = File(..., description="CSV de la vuelta a comparar"),
@@ -443,8 +471,8 @@ async def compare_laps_endpoint(
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_")
         path_a = os.path.join(tmp_dir, "lap_a.csv")
         path_b = os.path.join(tmp_dir, "lap_b.csv")
-        await _save_upload(lap_a, path_a)
-        await _save_upload(lap_b, path_b)
+        _save_upload_sync(lap_a, path_a)
+        _save_upload_sync(lap_b, path_b)
 
         logger.info("Paso 1/4: Cargando datos...")
         df_a = load_telemetry_data(path_a)
@@ -606,6 +634,10 @@ async def compare_laps_endpoint(
             df_a.attrs.get("distance_synthetic", False) or
             df_b.attrs.get("distance_synthetic", False)
         )
+        try:
+            circuits_db.enrich_compare(result, venue, circuits_db.lap_length_of(df_a_aligned))
+        except Exception as _exc:  # nunca debe romper el análisis
+            logger.warning("circuits (compare-laps): %s", _exc)
 
         try:
             result["setup_advisor"] = analizar_setup(result, lang=lang)
@@ -631,13 +663,14 @@ async def compare_laps_endpoint(
 
 
 @app.post("/api/analyze-session")
-async def analyze_session_endpoint(
+def analyze_session_endpoint(
     request: Request,
-    session_file: UploadFile = File(..., description="CSV con la sesión completa"),
+    session_file: Optional[UploadFile] = File(None, description="CSV con la sesión completa (o usa file_id)"),
+    file_id: Optional[str] = Form(None, description="id devuelto por POST /api/files"),
 ):
     """Analiza un CSV de telemetría de sesión completa y extrae las vueltas."""
     logger.info("=" * 60)
-    logger.info(f"Solicitud: analizar sesión '{session_file.filename}'")
+    logger.info(f"Solicitud: analizar sesión '{session_file.filename if session_file else file_id}'")
     logger.info("=" * 60)
 
     tmp_dir = None
@@ -645,18 +678,23 @@ async def analyze_session_endpoint(
         lang = _detect_lang(request)
         set_language(lang)
 
-        tmp_dir = tempfile.mkdtemp(prefix="motorsport_session_")
-        path = os.path.join(tmp_dir, "session.csv")
-        await _save_upload(session_file, path)
+        inp = resolve_input(session_file, file_id, lang, "motorsport_session_")
+        tmp_dir = inp.tmp_dir
+        path, filename = inp.path, inp.filename
 
         logger.info("Paso 1/2: Cargando sesión completa...")
-        df = load_telemetry_data(path)
+        df = inp.raw()
 
         logger.info("Paso 2/2: Analizando vueltas...")
         result = analyze_session(df)
-        result["metadata"] = read_session_header(path, session_file.filename)
+        result["metadata"] = read_session_header(path, filename)
+        try:
+            circuits_db.enrich_session(
+                result, read_motec_metadata(path).get("venue") or result["metadata"].get("venue"))
+        except Exception as _exc:  # nunca debe romper el análisis
+            logger.warning("circuits (analyze-session): %s", _exc)
         result["data_quality"] = safe_assess_dq(
-            df, build_dq_meta(path, session_file.filename, "session"), result, lang)
+            df, build_dq_meta(path, filename, "session"), result, lang)
 
         return JSONResponse(content=_sanitize(result))
 
@@ -698,9 +736,10 @@ def _flying_lap_indices(laps: list) -> tuple:
 
 
 @app.post("/api/compare-session-laps")
-async def compare_session_laps_endpoint(
+def compare_session_laps_endpoint(
     request: Request,
-    session_file: UploadFile = File(..., description="CSV con la sesión completa"),
+    session_file: Optional[UploadFile] = File(None, description="CSV con la sesión completa (o usa file_id)"),
+    file_id: Optional[str] = Form(None, description="id devuelto por POST /api/files"),
     lap_a: int = Form(0, description="Vuelta A (1-based). 0 = auto-selecciona la más rápida"),
     lap_b: int = Form(0, description="Vuelta B (1-based). 0 = auto-selecciona la más lenta"),
 ):
@@ -710,7 +749,7 @@ async def compare_session_laps_endpoint(
     Si lap_a=0 o lap_b=0, se auto-seleccionan la vuelta más rápida y la más lenta.
     """
     logger.info("=" * 60)
-    logger.info(f"Solicitud: comparar vueltas {lap_a} vs {lap_b} de '{session_file.filename}'")
+    logger.info(f"Solicitud: comparar vueltas {lap_a} vs {lap_b} de '{session_file.filename if session_file else file_id}'")
     logger.info("=" * 60)
 
     import pandas as pd
@@ -720,13 +759,12 @@ async def compare_session_laps_endpoint(
         lang = _detect_lang(request)
         set_language(lang)
 
-        tmp_dir = tempfile.mkdtemp(prefix="motorsport_csl_")
-        path = os.path.join(tmp_dir, "session.csv")
-        await _save_upload(session_file, path)
+        inp = resolve_input(session_file, file_id, lang, "motorsport_csl_")
+        tmp_dir = inp.tmp_dir
+        path, filename = inp.path, inp.filename
 
         logger.info("Paso 1/3: Cargando sesión...")
-        df = load_telemetry_data(path)
-        df = apply_standard_filters(df)
+        df = inp.filtered()
 
         logger.info("Paso 2/3: Segmentando vueltas...")
         laps = segmentar_vueltas_desde_csv(df)
@@ -944,18 +982,18 @@ async def compare_session_laps_endpoint(
 
         result["metadata"] = {
             "driver_a":       _("lap_n", n=lap_a),
-            "vehicle_a":      session_file.filename,
+            "vehicle_a":      filename,
             "driver_b":       _("lap_n", n=lap_b),
-            "vehicle_b":      session_file.filename,
+            "vehicle_b":      filename,
             "driver_fast":    _("lap_short", n=lap_a),
             "driver_slow":    _("lap_short", n=lap_b),
-            "vehicle_fast":   session_file.filename,
-            "vehicle_slow":   session_file.filename,
+            "vehicle_fast":   filename,
+            "vehicle_slow":   filename,
             "label_a":        _("lap_short", n=lap_a),
             "label_b":        _("lap_short", n=lap_b),
             "same_driver":    True,
             "same_vehicle":   True,
-            "session_file":   session_file.filename,
+            "session_file":   filename,
             "delta_total_s":  result["summary"]["total_time_delta"],
             "apexes_detected": len(apexes) if apexes is not None else 0,
             "lap_a_samples":  len(df_a),
@@ -963,6 +1001,11 @@ async def compare_session_laps_endpoint(
             "aligned_samples":       len(df_a_aligned),
             "distance_synthetic":    df.attrs.get("distance_synthetic", False),
         }
+        try:
+            circuits_db.enrich_compare(
+                result, read_motec_metadata(path).get("venue"), circuits_db.lap_length_of(df_a_aligned))
+        except Exception as _exc:  # nunca debe romper el análisis
+            logger.warning("circuits (compare-session-laps): %s", _exc)
 
         try:
             result["setup_advisor"] = analizar_setup(result, lang=lang)
@@ -972,7 +1015,7 @@ async def compare_session_laps_endpoint(
         result["text_report"] = export_report_text(result, lang=lang)
         result["health_summary"] = _build_health_summary(result)
         result["data_quality"] = safe_assess_dq(
-            df, build_dq_meta(path, session_file.filename, "compare",
+            df, build_dq_meta(path, filename, "compare",
                               n_laps_detected=n, n_laps_compared=2), result, lang)
         logger.info("✓ Comparación de vueltas de sesión completada")
         return JSONResponse(content=_sanitize(result))
@@ -992,7 +1035,7 @@ async def compare_session_laps_endpoint(
 
 
 @app.post("/api/telemetry/compare")
-async def compare_telemetry_endpoint(
+def compare_telemetry_endpoint(
     request: Request,
     lap_fast: UploadFile = File(..., description="CSV de la vuelta rápida (base/referencia)"),
     lap_slow: UploadFile = File(..., description="CSV de la vuelta a comparar"),
@@ -1019,8 +1062,8 @@ async def compare_telemetry_endpoint(
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_geo_")
         path_fast = os.path.join(tmp_dir, "lap_fast.csv")
         path_slow = os.path.join(tmp_dir, "lap_slow.csv")
-        await _save_upload(lap_fast, path_fast)
-        await _save_upload(lap_slow, path_slow)
+        _save_upload_sync(lap_fast, path_fast)
+        _save_upload_sync(lap_slow, path_slow)
 
         # 1. Carga y limpieza
         logger.info("Paso 1/4: Cargando datos...")
@@ -1081,6 +1124,11 @@ async def compare_telemetry_endpoint(
             "sectores":    sectores_json,
             "corners":     insights_curvas,
         }
+        try:
+            circuits_db.enrich_compare(
+                payload, payload["metadata"]["venue"], circuits_db.lap_length_of(df_alineado))
+        except Exception as _exc:  # nunca debe romper el análisis
+            logger.warning("circuits (telemetry/compare): %s", _exc)
 
         logger.info(
             f"✓ Análisis completado: {len(apexes)} curvas, "
@@ -1103,11 +1151,13 @@ async def compare_telemetry_endpoint(
 
 
 @app.post("/api/telemetry/analyze")
-async def analyze_telemetry_endpoint(
+def analyze_telemetry_endpoint(
     request: Request,
-    lap_fast: UploadFile = File(..., description="CSV de la vuelta rápida (referencia)"),
-    lap_slow: UploadFile = File(..., description="CSV de la vuelta lenta (a comparar)"),
+    lap_fast: Optional[UploadFile] = File(None, description="CSV de la vuelta rápida (referencia)"),
+    lap_slow: Optional[UploadFile] = File(None, description="CSV de la vuelta lenta (a comparar)"),
     resolution_m: int = 5,
+    lap_fast_id: Optional[str] = Form(None, description="file_id (POST /api/files) de la vuelta rápida"),
+    lap_slow_id: Optional[str] = Form(None, description="file_id (POST /api/files) de la vuelta lenta"),
 ):
     """
     Pipeline completo de análisis de telemetría con dinámica vehicular y compresión.
@@ -1121,7 +1171,8 @@ async def analyze_telemetry_endpoint(
     7. Compresión inteligente RDP para el frontend.
     """
     logger.info("=" * 60)
-    logger.info(f"[telemetry/analyze] '{lap_fast.filename}' vs '{lap_slow.filename}'")
+    logger.info(f"[telemetry/analyze] '{lap_fast.filename if lap_fast else lap_fast_id}' "
+                f"vs '{lap_slow.filename if lap_slow else lap_slow_id}'")
     logger.info("=" * 60)
 
     tmp_dir = None
@@ -1130,14 +1181,14 @@ async def analyze_telemetry_endpoint(
         set_language(lang)
 
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_dyn_")
-        path_fast = os.path.join(tmp_dir, "lap_fast.csv")
-        path_slow = os.path.join(tmp_dir, "lap_slow.csv")
-        await _save_upload(lap_fast, path_fast)
-        await _save_upload(lap_slow, path_slow)
+        in_fast = resolve_input(lap_fast, lap_fast_id, lang, into_dir=tmp_dir, name="lap_fast.csv")
+        in_slow = resolve_input(lap_slow, lap_slow_id, lang, into_dir=tmp_dir, name="lap_slow.csv")
+        path_fast, path_slow = in_fast.path, in_slow.path
+        fast_name, slow_name = in_fast.filename, in_slow.filename
 
         logger.info("Paso 1/7: Cargando datos...")
-        df_fast_raw = load_telemetry_data(path_fast)
-        df_slow_raw = load_telemetry_data(path_slow)
+        df_fast_raw = in_fast.raw()
+        df_slow_raw = in_slow.raw()
 
         logger.info("Paso 2/7: Procesando geometría de pista y Apexes...")
         df_geo = procesar_geometria_pista_perfecta(df_fast_raw)
@@ -1207,8 +1258,8 @@ async def analyze_telemetry_endpoint(
         payload = {
             "status": "success",
             "metadata": {
-                "lap_fast_filename": lap_fast.filename,
-                "lap_slow_filename": lap_slow.filename,
+                "lap_fast_filename": fast_name,
+                "lap_slow_filename": slow_name,
                 **meta_dict,
                 "samples_fast":       len(df_fast_raw),
                 "samples_slow":       len(df_slow_raw),
@@ -1232,9 +1283,14 @@ async def analyze_telemetry_endpoint(
             "tiempo_potencial": tiempo_potencial,
             "xgboost_pred":     xgboost_pred,
         }
+        try:
+            circuits_db.enrich_compare(
+                payload, meta_dict.get("venue"), circuits_db.lap_length_of(df_aligned))
+        except Exception as _exc:  # nunca debe romper el análisis
+            logger.warning("circuits (telemetry/analyze): %s", _exc)
         payload["data_quality"] = safe_assess_dq(
             [df_fast_raw, df_slow_raw],
-            build_dq_meta(path_fast, lap_fast.filename, "compare"), payload, lang)
+            build_dq_meta(path_fast, fast_name, "compare"), payload, lang)
 
         logger.info(f"✓ Pipeline completo: {len(apexes)} curvas, delta={delta_total:+.3f}s, "
                     f"G_max={g_limit:.2f}, {len(eventos_dinamica)} eventos, "
@@ -1257,9 +1313,10 @@ async def analyze_telemetry_endpoint(
 
 
 @app.post("/api/stint/analyze")
-async def analyze_stint_endpoint(
+def analyze_stint_endpoint(
     request: Request,
-    laps: List[UploadFile] = File(..., description="CSVs de cada vuelta, o un único CSV de sesión completa"),
+    laps: Optional[List[UploadFile]] = File(None, description="CSVs de cada vuelta, o un único CSV de sesión completa"),
+    file_id: Optional[str] = Form(None, description="id (POST /api/files) de un CSV de sesión completa"),
 ):
     """
     Analiza un stint completo de N vueltas.
@@ -1269,7 +1326,8 @@ async def analyze_stint_endpoint(
     Detecta degradación, ventana de pit stop y proyecta tiempos con Monte Carlo.
     """
     logger.info("=" * 60)
-    logger.info(f"[stint/analyze] {len(laps)} archivo(s) recibido(s)")
+    laps = laps or []
+    logger.info(f"[stint/analyze] {len(laps)} archivo(s) recibido(s)" + (f" + file_id {file_id[:8]}" if file_id else ""))
     logger.info("=" * 60)
 
     tmp_dir = None
@@ -1280,14 +1338,15 @@ async def analyze_stint_endpoint(
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
         dfs = []
         dq_src = None  # full session frame when available (data-quality panel)
+        first_name = laps[0].filename if laps else None
 
-        if len(laps) == 1:
-            # Session CSV mode — auto-segment into individual laps
-            path = os.path.join(tmp_dir, "session.csv")
-            await _save_upload(laps[0], path)
-            df_session = load_telemetry_data(path)
+        if file_id or len(laps) == 1:
+            # Session CSV mode — auto-segment into individual laps (shared with analyze-session via cache)
+            inp = resolve_input(laps[0] if laps else None, file_id, lang, into_dir=tmp_dir)
+            path, first_name = inp.path, inp.filename
+            df_session = inp.raw()
             dq_src = df_session
-            logger.info(f"Modo sesión única: segmentando '{laps[0].filename}' ({len(df_session)} filas)...")
+            logger.info(f"Modo sesión única: segmentando '{first_name}' ({len(df_session)} filas)...")
             try:
                 dfs = segmentar_vueltas_desde_csv(df_session)
             except ValueError as exc:
@@ -1300,7 +1359,7 @@ async def analyze_stint_endpoint(
                 )
             for i, lap_file in enumerate(laps):
                 path = os.path.join(tmp_dir, f"lap_{i+1:02d}.csv")
-                await _save_upload(lap_file, path)
+                _save_upload_sync(lap_file, path)
                 dfs.append(load_telemetry_data(path))
 
         if len(dfs) < 3:
@@ -1394,10 +1453,17 @@ async def analyze_stint_endpoint(
             "racing_line_rl":        racing_line_rl,
             "track_evolution":       track_evolution,
         }
+        try:
+            _flying = df_laps.index[~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()].tolist()
+            _len = circuits_db.median_lap_length(
+                circuits_db.lap_length_of(dfs[i]) for i in _flying if i < len(dfs))
+            circuits_db.enrich_stint(stint_result, read_motec_metadata(path).get("venue"), _len)
+        except Exception as _exc:  # nunca debe romper el análisis
+            logger.warning("circuits (stint): %s", _exc)
         stint_result["health_summary"] = _build_health_summary(stint_result)
         stint_result["data_quality"] = safe_assess_dq(
             dq_src if dq_src is not None else dfs,
-            build_dq_meta(path, laps[0].filename, "stint"), stint_result, lang)
+            build_dq_meta(path, first_name, "stint"), stint_result, lang)
         return JSONResponse(content=_sanitize(stint_result))
 
     except HTTPException:

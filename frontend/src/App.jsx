@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useLanguage } from './context/LanguageContext';
 import SpeedChart from './components/SpeedChart';
 import BrakeThrottleChart from './components/BrakeThrottleChart';
@@ -7,6 +7,9 @@ import SummaryCard from './components/SummaryCard';
 import CornerReport from './components/CornerReport';
 import TrackMap from './components/TrackMap';
 import OptimalLapPanel from './components/OptimalLapPanel';
+import { StageProgress, StintSkeleton } from './components/PerfProgress';
+import { ensureFileId, isCancelled } from './api/files';
+import { prefetchOptimalLap } from './api/optimalLap';
 import LapTimelineChart from './components/LapTimelineChart';
 import PitWindowWidget from './components/PitWindowWidget';
 import CurvatureMap from './components/CurvatureMap';
@@ -29,6 +32,7 @@ import ThermalManagementPanel from './components/ThermalManagementPanel';
 import HealthDashboard from "./components/HealthDashboard";
 import DataQualityPanel from "./components/DataQualityPanel";
 import PilotEngineerToggle from "./components/PilotEngineerToggle";
+import ThemeSwitch from './components/ThemeSwitch';
 import { usePilotMode } from './components/usePilotMode';
 import Sidebar from './components/Sidebar';
 import { sectionLabel } from './components/navSections';
@@ -38,6 +42,8 @@ import LibraryView from './components/library/LibraryView';
 import CompareSessionsView from './components/library/CompareSessionsView';
 import { restoreResults } from './api/library';
 import FormatBadge from './components/FormatBadge';
+import CircuitBadge from './components/CircuitBadge';
+import { pickCircuit } from './utils/cornerLabel';
 import { isSupportedFile, ACCEPT_ATTR } from './utils/formats';
 import './styles/shell.css';
 
@@ -597,6 +603,20 @@ export default function App() {
   const [sessionResult, setSessionResult] = useState(null);
   const [stintResult, setStintResult] = useState(null);
 
+  // Progressive analysis: the file is uploaded once, then session / stint / optimal lap run in parallel.
+  // `stages` drives the progress bar; `runRef` + `abortRef` discard and cancel work of a previous file.
+  const [stages, setStages] = useState(null);
+  const runRef = useRef(0);
+  const abortRef = useRef(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+  const cancelAnalysis = useCallback(() => {
+    runRef.current += 1;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStages(null);
+    setLoading(false);
+  }, []);
+
   const [compareResult, setCompareResult] = useState(null);
   const [compareLoading, setCompareLoading] = useState(false);
   const [compareError, setCompareError] = useState(null);
@@ -638,6 +658,7 @@ export default function App() {
   }, []);
 
   const removeFile = useCallback((idx) => {
+    cancelAnalysis(); // pending requests of the removed file (optimal lap, ...) are cancelled
     setFiles(prev => {
       const next = prev.filter((_, i) => i !== idx);
       if (next.length === 0) {
@@ -648,7 +669,7 @@ export default function App() {
       }
       return next;
     });
-  }, []);
+  }, [cancelAnalysis]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -670,28 +691,80 @@ export default function App() {
     setActiveCorner(null);
     setFixedDistance(null);
 
+    // A new run supersedes (and cancels) whatever was still in flight for a previous file.
+    const run = ++runRef.current;
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    const live = () => runRef.current === run;
+    const patch = (p) => { if (live()) setStages((s) => (s ? { ...s, ...p } : s)); };
+    setStages(null);
+
     try {
       if (isSessionMode) {
-        // Sequential to avoid V8 memory spike with 1GB files
-        let sessSettled, stintSettled;
+        const file = files[0];
+        setStages({ upload: 0, uploadState: 'running', session: 'pending', stint: 'pending', optimal: 'pending' });
+
+        // 1. Upload the file once (POST /api/files). null = endpoint unavailable -> classic flow below.
+        let meta = null;
         try {
-          sessSettled = { status: 'fulfilled', value: await analyzeSession(files[0], lang) };
+          meta = await ensureFileId(file, {
+            signal: ctrl.signal, retryFailed: true, onProgress: (p) => patch({ upload: p }),
+          });
         } catch (e) {
-          sessSettled = { status: 'rejected', reason: e };
+          if (isCancelled(e) || !live()) return;
+          throw e;
         }
-        setStep('stint');
-        try {
-          stintSettled = { status: 'fulfilled', value: await analyzeStint([files[0]], lang) };
-        } catch (e) {
-          stintSettled = { status: 'rejected', reason: e };
-        }
-        if (sessSettled.status === 'fulfilled') {
-          setSessionResult(sessSettled.value);
+        if (!live()) return;
+
+        if (meta) {
+          // 2. Session, stint and optimal lap are independent: run them in parallel and show each
+          //    result as soon as it arrives (the stint sections show a skeleton until theirs does).
+          patch({ uploadState: 'done', upload: 1, session: 'running', stint: 'running', optimal: 'running' });
+          setStep('stint');
+          prefetchOptimalLap(file, lang, { signal: ctrl.signal })
+            .then((ok) => patch({ optimal: ok ? 'done' : 'error' }));
+          const sessP = analyzeSession(file, lang, { signal: ctrl.signal }).then((value) => {
+            if (live()) { setSessionResult(value); patch({ session: 'done' }); }
+            return value;
+          });
+          const stintP = analyzeStint([file], lang, { signal: ctrl.signal }).then((value) => {
+            if (live()) { setStintResult(value); patch({ stint: 'done' }); }
+          }).catch(() => patch({ stint: 'error' })); // a failed stint never hides the session results
+          const [sessSettled] = await Promise.allSettled([sessP, stintP]);
+          if (!live()) return;
+          if (sessSettled.status === 'rejected') {
+            patch({ session: 'error' });
+            if (isCancelled(sessSettled.reason)) return;
+            throw new Error(sessSettled.reason?.message || t.errorSession);
+          }
         } else {
-          throw new Error(sessSettled.reason?.message || t.errorSession);
-        }
-        if (stintSettled.status === 'fulfilled') {
-          setStintResult(stintSettled.value);
+          // Fallback (no /api/files): the previous sequential flow, file sent in each request.
+          // Sequential to avoid V8 memory spike with 1GB files
+          patch({ uploadState: 'skipped', session: 'running' });
+          let sessSettled, stintSettled;
+          try {
+            sessSettled = { status: 'fulfilled', value: await analyzeSession(file, lang, { signal: ctrl.signal }) };
+          } catch (e) {
+            sessSettled = { status: 'rejected', reason: e };
+          }
+          if (!live()) return;
+          setStep('stint');
+          patch({ session: sessSettled.status === 'fulfilled' ? 'done' : 'error', stint: 'running' });
+          try {
+            stintSettled = { status: 'fulfilled', value: await analyzeStint([file], lang, { signal: ctrl.signal }) };
+          } catch (e) {
+            stintSettled = { status: 'rejected', reason: e };
+          }
+          if (!live()) return;
+          if (sessSettled.status === 'fulfilled') {
+            setSessionResult(sessSettled.value);
+          } else {
+            throw new Error(sessSettled.reason?.message || t.errorSession);
+          }
+          if (stintSettled.status === 'fulfilled') {
+            setStintResult(stintSettled.value);
+          }
         }
       } else {
         setStep('compare');
@@ -716,9 +789,9 @@ export default function App() {
         setCompareResult(merged);
       }
     } catch (err) {
-      setError(err.message || t.errorUnknown);
+      if (live() && !isCancelled(err)) setError(err.message || t.errorUnknown);
     } finally {
-      setLoading(false);
+      if (live()) setLoading(false);
     }
   };
 
@@ -846,6 +919,7 @@ export default function App() {
   // Abre una sesion guardada: restaura los resultados sin subir el CSV.
   const handleOpenSaved = (detail) => {
     const { sessionResult: sess, stintResult: stint } = restoreResults(detail);
+    cancelAnalysis();
     setFiles([]);
     setError(null);
     setSessionResult(sess);
@@ -863,6 +937,7 @@ export default function App() {
   };
 
   const resetAll = () => {
+    cancelAnalysis();
     setSavedSession(null);
     setFiles([]);
     setError(null);
@@ -894,6 +969,16 @@ export default function App() {
       : t.shellStepSession;
   const progressStep = isSessionMode ? (step === 'stint' ? 2 : 1) : null;
 
+  // Per-stage progress of the session flow (upload once, then session / stint / optimal lap in parallel).
+  const stageList = stages && isSessionMode ? [
+    ...(stages.uploadState !== 'skipped'
+      ? [{ id: 'upload', label: t.perfStageUpload, state: stages.uploadState, pct: stages.upload }] : []),
+    { id: 'session', label: t.perfStageSession, state: stages.session },
+    { id: 'stint', label: t.perfStageStint, state: stages.stint },
+    ...(stages.uploadState === 'done'
+      ? [{ id: 'optimal', label: t.perfStageOptimal, state: stages.optimal, counts: false }] : []),
+  ] : null;
+
   const analyzeLabel = isSessionMode ? clean(t.appAnalyzeSession) : clean(t.appAnalyzeCompare(files.length));
 
   return (
@@ -919,6 +1004,7 @@ export default function App() {
             <button type="button" className="ui-seg__item" aria-pressed={lang === 'es'} onClick={() => setLang('es')}>ES</button>
             <button type="button" className="ui-seg__item" aria-pressed={lang !== 'es'} onClick={() => setLang('en')}>EN</button>
           </div>
+          <ThemeSwitch />
           <PilotEngineerToggle isPilotMode={isPilotMode} onToggle={togglePilotMode} />
         </div>
       </header>
@@ -1047,7 +1133,9 @@ export default function App() {
                   <Alert tone="bad" role="alert" title={t.errorTitle}>{error}</Alert>
                 )}
 
-                {loading && (
+                {loading && stageList && <StageProgress stages={stageList} />}
+
+                {loading && !stageList && (
                   <div className="shell-progress" role="status" aria-live="polite">
                     <div className="shell-progress__bar" />
                     <div className="shell-progress__text">
@@ -1103,6 +1191,7 @@ export default function App() {
                     <span className="shell-chip__size">{fmtMB(f.size)}</span>
                   </span>
                 ))}
+                <CircuitBadge circuit={pickCircuit(stintResult, sessionResult, compareResult)} />
                 {savedSession && (
                   <span className="shell-chip" title={t.libSavedFromLibrary(savedSession.title)}>
                     <span style={{ flexShrink: 0, whiteSpace: 'nowrap' }}><Badge tone="accent">{t.libSavedSession}</Badge></span>
@@ -1110,7 +1199,7 @@ export default function App() {
                   </span>
                 )}
               </div>
-              {isSessionMode && sessionResult && !savedSession && (
+              {isSessionMode && sessionResult && !savedSession && !loading && (
                 <SaveToLibrary file={files[0]} sessionResult={sessionResult} stintResult={stintResult} />
               )}
               <button type="button" className="ui-btn ui-btn--sm" onClick={resetAll} disabled={loading || compareLoading}>
@@ -1127,6 +1216,9 @@ export default function App() {
             />
           )}
 
+          {/* Stage progress stays visible while the remaining stages (stint, optimal lap) finish */}
+          {hasResults && loading && stageList && <StageProgress stages={stageList} />}
+
           {/* ── Session results ── */}
           {sessionResult && (
             <div>
@@ -1140,7 +1232,7 @@ export default function App() {
                       type="button"
                       className="ui-btn ui-btn--sm"
                       onClick={handleSessionPdfDownload}
-                      disabled={sessionPdfLoading}
+                      disabled={sessionPdfLoading || loading}
                       aria-label={t.pdfSessionDownloadAria}
                     >
                       {sessionPdfLoading ? <span className="shell-spin" /> : <Icon name="download" size={14} />}
@@ -1177,6 +1269,13 @@ export default function App() {
                   {savedSession && <Alert tone="info">{t.libSavedCsvNote}</Alert>}
                 </div>
               </section>
+
+              {!stintResult && loading && stages?.stint === 'running' && (
+                <section id="section-stint" className="shell-section" aria-busy="true">
+                  <SectionHeader icon="trend" title={sectionLabel('section-stint', t)} />
+                  <StintSkeleton />
+                </section>
+              )}
 
               {stintResult && (
                 <section id="section-stint" className="shell-section">

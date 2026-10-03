@@ -55,7 +55,7 @@ def get_corner_observations(dfs: list, df_laps) -> dict:
     Returns {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
     Exposed so the RL module can reuse alignments already computed here.
     """
-    from src.processing.alignment import align_pair
+    from src.processing.alignment import align_pair, align_by_distance
     from src.telemetry.lap_comparator import _estimate_corner_time_loss
     from src.telemetry.metrics import segment_corners, pair_corners
 
@@ -65,14 +65,27 @@ def get_corner_observations(dfs: list, df_laps) -> dict:
         return {}
 
     ref_idx = int(flying["lap_time_s"].idxmin())
-    ref_df  = dfs[ref_idx]
+    # Corner detection / time-loss only read these four channels. Interpolating the other
+    # ~165 columns of every lap onto the 1 m grid was ~80 % of this function's time.
+    _cols = ("Distance", "Speed", "Brake", "Throttle")
+
+    def _slim(d):
+        return d[[c for c in _cols if c in d.columns]]
+
+    ref_df  = _slim(dfs[ref_idx])
     obs: dict = defaultdict(list)
+
+    # The reference lap is the same in every pair: interpolate it once, not N-1 times.
+    try:
+        ref_aligned = align_by_distance(ref_df)
+    except Exception:
+        ref_aligned = None
 
     for idx in flying.index:
         if idx == ref_idx:
             continue
         try:
-            al_a, al_b = align_pair(ref_df, dfs[idx])
+            al_a, al_b = align_pair(ref_df, _slim(dfs[idx]), pre_a=ref_aligned)
             corners_a  = segment_corners(al_a)
             corners_b  = segment_corners(al_b)
             for i, ca, cb in pair_corners(corners_a, corners_b):
@@ -82,6 +95,8 @@ def get_corner_observations(dfs: list, df_laps) -> dict:
                     "brake_delta":  float(cb["braking_point"]["distance"] - ca["braking_point"]["distance"]),
                     "apex_delta":   float(cb["apex"]["speed"] - ca["apex"]["speed"]),
                     "thtl_delta":   float(cb["full_throttle"]["distance"] - ca["full_throttle"]["distance"]),
+                    # apex position on the reference lap (m): lets callers name the corner
+                    "ref_apex_distance": float(ca["apex"]["distance"]),
                 })
         except Exception as exc:
             logger.debug("get_corner_observations: idx=%d: %s", idx, exc)
@@ -136,6 +151,7 @@ def analizar_curvas_sesion(
                 "brake_delta":    lap["brake_delta"],
                 "apex_delta":     lap["apex_delta"],
                 "throttle_delta": lap["thtl_delta"],
+                "ref_apex_distance": lap.get("ref_apex_distance"),
             })
 
     if not corner_data:
@@ -162,8 +178,13 @@ def analizar_curvas_sesion(
         mean_apex     = float(np.mean(ok_a)) if ok_a and len(ok_a) * 2 >= len(apexes)    else None
         mean_throttle = float(np.mean(ok_t)) if ok_t and len(ok_t) * 2 >= len(throttles) else None
 
+        _apex_ds = [d["ref_apex_distance"] for d in laps if d.get("ref_apex_distance") is not None]
         corners_agg.append({
             "corner_number":          corner_num,
+            # apex position on the reference lap (m); None if unknown. corner_name is
+            # filled in by src.analytics.circuits when the circuit is recognised.
+            "apex_distance":          round(float(np.median(_apex_ds)), 1) if _apex_ds else None,
+            "corner_name":            None,
             "time_loss_seconds":      round(mean_loss, 3),
             "std_loss_seconds":       round(std_loss, 3),
             # Not-measurable deltas are reported as 0.0 (keeps numeric consumers safe)

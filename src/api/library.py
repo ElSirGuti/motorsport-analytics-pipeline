@@ -69,8 +69,16 @@ def _like(term: str) -> str:
     return "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
+def _circuit_of(venue: Optional[str]) -> Optional[dict]:
+    """Canonical circuit (id + name) for a venue string, or None if unknown."""
+    from src.analytics.circuits import find_circuit
+    c = find_circuit(venue)
+    return {"id": c["id"], "name": c["name"], "country": c.get("country")} if c else None
+
+
 def summary(row: LibrarySession) -> dict:
     return {
+        "circuit": _circuit_of(row.venue),
         "id": str(row.id),
         "created_at": _aware(row.created_at).isoformat() if row.created_at else None,
         "updated_at": _aware(row.updated_at).isoformat() if row.updated_at else None,
@@ -211,10 +219,16 @@ def list_sessions(
     date_to: Optional[date] = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    circuit: Optional[str] = Query(None, max_length=80, description="Id canonico de circuito (circuits.json)"),
     db: Session = Depends(get_db),
 ):
     """Lista paginada y filtrable, sin el payload pesado."""
     cond = []
+    if circuit:
+        # all stored venue strings that resolve to this canonical circuit (aliases included)
+        venues = [v for (v,) in db.execute(select(LibrarySession.venue).where(LibrarySession.venue.is_not(None)).distinct()).all()
+                  if (_circuit_of(v) or {}).get("id") == circuit]
+        cond.append(LibrarySession.venue.in_(venues) if venues else LibrarySession.id.is_(None))
     if q and q.strip():
         pat = _like(q.strip().lower())
         cond.append(or_(*[
@@ -250,7 +264,14 @@ def facets(db: Session = Depends(get_db)):
         select(LibrarySession.venue, LibrarySession.vehicle, func.count())
         .group_by(LibrarySession.venue, LibrarySession.vehicle)
     ).all()
+    by_circuit: dict = {}
+    for v, _veh, n in combos:
+        c = _circuit_of(v)
+        if c:
+            e = by_circuit.setdefault(c["id"], {**c, "count": 0})
+            e["count"] += n
     return {
+        "circuits": sorted(by_circuit.values(), key=lambda e: e["name"]),
         "venues": counts(LibrarySession.venue),
         "vehicles": counts(LibrarySession.vehicle),
         "combos": [{"venue": v, "vehicle": c, "count": n} for v, c, n in combos],

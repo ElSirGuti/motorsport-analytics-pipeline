@@ -1,0 +1,7 @@
+{
+  "files_err_gone": "The uploaded file is no longer available on the server (it expired or this server instance does not have it). Please upload it again.",
+  "files_err_bad_id": "Invalid file identifier.",
+  "files_err_missing_input": "Send the telemetry file or a file_id from POST /api/files.",
+  "files_err_empty": "The uploaded file is empty.",
+  "files_err_store": "The file could not be stored on the server: {err}"
+}

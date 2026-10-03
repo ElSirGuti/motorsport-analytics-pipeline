@@ -324,6 +324,26 @@ def _detect_separator_and_header(filepath: str) -> tuple[str, int, bool]:
     return ",", 0, False
 
 
+_DECIMAL_COMMA_RE = r"\s*-?\d+,\d+\s*"
+
+
+def _has_decimal_comma(filepath: str, read_kwargs: dict) -> bool:
+    """True si las columnas de texto de una muestra son numeros con coma decimal ("1,175")."""
+    try:
+        sample = pd.read_csv(filepath, nrows=200, **read_kwargs)
+    except Exception:
+        return False
+    hits = 0
+    for col in sample.columns:
+        s = sample[col]
+        if s.dtype != object:
+            continue
+        s = s.dropna().astype(str)
+        if len(s) and s.str.fullmatch(_DECIMAL_COMMA_RE).mean() >= 0.8:
+            hits += 1
+    return hits > 0
+
+
 def load_telemetry_data(filepath: str, 
                          separator: Optional[str] = None,
                          skip_rows: Optional[int] = None) -> pd.DataFrame:
@@ -364,18 +384,29 @@ def load_telemetry_data(filepath: str,
     
     try:
         read_kwargs = {"sep": sep_to_use, "low_memory": False}
+        units_skipped = False
         if skip_rows is not None:
             read_kwargs["skiprows"] = skip_rows
         elif header_idx > 0:
-            read_kwargs["skiprows"] = header_idx
+            if has_units:
+                # Saltar la fila de unidades ya en la lectura: si queda como primer registro,
+                # TODAS las columnas se parsean como texto (object) y la normalizacion posterior
+                # recorre ~millones de strings (era ~80 % del tiempo de carga).
+                read_kwargs["skiprows"] = list(range(header_idx)) + [header_idx + 1]
+                units_skipped = True
+            else:
+                read_kwargs["skiprows"] = header_idx
 
+        # Exportaciones con coma decimal ("1,175" entre comillas): leerlas ya como numeros.
+        # Sin esto cada columna queda como texto y se normaliza string a string (muy lento).
+        if _has_decimal_comma(filepath, read_kwargs):
+            read_kwargs["decimal"] = ","
         df = pd.read_csv(filepath, **read_kwargs)
-        
-        # Si se detectó una fila de unidades, la eliminamos (es el primer registro tras saltar la cabecera)
-        if skip_rows is None and header_idx > 0 and has_units and not df.empty:
-            df = df.iloc[1:].reset_index(drop=True)
+
+        if units_skipped:
             logger.info("  Se detectaron y eliminaron filas de metadatos/unidades de MoTeC")
-            
+
+
     except Exception as e:
         raise DataLoaderException(_tr("loader_read_error", err=str(e)))
 

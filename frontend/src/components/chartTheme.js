@@ -1,9 +1,12 @@
 // Shared chart constants and helpers.
-// Hex values of --lap-a..f (Recharts needs literal colours for series).
-export const LAP_COLORS = ['#4da3ff', '#f0616d', '#3dd68c', '#f5a524', '#c084fc', '#2dd4bf'];
+// Colours are CSS custom properties (var(--...)): SVG presentation attributes resolve them
+// at paint time, so every Recharts chart follows the active theme without re-rendering.
+// For canvas / JS colour maths use hooks/useThemeColors.js (literal computed values).
+export const LAP_COLORS = ['var(--lap-a)', 'var(--lap-b)', 'var(--lap-c)', 'var(--lap-d)', 'var(--lap-e)', 'var(--lap-f)'];
 export const COLOR = {
-  ok: '#3dd68c', warn: '#f5a524', bad: '#f0616d', accent: '#4da3ff',
-  ink2: '#a3adbb', ink3: '#6f7a8a', line: '#262d38', lineStrong: '#323b48',
+  ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)', accent: 'var(--accent)',
+  ink1: 'var(--ink-1)', ink2: 'var(--ink-2)', ink3: 'var(--ink-3)', line: 'var(--line)', lineStrong: 'var(--line-strong)',
+  halo: 'var(--map-halo)',
 };
 
 export const TICK = { fill: COLOR.ink3, fontSize: 11, fontFamily: 'var(--font-mono)' };

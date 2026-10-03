@@ -185,7 +185,7 @@ export default function CompareSessionsView({ seed }) {
                     <YAxis tick={TICK} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(2)} width={48} />
                     <ReferenceLine y={0} stroke={COLOR.ink3} />
                     <Tooltip
-                      cursor={{ fill: 'rgba(255,255,255,0.04)' }}
+                      cursor={{ fill: 'var(--veil-1)' }}
                       content={<ChartTooltip digits={3} unit=" s" sign hideKeys={['loss_a', 'loss_b']} nameMap={{ delta: t.libCmpDeltaB }} labelFormatter={(l) => l} />}
                     />
                     <Bar dataKey="delta" name={t.libCmpDeltaB} radius={[3, 3, 0, 0]} isAnimationActive={false}>

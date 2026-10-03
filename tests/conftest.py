@@ -1,5 +1,18 @@
 """Fixtures compartidos para los tests del pipeline de telemetría."""
 
+import atexit
+import os
+import shutil
+import tempfile
+
+# Aislamiento: los tests NUNCA deben tocar la base de datos ni el almacenamiento
+# reales (data/motorsport.db, data/storage). Se fijan ANTES de importar la app,
+# porque el motor SQLAlchemy se crea de forma perezosa con DATABASE_URL.
+_TEST_TMP = tempfile.mkdtemp(prefix="motorsport_tests_")
+os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_TMP.replace(os.sep, '/')}/test.db"
+os.environ["STORAGE_DIR"] = os.path.join(_TEST_TMP, "storage")
+atexit.register(shutil.rmtree, _TEST_TMP, ignore_errors=True)
+
 import numpy as np
 import pandas as pd
 import pytest

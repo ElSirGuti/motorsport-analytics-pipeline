@@ -1,0 +1,7 @@
+{
+  "files_err_gone": "El archivo subido ya no está disponible en el servidor (caducó o esta instancia del servidor no lo tiene). Vuelve a subirlo.",
+  "files_err_bad_id": "Identificador de archivo no válido.",
+  "files_err_missing_input": "Envía el archivo de telemetría o un file_id obtenido de POST /api/files.",
+  "files_err_empty": "El archivo subido está vacío.",
+  "files_err_store": "No se pudo guardar el archivo en el servidor: {err}"
+}

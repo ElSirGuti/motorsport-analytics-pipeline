@@ -8,7 +8,7 @@ import styles from './TrackMap.module.css';
 const PADDING = 32;
 
 const LABEL = {
-  fontSize: 11, stroke: '#0d1014', strokeWidth: 3, paintOrder: 'stroke',
+  fontSize: 11, stroke: 'var(--map-halo)', strokeWidth: 3, paintOrder: 'stroke',
   fontFamily: 'JetBrains Mono, monospace', fontWeight: 600,
 };
 
@@ -141,10 +141,10 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
     >
       <div className={styles.container}>
         <svg viewBox={viewBox} width="100%" height="100%" style={{ display: 'block' }} role="img" aria-label={t.trackMapAria}>
-          <path d={pathD} fill="none" stroke="#323b48" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
-          <path d={pathD} fill="none" stroke="#a3adbb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={pathD} fill="none" stroke="var(--map-casing)" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+          <path d={pathD} fill="none" stroke="var(--map-line)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
-          <circle cx={startPt.x} cy={startPt.y} r="5" fill={COLOR.ok} stroke="#0d1014" strokeWidth="2" />
+          <circle cx={startPt.x} cy={startPt.y} r="5" fill={COLOR.ok} stroke="var(--map-halo)" strokeWidth="2" />
           <text x={startPt.x + 10} y={startPt.y + 4} fill={COLOR.ok} {...LABEL}>S/F</text>
 
           {midPt && points[startPct + 1] && (() => {
@@ -156,7 +156,7 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
             return (
               <polygon
                 points={`${midPt.x + ux},${midPt.y + uy} ${midPt.x - uy * 0.5 - ux * 0.4},${midPt.y + ux * 0.5 - uy * 0.4} ${midPt.x + uy * 0.5 - ux * 0.4},${midPt.y - ux * 0.5 - uy * 0.4}`}
-                fill="#e8ecf2"
+                fill="var(--ink-1)"
               />
             );
           })()}
@@ -174,7 +174,7 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
 
           {/* Cursor position marker, driven directly by rAF */}
           <circle ref={cursorRingRef} r="11" fill="none" stroke={COLOR.accent} strokeWidth="1.5" style={{ display: 'none' }} />
-          <circle ref={cursorDotRef} r="4.5" fill={COLOR.accent} stroke="#0d1014" strokeWidth="1.5" style={{ display: 'none' }} />
+          <circle ref={cursorDotRef} r="4.5" fill={COLOR.accent} stroke="var(--map-halo)" strokeWidth="1.5" style={{ display: 'none' }} />
           <text ref={cursorLabelRef} fill={COLOR.accent} {...LABEL} style={{ display: 'none' }} />
         </svg>
       </div>

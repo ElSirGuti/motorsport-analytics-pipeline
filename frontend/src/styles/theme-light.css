@@ -1,0 +1,58 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — same semantic tokens as the dark "Pit Wall" theme, tuned for
+   a light background. Applied through <html data-theme="light"> (see
+   hooks/useTheme.js). Contrast of every text/graphic pair is verified by
+   scripts/check_contrast.py (WCAG AA: 4.5:1 text, 3:1 graphics/UI).
+   Only token values live here; components never branch on the theme.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces (cool grey-blue, near white) */
+  --surface-0: #f2f4f8;
+  --surface-1: #ffffff;
+  --surface-2: #eceff4;
+  --surface-3: #e1e6ee;
+  --line:      #d3d9e2;
+  --line-strong: #7d899b;
+
+  /* Text */
+  --ink-1: #141a22;
+  --ink-2: #414b5a;
+  --ink-3: #566274;
+  --ink-4: #697587;
+
+  /* Accent + status (darkened for light backgrounds) */
+  --accent:     #0b5cc2;
+  --accent-hover: #0a4fa8;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(11, 92, 194, 0.09);
+  --accent-line: rgba(11, 92, 194, 0.45);
+  --ok:      #0b6e3c;  --ok-soft:   rgba(11, 110, 60, 0.10);   --ok-line:   rgba(11, 110, 60, 0.40);
+  --warn:    #8f5300;  --warn-soft: rgba(143, 83, 0, 0.10);    --warn-line: rgba(143, 83, 0, 0.40);
+  --bad:     #b82235;  --bad-soft:  rgba(184, 34, 53, 0.09);   --bad-line:  rgba(184, 34, 53, 0.40);
+
+  /* Lap series: distinct in hue AND lightness, 3:1+ on white */
+  --lap-a: #0b5cc2;
+  --lap-b: #c9302c;
+  --lap-c: #148a4b;
+  --lap-d: #b86e00;
+  --lap-e: #5b2c9f;
+  --lap-f: #00838f;
+
+  --shadow-pop: 0 8px 28px rgba(20, 30, 50, 0.16);
+
+  --veil-1: rgba(20, 30, 50, 0.03);
+  --veil-2: rgba(20, 30, 50, 0.06);
+  --veil-3: rgba(20, 30, 50, 0.12);
+  --heat-neutral: #c4ccd8;
+  --map-casing: #cfd6e0;
+  --map-line: #566274;
+  --map-halo: #ffffff;
+
+  --purple: #6a4fd6; --purple-dim: rgba(106, 79, 214, 0.10);
+}
+
+/* No ambient glow blobs on light surfaces */
+:root[data-theme="light"] body::after { display: none; }

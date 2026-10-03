@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, File, Form, HTTPException, Query, UploadFile
 
 from src.analytics import ac_setups as ac
 
@@ -23,8 +23,16 @@ async def _read_upload(upload: UploadFile, limit: int) -> bytes:
 
 
 @router.post("/detect")
-async def detect_session_metadata(header: UploadFile = File(...)):
-    """Vehicle / venue / driver from the first bytes of the telemetry CSV."""
+async def detect_session_metadata(header: Optional[UploadFile] = File(None),
+                                  file_id: Optional[str] = Form(None)):
+    """Vehicle / venue / driver from the first bytes of the telemetry CSV (or of a stored file_id)."""
+    if file_id:
+        from src.api.files import resolve_input
+        inp = resolve_input(None, file_id, "en")
+        with open(inp.path, "rb") as fh:
+            return ac.parse_motec_header(fh.read(_HEADER_MAX))
+    if header is None:
+        raise HTTPException(status_code=422, detail="header or file_id is required")
     raw = await _read_upload(header, _HEADER_MAX)
     return ac.parse_motec_header(raw)
 

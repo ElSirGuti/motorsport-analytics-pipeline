@@ -3,6 +3,7 @@ const API_URL = import.meta.env.VITE_API_URL
   || (import.meta.env.PROD ? '/api' : 'http://localhost:8000/api');
 
 import axios from 'axios';
+import { withFile, isCancelled } from './files';
 
 const apiClient = axios.create({
   baseURL: API_URL,
@@ -73,35 +74,46 @@ export const analyzeTelemetry = async (lapFast, lapSlow, resolutionM = 5, lang =
   }
 };
 
-export const analyzeSession = async (sessionFile, lang = 'en') => {
-  const formData = new FormData();
-  formData.append('session_file', sessionFile);
+// Session endpoints send the file once (POST /api/files) and then only its `file_id`; if the upload
+// endpoint is unavailable they fall back to sending the file in the request, as before.
+const asError = (error) => {
+  if (isCancelled(error)) return error;
+  return new Error(extractErrorMessage(error), { cause: error });
+};
 
+export const analyzeSession = async (sessionFile, lang = 'en', { signal, onProgress } = {}) => {
   try {
-    const response = await apiClient.post('/analyze-session', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      params: { lang },
+    return await withFile(sessionFile, { signal, onProgress }, async (id) => {
+      const formData = new FormData();
+      if (id) formData.append('file_id', id); else formData.append('session_file', sessionFile);
+      const response = await apiClient.post('/analyze-session', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        params: { lang },
+        signal,
+      });
+      return response.data;
     });
-    return response.data;
   } catch (error) {
-    throw new Error(extractErrorMessage(error), { cause: error });
+    throw asError(error);
   }
 };
 
-export const compareSessionLaps = async (sessionFile, lapA, lapB, lang = 'en') => {
-  const formData = new FormData();
-  formData.append('session_file', sessionFile);
-  formData.append('lap_a', String(lapA));
-  formData.append('lap_b', String(lapB));
-
+export const compareSessionLaps = async (sessionFile, lapA, lapB, lang = 'en', { signal, onProgress } = {}) => {
   try {
-    const response = await apiClient.post('/compare-session-laps', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      params: { lang },
+    return await withFile(sessionFile, { signal, onProgress }, async (id) => {
+      const formData = new FormData();
+      if (id) formData.append('file_id', id); else formData.append('session_file', sessionFile);
+      formData.append('lap_a', String(lapA));
+      formData.append('lap_b', String(lapB));
+      const response = await apiClient.post('/compare-session-laps', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        params: { lang },
+        signal,
+      });
+      return response.data;
     });
-    return response.data;
   } catch (error) {
-    throw new Error(extractErrorMessage(error), { cause: error });
+    throw asError(error);
   }
 };
 
@@ -128,16 +140,23 @@ export const downloadSessionPdfReport = async ({ session, stint, comparison, met
   return { blob: response.data, filename: match ? match[1] : 'motorsport_report.pdf' };
 };
 
-export const analyzeStint = async (lapFiles, lang = 'en') => {
-  const formData = new FormData();
-  lapFiles.forEach(f => formData.append('laps', f));
-  try {
+export const analyzeStint = async (lapFiles, lang = 'en', { signal, onProgress } = {}) => {
+  const send = async (id) => {
+    const formData = new FormData();
+    if (id) formData.append('file_id', id);
+    else lapFiles.forEach(f => formData.append('laps', f));
     const response = await apiClient.post('/stint/analyze', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
       params: { lang },
+      signal,
     });
     return response.data;
+  };
+  try {
+    // One session CSV -> upload once and reference it; several per-lap CSVs -> classic multipart.
+    if (lapFiles.length === 1) return await withFile(lapFiles[0], { signal, onProgress }, send);
+    return await send(null);
   } catch (error) {
-    throw new Error(extractErrorMessage(error), { cause: error });
+    throw asError(error);
   }
 };

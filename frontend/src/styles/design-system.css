@@ -27,6 +27,7 @@
   /* Accent + status */
   --accent:     #4da3ff;
   --accent-ink: #0a1624;
+  --accent-hover: #6bb4ff;
   --accent-soft: rgba(77, 163, 255, 0.12);
   --accent-line: rgba(77, 163, 255, 0.38);
   --ok:      #3dd68c;  --ok-soft:   rgba(61, 214, 140, 0.12);  --ok-line:   rgba(61, 214, 140, 0.35);
@@ -54,6 +55,15 @@
   --radius-lg: 12px;
 
   --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55);
+
+  /* Neutral overlays (theme-aware replacements for rgba(255,255,255,x)) */
+  --veil-1: rgba(255, 255, 255, 0.03);
+  --veil-2: rgba(255, 255, 255, 0.06);
+  --veil-3: rgba(255, 255, 255, 0.12);
+  --heat-neutral: #3a4350;   /* low end of heat ramps (optimal-lap map) */
+  --map-casing: #323b48;     /* track-map road casing */
+  --map-line: #a3adbb;       /* track-map centre line */
+  --map-halo: #0d1014;       /* halo behind labels / markers */
   --appbar-h: 56px;
   --rail-w: 232px;
 
@@ -149,7 +159,7 @@ body::before { display: none; }          /* remove decorative dot grid */
 .ui-btn:hover:not(:disabled) { background: var(--surface-3); }
 .ui-btn:disabled { opacity: .45; cursor: not-allowed; }
 .ui-btn--primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.ui-btn--primary:hover:not(:disabled) { background: #6bb4ff; }
+.ui-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
 .ui-btn--ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .ui-btn--sm { height: 28px; padding: 0 10px; font-size: var(--fs-xs); }
 
@@ -174,3 +184,6 @@ body::before { display: none; }          /* remove decorative dot grid */
 @media (max-width: 720px)  { .ui-grid--2, .ui-grid--3, .ui-grid--4 { grid-template-columns: 1fr; } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; } }
+
+/* Icon-only segmented control (theme selector) */
+.ui-seg--icons .ui-seg__item { display: inline-grid; place-items: center; width: 32px; padding: 0; }

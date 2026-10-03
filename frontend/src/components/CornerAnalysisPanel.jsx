@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
 import { Panel } from './ui';
+import { cornerLabel } from '../utils/cornerLabel';
 import css from './CornerAnalysisPanel.module.css';
 
 const PHASE_COLOR = {
@@ -25,14 +26,14 @@ function CustomTooltip({ active, payload }) {
   if (d.time_loss_seconds == null) {
     return (
       <div className={css.tip}>
-        <div className={css.tipHead}>{t.cornerLabel} {d.corner_number}</div>
+        <div className={css.tipHead}>{cornerLabel(t, d.corner_number, d.corner_name)}</div>
         <div className={css.tipFocus}>{t.rlNoData}</div>
       </div>
     );
   }
   return (
     <div className={css.tip}>
-      <div className={css.tipHead}>{t.cornerLabel} {d.corner_number}</div>
+      <div className={css.tipHead}>{cornerLabel(t, d.corner_number, d.corner_name)}</div>
       <div className={css.tipGrid}>
         <span>{clean(t.tooltipLoss)}</span>
         <b className={d.time_loss_seconds > 0 ? css.bad : css.ok}>{signed(d.time_loss_seconds, 3)} s</b>
@@ -96,7 +97,7 @@ function TopCornerCard({ c, rank }) {
       <div className={css.cardHead}>
         <span className={css.rank} title={t.cornerPriorityRank(rank)} aria-label={t.cornerPriorityRank(rank)}>{rank}</span>
         <div>
-          <div className={css.cardName}>{t.cornerLabel} {c.corner_number}</div>
+          <div className={css.cardName}>{cornerLabel(t, c.corner_number, c.corner_name)}</div>
           <div className={css.cardPhase}>
             <span className={css.dot} style={{ background: PHASE_COLOR[dominant] || 'var(--ink-3)' }} />
             {PHASE_LABEL[dominant]} {clean(t.phaseDominant)}
@@ -142,6 +143,7 @@ export default function CornerAnalysisPanel({ result, metadata, sessionMode, ref
       ...c,
       abs_loss: Math.abs(c.time_loss_seconds || 0),
       ...(cornerPrio.find(cp => cp.corner_number === n) || {}),
+      corner_name: c.corner_name ?? null,
       time_loss_seconds: c.time_loss_seconds ?? null,
     };
   });
@@ -152,6 +154,7 @@ export default function CornerAnalysisPanel({ result, metadata, sessionMode, ref
   const ranked = cornerPrio.slice(0, 6).map((c, i) => ({
     c: {
       ...c,
+      corner_name: c.corner_name ?? byNum[c.corner_number]?.corner_name ?? null,
       braking_available: c.braking_available ?? byNum[c.corner_number]?.braking_available,
       apex_available: c.apex_available ?? byNum[c.corner_number]?.apex_available,
       throttle_available: c.throttle_available ?? byNum[c.corner_number]?.throttle_available,
