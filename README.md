@@ -1,6 +1,6 @@
 # Motorsport Analytics Pipeline
 
-> Lap and session telemetry analysis for Assetto Corsa and iRacing, from MoTeC-style CSV exports: lap comparison, corner-by-corner diagnosis, stint and tyre analysis, and setup recommendations.
+> Lap and session telemetry analysis for Assetto Corsa and iRacing: lap comparison, corner-by-corner diagnosis, stint and tyre analysis, optimal lap by microsectors, setup recommendations linked to your Assetto Corsa setups, a session library and a bilingual PDF report.
 
 [Leer en Español](README.es.md)
 
@@ -14,14 +14,18 @@ pip install -r requirements.txt && uvicorn main:app --reload --port 8000
 # 2. Frontend (second terminal)
 cd frontend && npm install && npm run dev
 
-# 3. Open http://localhost:5173 and drop a CSV (see "Using the app")
+# 3. Open http://localhost:5173 and drop a CSV, .ibt or .ld file (see "Using the app")
 ```
+
+With Docker (backend + frontend + PostgreSQL, UI on http://localhost:8080): `cp .env.example .env && docker compose up --build -d`. Docker and Kubernetes files were **not run** on the author's machine (no Docker available there); see [Deployment](#deployment) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Table of contents
 
 - [What it is](#what-it-is)
 - [Installation](#installation)
+- [Deployment](#deployment)
 - [Using the app](#using-the-app)
+- [Main features](#main-features)
 - [Telemetry formats](#telemetry-formats)
 - [Data quality notes and behaviour](#data-quality-notes-and-behaviour)
 - [Example result](#example-result)
@@ -36,10 +40,11 @@ cd frontend && npm install && npm run dev
 
 ## What it is
 
-A FastAPI backend plus a React frontend. You upload telemetry CSV files and get back:
+A FastAPI backend plus a React frontend. You upload telemetry and get back:
 
-- **Session mode (1 CSV):** the full session is split into laps automatically. You get a lap table (pit and outlier laps flagged), stint analysis (pace degradation, fuel strategy, Monte Carlo projection, pit window, track evolution), per-corner session analysis, tyre degradation, thermal management, racing-line optimisation and setup recommendations.
-- **Comparison mode (2 CSVs of one lap each, or 2 laps picked from a session):** distance-aligned time delta, speed/brake/throttle overlays, corner-by-corner diagnosis, G-G diagram, understeer/oversteer events, tyre/brake/suspension/driver-input/slip-angle analysis, ML modules (anomaly detection, style clustering, lap-time potential) and a PDF report.
+- **Session mode (1 file):** the full session is split into laps automatically. You get a lap table (pit and outlier laps flagged), stint analysis (pace degradation, fuel strategy, Monte Carlo projection, pit window, track evolution), the optimal lap by microsectors, per-corner session analysis, tyre degradation, thermal management, racing-line optimisation, setup recommendations and a data-quality panel.
+- **Comparison mode (2 files of one lap each, or 2 laps picked from a session):** distance-aligned time delta, speed/brake/throttle overlays, corner-by-corner diagnosis, G-G diagram, understeer/oversteer events, tyre/brake/suspension/driver-input/slip-angle analysis, ML modules (anomaly detection, style clustering, lap-time potential) and a PDF report.
+- **Library:** analysed sessions can be saved to a database, reopened without the original file and compared with each other.
 
 The UI has two views: **Engineer** (everything) and **Pilot** (technical panels hidden). Languages: English and Spanish (API messages and reports follow the `lang` query parameter or `Accept-Language`).
 
@@ -52,6 +57,7 @@ The UI has two views: **Engineer** (everything) and **Pilot** (technical panels 
 | Python | 3.10+ (the Docker image uses 3.11) |
 | Node.js | 18+ (the Docker image uses 20) |
 | Git | any |
+| Docker | optional (Compose v2), only for containers |
 
 ### Local
 
@@ -73,48 +79,116 @@ uvicorn main:app --reload --port 8000     # API on http://localhost:8000 (docs a
 cd frontend && npm run dev                # UI on http://localhost:5173
 ```
 
-You can also run `python main.py`, which reads `API_HOST`, `API_PORT` and `API_RELOAD` from the environment.
+You can also run `python main.py`, which reads `API_HOST`, `API_PORT` and `API_RELOAD` from the environment. Local runs use a SQLite file (`data/motorsport.db`) for the library; no database setup is needed.
 
-### Docker
+## Deployment
+
+Full guide, including architecture, environment contract, troubleshooting and security notes: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) ([Español](docs/DEPLOYMENT.es.md)).
+
+| Method | Command | Result |
+|---|---|---|
+| Docker Compose | `cp .env.example .env` then `docker compose up --build -d` (or `make up`) | UI on `http://localhost:8080` (`FRONTEND_PORT`); backend and PostgreSQL stay on the internal network |
+| Compose dev profile | `docker compose --profile dev up postgres backend-dev` | API with hot reload on `http://127.0.0.1:8010` (`BACKEND_DEV_PORT`) |
+| Kubernetes (kind) | `make kind-up` (or `scripts/kind-up.sh`, `scripts/kind-up.ps1`) | Local cluster with Kustomize overlay `k8s/overlays/local`, UI on `http://localhost:8088` |
+| Kubernetes (other) | `kubectl apply -k k8s/overlays/local` or `k8s/overlays/prod` | See the deployment guide |
+
+Edit `POSTGRES_PASSWORD` in `.env` before running; the example values are for a local machine only. Compose runs `alembic upgrade head` on start.
+
+**What was and was not verified.** The Dockerfiles, `docker-compose.yml` and the Kubernetes manifests were written and checked statically (YAML, Kubernetes schemas via `scripts/validate_k8s.py` and `kubernetes-validate`, `yamllint`, `bash -n`, PowerShell parser) on a machine without Docker or Kubernetes. They have **not been built or applied yet**. Commands to verify them on your machine are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#what-has-been-verified); the short version:
 
 ```bash
-docker compose up --build
+docker compose config -q
+docker build -t motorsport-backend:dev . && docker build -t motorsport-frontend:dev ./frontend
+docker compose up --build -d && curl -f http://localhost:8080/api/health
+make kind-up && kubectl -n motorsport get pods
 ```
 
-`docker-compose.yml` starts the `backend` (port 8000, health check on `/api/health`) and the `frontend` (nginx serving the production build on port 5173). The frontend image bakes the API URL at build time (`VITE_API_URL`, default `http://localhost:8000/api`), so the browser must be able to reach the API at that address.
+The application has **no authentication yet**: do not expose it to the internet as is.
+
+**Assetto Corsa setups inside Docker.** A container cannot see your `Documents\Assetto Corsa\setups` folder. Either upload the setup `.ini` manually in the UI, or bind-mount the folder read-only and set `AC_SETUPS_DIR` (see `docker-compose.override.example.yml`).
 
 ## Using the app
 
-1. Open `http://localhost:5173` and choose the language (ES/EN) and the mode (Pilot/Engineer) in the top bar.
-2. Drop CSV files in the upload area. The mode is detected from the number of files:
-   - **1 CSV = full session**, segmented into laps automatically.
-   - **2 CSVs = two single laps** to compare.
-3. Click analyze. A step progress bar shows the stages (large files can take a few minutes; a ~57 MB session took about 25 s). Once the analysis is done, the upload area collapses into a file bar with a **New analysis** button.
-4. Navigate with the side rail:
-   - Session: *Session overview*, *Stint analysis*, *Setup & strategy*.
+1. Open the UI (`http://localhost:5173` in dev, `http://localhost:8080` with Docker) and choose the language (ES/EN) and the mode (Pilot/Engineer) in the top bar. The **Analysis / Library / Compare sessions** switch selects the view.
+2. Drop telemetry files in the upload area. The mode is detected from the number of files:
+   - **1 file = full session**, segmented into laps automatically.
+   - **2 files = two single laps** to compare.
+3. Click analyze. A step progress bar shows the stages (large files can take a few minutes; a ~57 MB session took about 25 s). Once the analysis is done, the upload area collapses into a file bar with **New analysis**, **Save to library** and **Download report** actions.
+4. A **data-quality panel** appears first: score, channels, laps and analysis modules, with a list of what would improve the analysis.
+5. Navigate with the side rail:
+   - Session: *Session overview* (lap table, track map, optimal lap), *Stint analysis*, *Setup & strategy*.
    - Comparison: *Core lap*, *Vehicle dynamics*, *Driver & inputs*, *Strategy & setup*.
    - Pilot mode hides the technical panels (vehicle dynamics and driver inputs).
-5. In the session lap table, tick **two laps (A/B)** and press **Compare**, or use **Best vs Worst**. Pit and outlier laps are marked in the table.
-6. A health panel shows which analysis modules produced data and which are unavailable for this file.
+6. In the session lap table, tick **two laps (A/B)** and press **Compare**, or use **Best vs Worst**. Pit and outlier laps are marked in the table.
 7. Compare results can be copied as a text report or downloaded as a PDF.
 
 Full walkthrough: [User Guide](docs/USER_GUIDE.md).
 
+## Main features
+
+### Optimal lap by microsectors
+
+`POST /api/optimal-lap` (module `src/analytics/optimal_lap.py`, UI panel `OptimalLapPanel` in the session overview). Every valid lap is normalised to the median track length and cut into microsectors; the panel reports two estimates:
+
+- **Theoretical:** the sum of the best time of every microsector. It is an optimistic lower bound because it ignores that the exit speed of one microsector is the entry speed of the next.
+- **Realistic:** dynamic programming that only switches from one lap to another where the speeds match (tolerance `speed_tol_kmh`, default 3 km/h) and keeps a minimum run of 75 m on the same lap, so kinematic continuity is preserved.
+
+The microsector length is configurable in the UI (10, 25, 50 or 100 m; the API takes any value in `microsector_m`, default 25). Limits: the theoretical figure grows as the microsector shrinks (it has more freedom to cherry-pick); with a synthesised `Distance` channel the alignment is less precise and the result is indicative only (the API adds a warning). It needs at least 3 usable laps; pit, outlier and partial laps are excluded. The panel also shows time gain per microsector on the track map, the zones where the best lap loses the most, gain per corner and the laps that contribute the most.
+
+Imola example (Porsche Cayman GT4, 21 laps): best lap 1:57.605, realistic optimal 1:54.107, theoretical optimal 1:52.885.
+
+### Assetto Corsa setup integration
+
+Module `src/analytics/ac_setups.py`, router `src/api/setups.py`, UI `SetupSelector` and `SetupLink`. The setup you used is linked to the Setup Advisor so each recommendation can show **Current -> Suggested**.
+
+Lookup order:
+
+1. `<Documents>\Assetto Corsa\setups\<car>\<track>\*.ini` (car and track come from the telemetry header; `AC_SETUPS_DIR` overrides the folder). If several exist you choose which one you used.
+2. `<car>\generic\last.ini`, only after you confirm it was the setup used in that session.
+3. Manual upload of a `.ini` file (always available).
+
+Notes: the setups folder is only readable when the backend runs on the same machine as the game. In Docker you upload manually or use a read-only bind mount. Values are shown in the game's raw units (clicks); units are applied only where they are certain (tyre pressure in psi, front brake bias and brake power in %, fuel in litres), and min/max ranges only when the car's unpacked `data/setup.ini` exists (encrypted `data.acd` files are deliberately not opened). Security: car and track names are validated against a strict character set and matched against the real directory listing, the resolved path must stay inside the setups folder (path traversal is rejected), and only `.ini`/`.sp` files up to 256 KB are read.
+
+### Session library and session comparison
+
+Code in `src/api/library.py`, `src/db/` (SQLAlchemy models and engine), `src/analytics/session_compare.py` and migrations in `alembic/`. Use **Save to library** in the file bar (or enable automatic saving), then reopen the session from **Library** without the CSV, or pick two sessions in **Compare sessions** to see differences in average and median pace, consistency, fuel per lap and time lost per corner.
+
+- Storage: `DATABASE_URL` (default `sqlite:///data/motorsport.db`; PostgreSQL in the containers, `postgresql+psycopg://...`), optional `STORAGE_DIR` (default `./data/storage`). The schema is created or migrated automatically on the first library request (Alembic, falling back to `create_all`); Compose and the Kubernetes init container also run `alembic upgrade head` on start.
+- Saving the same file (SHA-256) for the same circuit updates the existing entry instead of duplicating it.
+- Sessions must be from the same circuit and car to be compared; a forced comparison is possible and flagged.
+- Limits: the saved payload is limited to **5 MB** (HTTP 413); listing is paginated (`limit` up to 200).
+- There is **no authentication yet**. The `owner_id` column is reserved for a future user system and is always empty today.
+
+### Data-quality panel
+
+Module `src/analytics/data_quality.py`. Included in the responses as `data_quality` and shown first in the UI. It gives a **0-100 score** (good >= 75, fair >= 50, poor below) with a breakdown, and lists: source (sim, car, circuit, sample rate, duration), **channels** (present, missing, constant, synthesised, sparse, partial), **laps** (valid, pit, outliers, partial segments dropped), **analysis modules** (ok, degraded or unavailable, with the concrete reason) and a prioritised **how to improve** list. It reuses the `available`/`reason`/`low_confidence` flags the modules already produce instead of recomputing them.
+
+### PDF report
+
+Redesigned and bilingual (ES/EN, follows the UI language). **Download report** in the UI posts the already computed results to `POST /api/report/session-pdf-from-json` (session, stint and optionally a comparison); two-file and lap-pair comparisons use `POST /api/report/pdf-from-json`. Sections include executive summary, key findings, recommended actions, data quality and limitations, pace and laps, corners in track order, setup recommendations, strategy and tyres, and (in comparisons) car telemetry and trace comparisons. File name: `motorsport_<circuit>_<car>_<date>.pdf`.
+
+### Realistic projections
+
+The stint and tyre projections (`src/analytics/stint.py`, `tyre_degradation.py`) are conservative. With fewer than 5 valid laps or a very wide slope confidence interval, the projection falls back to the recent pace and is flagged `low_confidence: true`, with `confidence` (`low`/`medium`/`high`), `reason_code` and a translated `reason`. If tyre wear does not seem enabled in the simulator (zero wear rate and constant rubber grip), degradation is reported as `available: false`, `reason_code: "wear_inactive"` instead of inventing a trend, because degradation cannot be separated from fuel burn and track evolution.
+
 ## Telemetry formats
 
-The loader (`src/io/loaders.py`) reads **CSV** only. Supported sources:
+The loader (`src/io/loaders.py`) reads CSV and, **experimentally**, two native formats.
 
-| Source | Notes |
-|---|---|
-| Assetto Corsa via ACTI, exported as MoTeC CSV | Comma or semicolon separator is auto-detected; the MoTeC header block (Driver, Vehicle, Venue) is read as metadata and the units row is skipped. |
-| iRacing exported to CSV (`.ibt` converted with MoTeC i2 or a third-party tool) | Detected by `SessionTime`, `Session Time` or `SessionLapCount`. Speed in m/s is converted to km/h, pedals in 0-1 are scaled to 0-100, suspension in metres to mm, tyre pressure kPa/PSI to bar, brake bias fraction to percent. |
-| iRacing `.ibt` and MoTeC `.ld` (native, **experimental**) | Detected by extension or binary signature. Units are normalised to the canonical channels; see "Supported formats" in `docs/USER_GUIDE.md`. |
+| Source | Status | Notes |
+|---|---|---|
+| Assetto Corsa via ACTI, exported as MoTeC CSV | Stable | Comma or semicolon separator is auto-detected; the MoTeC header block (Driver, Vehicle, Venue) is read as metadata and the units row is skipped. |
+| iRacing exported to CSV | Stable | Detected by `SessionTime`, `Session Time` or `SessionLapCount`. Speed in m/s is converted to km/h, pedals in 0-1 are scaled to 0-100, suspension in metres to mm, tyre pressure kPa/PSI to bar, brake bias fraction to percent. |
+| iRacing `.ibt` (`src/io/ibt_loader.py`) | **Experimental** | Detected by extension or binary signature. Units are normalised to the canonical channels. |
+| MoTeC `.ld` (`src/io/ld_loader.py`) | **Experimental** | Channels at different rates are resampled to the fastest; shared code in `src/io/native_common.py`. |
 
-The export steps for each program (ACTI, MoTeC i2, iRacing) are in the [User Guide](docs/USER_GUIDE.md#exporting-telemetry).
+> **Experimental.** The `.ibt` and `.ld` readers follow the publicly documented layouts and were validated with synthetic round-trip tests and 53 real files from the author (iRacing BMW M2 and Ford Mustang GT4, their MoTeC `.ld` exports, and Assetto Corsa/ACTI `.ld` logs). More simulators, cars and loggers need to be tested. The UI shows an Experimental badge. If a result looks wrong, compare with the CSV export. Native sessions above 2 million samples (`NATIVE_MAX_ROWS`) are rejected.
+
+The export steps for each program are in the [User Guide](docs/USER_GUIDE.md#exporting-telemetry).
 
 **Required channels:** `Speed`, `Brake`, `Throttle`. If any is missing or has no numeric values, the API answers `400` with a message listing the columns found.
 
-**Distance:** if the `Distance` channel is absent (or never exceeds 10 m), it is synthesised by integrating `Speed` over a valid time clock (`LR/HR/MR Sample Clock`, `SessionTime`, `Time`, `Lap Time`; a clock that is a 0/1 square wave is rejected; falls back to `Session Time Left`, then the lap timer, then a fixed 100 Hz). Responses that carry metadata (`/api/compare-session-laps`, `/api/report/pdf`) set `metadata.distance_synthetic = true`. Synthetic distance is fine for stint and session analysis; lap-to-lap comparison is more reliable with a real distance channel.
+**Distance:** if the `Distance` channel is absent (or never exceeds 10 m), it is synthesised by integrating `Speed` over a valid time clock (`LR/HR/MR Sample Clock`, `SessionTime`, `Time`, `Lap Time`; a clock that is a 0/1 square wave is rejected; falls back to `Session Time Left`, then the lap timer, then a fixed 100 Hz). Responses that carry metadata (`/api/compare-session-laps`, `/api/report/pdf`) set `metadata.distance_synthetic = true`. Synthetic distance is fine for stint and session analysis; lap-to-lap comparison and the optimal lap are more reliable with a real distance channel.
 
 **Recognised channels (canonical name: examples of accepted aliases):**
 
@@ -141,9 +215,10 @@ The complete alias table is `COLUMN_ALIASES` in `src/io/loaders.py`. Missing opt
 - **Corner matching** between two laps uses the apex distance, not the corner index.
 - **Not-measurable values:** `braking_delta_available` and `throttle_delta_available` flag whether the braking/throttle deltas could be measured. A `0.0` with `available = false` means "not measurable", not "no difference".
 - **Constant channels** (for example brake temperatures fixed at one value) return `available: false` with a `reason` instead of generating false recommendations.
+- **Low confidence:** projections with too few laps carry `low_confidence`, `confidence` and `reason` (see "Realistic projections").
 - **Slip angle sign convention:** the sign convention of `LateralG` is detected from its correlation with the yaw rate and flipped when needed (Assetto Corsa logs it inverted) before computing the slip angle.
-- **Input validation:** an empty CSV or one without the minimum channels returns `400` with a clear message. Invalid lap selections return `422`.
-- **Track evolution** (`track_evolution`) and **`health_summary`** are part of the stint and compare-session responses.
+- **Input validation:** an empty file or one without the minimum channels returns `400` with a clear message. Invalid lap selections return `422`. A file above `MAX_UPLOAD_MB` returns `413`.
+- **Track evolution** (`track_evolution`), **`health_summary`** and **`data_quality`** are part of the stint and compare-session responses.
 
 ## Example result
 
@@ -153,6 +228,7 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, ~57 MB Mo
 |---|---|
 | Laps detected | 21 (laps 1 and 21 are pit laps) |
 | Best lap | Lap 11, 1:57.605 |
+| Optimal lap (realistic / theoretical) | 1:54.107 / 1:52.885 |
 | Race-lap range | 117.6 - 122.4 s |
 | Track length | ~4862 m |
 | Top speed | 243.9 km/h |
@@ -161,25 +237,34 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, ~57 MB Mo
 | Degradation trend | -0.077 s/lap (the car gets faster as fuel burns off) |
 | Full analysis time | ~25 s |
 
-The CSV itself is not part of the repository.
+The CSV itself is not part of the repository. The optimal lap figures were computed with this file, whose `Distance` was synthesised, so they are indicative.
 
 ## Architecture
 
 ```
-main.py                  FastAPI app: endpoints, CORS, logging, error mapping
+main.py                  FastAPI app: core endpoints, CORS, logging, upload limit (413), error mapping
 src/
-  io/                    loaders.py (CSV ingestion, aliases, unit normalisation, distance synthesis)
-                         exporters.py (text report), pdf_exporter.py (PDF report)
+  api/                   Routers: library.py, optimal_lap.py, setups.py
+  db/                    SQLAlchemy models and engine (SQLite / PostgreSQL)
+  io/                    loaders.py (CSV, aliases, units, distance synthesis), ibt_loader.py, ld_loader.py,
+                         native_common.py (experimental native formats), exporters.py (text report),
+                         pdf_exporter.py, pdf_charts.py (PDF report)
   processing/            alignment.py (distance alignment), filters.py (signal filters)
   telemetry/             lap_comparator.py, metrics.py, session_analyzer.py
   analytics/             Advanced modules (see table below)
-  i18n.py, locales/      Backend translations (en.json, es.json)
+  i18n.py, locales/      Backend translations: en.json, es.json and locales/extra/*.json
   visualization/         (empty package)
+alembic/, alembic.ini    Database migrations (library tables)
 frontend/                React 19 + Vite + Recharts (see frontend/README.md)
-tests/                   pytest suite (48 tests)
-scripts/                 Sample data generator and documentation image generators
-data/                    laptime_history.db (history used by the ML lap-time module)
-docs/                    User guides and scientific documentation (EN/ES)
+Dockerfile, docker/      Backend image and entrypoint; frontend/Dockerfile + nginx.conf for the UI
+docker-compose.yml       backend + frontend + postgres (+ docker-compose.override.example.yml)
+k8s/                     Kustomize: base/ and overlays/local, overlays/prod
+scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1,
+                         sample data and documentation image generators
+Makefile                 up, down, logs, test, lint, k8s-validate, kind-up, kind-down
+tests/                   pytest suite (180 tests)
+data/                    laptime_history.db (ML history), motorsport.db (library, git-ignored)
+docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
 
 `src/analytics/` modules:
@@ -201,79 +286,136 @@ docs/                    User guides and scientific documentation (EN/ES)
 | `suspension.py` | Pitch, roll, bottoming | [12](docs/12_suspension.md) |
 | `slip_angle.py` | Sideslip and balance | [13](docs/13_slip_angle.md) |
 | `thermal_management.py` | Tyre, brake and fluid temperatures and pressures over a session | [14](docs/14_thermal_management.md) |
-| `tyre_degradation.py` | Tyre degradation prediction | [15](docs/15_tyre_degradation.md) |
+| `tyre_degradation.py` | Tyre degradation prediction, wear-tracking detection | [15](docs/15_tyre_degradation.md) |
 | `racing_line_rl.py` | Racing-line optimisation | [16](docs/16_racing_line_rl.md) |
 | `setup_advisor.py` | Setup recommendations (lap comparison and session) | [17](docs/17_setup_advisor.md) |
 | `session_corner_analysis.py` | Corner statistics across all laps of a session | [08](docs/08_stint_analysis.md) |
 | `session_telemetry_analysis.py` | Session-level tyre, brake, suspension, inputs and balance aggregates | [08](docs/08_stint_analysis.md) |
+| `optimal_lap.py` | Optimal lap by microsectors (theoretical and realistic) | this README |
+| `ac_setups.py` | Assetto Corsa setup lookup, parsing and "current -> suggested" linking | this README |
+| `data_quality.py` | Data-quality score, channels, modules, how to improve | this README |
+| `session_compare.py` | Comparison of two saved sessions | this README |
 
 ## API
 
-Base URL: `http://localhost:8000`. Interactive documentation: `/docs` (Swagger). All POST endpoints take `multipart/form-data` unless noted. Add `?lang=es` or `?lang=en` (otherwise `Accept-Language` is used) to choose the language of messages and reports. Errors: `400` for unreadable or invalid CSV, `422` for invalid selections (lap out of range, same lap twice, fewer than 3 laps for stint), `500` for internal errors; the body is `{"detail": "..."}`.
+Base URL: `http://localhost:8000`. Interactive documentation: `/docs` (Swagger). POST endpoints that receive files take `multipart/form-data`; the others take JSON. Add `?lang=es` or `?lang=en` (otherwise `Accept-Language` is used) to choose the language of messages and reports. Errors: `400` for unreadable or invalid files, `404` for unknown library sessions, `413` for uploads above `MAX_UPLOAD_MB` (or library payloads above 5 MB), `422` for invalid selections (lap out of range, same lap twice, fewer than 3 laps for stint), `500` for internal errors; the body is `{"detail": "..."}`.
 
-| Endpoint | Method | Form fields | Returns |
+### Analysis and reports
+
+| Endpoint | Method | Input | Returns |
 |---|---|---|---|
 | `/api/health` | GET | none | `{status, service, version}` |
-| `/api/analyze-session` | POST | `session_file` (CSV) | JSON with `laps` (time, pit/outlier flags), `fastest_lap`, `track_map`, `total_laps`. If no laps can be segmented, empty `laps` and a `message`. |
-| `/api/stint/analyze` | POST | `laps`: one session CSV, or 3 or more single-lap CSVs | JSON: `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `health_summary` |
-| `/api/compare-laps` | POST | `lap_a`, `lap_b` (CSVs) | Basic comparison: `summary`, speed/brake/throttle comparisons, `time_delta_series`, `corners`, `track_map`, `metadata`, `text_report`, `setup_advisor` and the advanced module results when available |
-| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (CSVs); query `resolution_m` (default 5) | Advanced pipeline: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, tyre/brake/inputs/suspension/slip results |
-| `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow` (CSVs); query `resolution_m` | Geometry and time-delta subset: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners` |
-| `/api/compare-session-laps` | POST | `session_file` (CSV), `lap_a`, `lap_b` (1-based integers; `0` = auto: fastest and slowest flying lap) | Full comparison of two laps of a session: everything from `compare-laps` plus `telemetria`, `curvatura`, `apexes`, `sectores`, `gg_diagram`, `anomaly`, tyre/brake/inputs/suspension/slip/`thermal_analysis`, `setup_advisor`, `text_report`, `health_summary`; `metadata` includes `distance_synthetic` |
-| `/api/report/pdf` | POST | `session_file` (CSV), `lap_a`, `lap_b` (same rules as above) | `application/pdf` attachment `report_V{a}_vs_V{b}.pdf` |
-| `/api/report/pdf-from-json` | POST | JSON body: a comparison result already computed (as returned by the compare endpoints) | `application/pdf` attachment, no recomputation |
+| `/api/analyze-session` | POST | `session_file` | JSON with `laps` (time, pit/outlier flags), `fastest_lap`, `track_map`, `total_laps`, `data_quality`. If no laps can be segmented, empty `laps` and a `message`. |
+| `/api/stint/analyze` | POST | `laps`: one session file, or 3 or more single-lap files | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `health_summary`, `data_quality` |
+| `/api/optimal-lap` | POST | `session_file`; optional `microsector_m` (default 25), `speed_tol_kmh` (default 3) | Theoretical and realistic optimal lap, gains, microsectors, zones, corners, contributions, warnings (see "Optimal lap") |
+| `/api/compare-laps` | POST | `lap_a`, `lap_b` | Basic comparison: `summary`, speed/brake/throttle comparisons, `time_delta_series`, `corners`, `track_map`, `metadata`, `text_report`, `setup_advisor` and the advanced module results when available |
+| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow`; query `resolution_m` (default 5) | Advanced pipeline: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, tyre/brake/inputs/suspension/slip results, `data_quality` |
+| `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow`; query `resolution_m` | Geometry and time-delta subset: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners` |
+| `/api/compare-session-laps` | POST | `session_file`, `lap_a`, `lap_b` (1-based; `0` = auto: fastest and slowest flying lap) | Full comparison of two laps of a session; `metadata` includes `distance_synthetic`; also `health_summary`, `data_quality` |
+| `/api/report/pdf` | POST | `session_file`, `lap_a`, `lap_b` | `application/pdf` attachment `report_V{a}_vs_V{b}.pdf` |
+| `/api/report/pdf-from-json` | POST | JSON: a comparison result already computed | `application/pdf` attachment, no recomputation |
+| `/api/report/session-pdf-from-json` | POST | JSON: `{session, stint, comparison, metadata}` (`session` with `laps` required; others optional) | Session PDF `motorsport_<circuit>_<car>_<date>.pdf`, no recomputation |
+
+### Assetto Corsa setups (`/api/setups`)
+
+| Endpoint | Method | Input | Returns |
+|---|---|---|---|
+| `/api/setups/detect` | POST | `header`: first bytes of the telemetry file (max 64 KB) | Vehicle, venue and driver read from the MoTeC header |
+| `/api/setups/candidates` | GET | query `vehicle`, `venue`, `lang` | Candidate setups: `track_setups`, `generic_last`, `state` (`track_setups`, `generic_only`, `none`, `no_access`), `needs_confirmation` |
+| `/api/setups/file` | GET | query `vehicle`, `setup_id`, `venue`, `lang` | Parsed setup (by identifier from `candidates`, never by raw path) |
+| `/api/setups/parse` | POST | `file`: a setup `.ini` (max 256 KB); query `vehicle` | Parsed uploaded setup |
+| `/api/setups/annotate` | POST | JSON `{setup, recommendations}` (max 500 recommendations) | Recommendations annotated with current and suggested values |
+
+### Session library (`/api/library`)
+
+| Endpoint | Method | Input | Returns |
+|---|---|---|---|
+| `/api/library` | POST | JSON: metadata (`title`, `vehicle`, `venue`, `driver`, `notes`, `file_sha256`, ...) and `payload` `{session, stint, extras}` (max 5 MB) | `{status: created or updated, duplicate, session}` |
+| `/api/library` | GET | query `q`, `venue`, `vehicle`, `date_from`, `date_to`, `limit` (1-200), `offset` | `{items, total, limit, offset}` without the heavy payload |
+| `/api/library/facets` | GET | none | Circuits, cars and circuit+car combinations with counts |
+| `/api/library/sniff` | POST | `head`: first KB of a CSV (max 256 KB) | Circuit, car and driver from the MoTeC header |
+| `/api/library/compare` | POST | JSON `{a, b, force}` (session UUIDs) | Pace, consistency, fuel and per-corner differences, compatibility and warnings; `400` if circuit or car differ and `force` is false |
+| `/api/library/{id}` | GET | UUID | Summary plus saved `payload` |
+| `/api/library/{id}` | PATCH | JSON with any of `title`, `notes`, `venue`, `vehicle`, `driver` | Updated summary |
+| `/api/library/{id}` | DELETE | UUID | `{status: "deleted", id}` |
 
 Notes:
 
-- The UI calls `/api/analyze-session` then `/api/stint/analyze` for a session, `/api/compare-laps` plus `/api/telemetry/analyze` for two files, `/api/compare-session-laps` for lap pairs, and `/api/report/pdf-from-json` for the PDF button.
+- The UI calls `/api/analyze-session` then `/api/stint/analyze` for a session, `/api/optimal-lap` in the background, `/api/compare-laps` plus `/api/telemetry/analyze` for two files, `/api/compare-session-laps` for lap pairs, and the PDF endpoints for the download buttons.
 - `/api/telemetry/analyze` appends an observation to `data/laptime_history.db`, which feeds the historical P10 and XGBoost layers over time.
 - A module that cannot run returns `{"available": false, ...}` (often with `reason`) instead of failing the whole request.
 
 ## Configuration
 
-Copy `.env.example` to `.env` (loaded with `python-dotenv`).
+Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also reads it).
 
 | Variable | Default | Effect |
 |---|---|---|
 | `CORS_ORIGINS` | `http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000` | Comma-separated allowed origins |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `TEMP_DIR` | `<project>/tmp` | Directory for temporary upload files (created if missing; uploads are deleted after each request) |
+| `TEMP_DIR` | `<project>/tmp` | Directory for temporary upload files (deleted after each request) |
 | `API_HOST` / `API_PORT` / `API_RELOAD` | `0.0.0.0` / `8000` / `false` | Used only when running `python main.py` |
-| `VITE_API_URL` | `http://localhost:8000/api` | API URL used by the frontend (read by Vite at build/dev time) |
-| `MAX_UPLOAD_MB` | n/a | Present in `.env.example` and `docker-compose.yml` but **not read by the code**: the backend does not enforce an upload size limit |
+| `MAX_UPLOAD_MB` | `2048` | Maximum size **per uploaded file**. Enforced by the backend (HTTP 413, partial file deleted); nginx and the Ingress derive their body limit from it |
+| `NATIVE_MAX_ROWS` | `2000000` | Maximum samples accepted for `.ibt` / `.ld` after resampling |
+| `DATABASE_URL` | `sqlite:///data/motorsport.db` | Library database. PostgreSQL in containers: `postgresql+psycopg://user:pass@host:5432/db` |
+| `STORAGE_DIR` | `./data/storage` | Optional directory for original files |
+| `AC_SETUPS_DIR` | auto (`<Documents>\Assetto Corsa\setups`) | Explicit Assetto Corsa setups folder |
+| `VITE_API_URL` | `http://localhost:8000/api` | API URL used by the frontend in dev (read by Vite at build/dev time; production containers use the relative `/api`) |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `motorsport` / `change-me-local-only` / `motorsport` | Compose only. Example values for a local machine, never for production |
+| `FRONTEND_PORT` / `BACKEND_DEV_PORT` | `8080` / `8010` | Compose host ports (UI; backend with `--profile dev`) |
+| `UVICORN_WORKERS` | `1` | Uvicorn workers in the container (each keeps its own memory) |
+| `RUN_MIGRATIONS` | `0` in the image, `1` in Compose | Run `alembic upgrade head` on container start |
+| `PROXY_TIMEOUT` | `900s` | nginx proxy timeout in the frontend container |
 
 ## Development and tests
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 48 tests
+python -m pytest tests -q          # 180 tests
 
 cd frontend
 npm run lint                       # ESLint
 npm run build                      # production build into frontend/dist
+
+make lint                          # yamllint + scripts/validate_k8s.py + frontend lint
+make k8s-validate                  # static check of the Kubernetes manifests
 ```
 
-Test files: `tests/test_alignment.py`, `test_loaders.py`, `test_metrics.py`, `test_session_pipeline.py` (fixtures in `tests/conftest.py`). Synthetic sample laps can be generated with `python scripts/generate_sample_data.py` (writes `data/raw/lap_clean.csv` and `data/raw/lap_errors.csv`, which are git-ignored).
+Test files in `tests/`: `test_alignment.py`, `test_loaders.py`, `test_metrics.py`, `test_session_pipeline.py`, `test_optimal_lap.py`, `test_ac_setups.py`, `test_library.py`, `test_data_quality.py`, `test_pdf_report.py`, `test_formats.py`, `test_projection_realism.py`, `test_upload_limit.py`, `test_k8s_manifests.py` (fixtures in `tests/conftest.py`). Synthetic sample laps can be generated with `python scripts/generate_sample_data.py` (writes `data/raw/lap_clean.csv` and `data/raw/lap_errors.csv`, which are git-ignored).
+
+### Adding translated text
+
+Backend and frontend strings live in two per-language dictionaries (`en`, `es`) that are extended **per feature module** so contributors do not edit the large core files:
+
+- Frontend: create `frontend/src/i18n/extra/<feature>.en.js` and `<feature>.es.js` with `export default { key: 'text' }` (values can be functions, e.g. `(n) => ...`). They are loaded automatically (`import.meta.glob`) and merged into `en.js` / `es.js`.
+- Backend: create `src/locales/extra/<feature>.en.json` and `<feature>.es.json` (flat key to string, with `{placeholders}`). `src/i18n.py` merges every file in that folder on first use. Use `_l(lang, key, ...)` or `_()`.
+
+Always add both languages; keep keys unique across modules. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation
 
 | Audience | Document |
 |---|---|
 | Users | [User Guide](docs/USER_GUIDE.md), [Quick Reference](docs/QUICK_REFERENCE.md) |
-| Developers | [Docs index](docs/README.md) with the 17 scientific module documents (math, algorithms, figures), [frontend/README.md](frontend/README.md) |
-| Spanish | [README.es.md](README.es.md), [Guia de Usuario](docs/GUIA_USUARIO.es.md), [Referencia Rapida](docs/REFERENCIA_RAPIDA.es.md), [docs/README.es.md](docs/README.es.md) |
+| Operators | [Deployment: local, Docker, Kubernetes](docs/DEPLOYMENT.md) |
+| Developers | [Docs index](docs/README.md) with the 17 scientific module documents (math, algorithms, figures), [frontend/README.md](frontend/README.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Spanish | [README.es.md](README.es.md), [Guia de Usuario](docs/GUIA_USUARIO.es.md), [Referencia Rapida](docs/REFERENCIA_RAPIDA.es.md), [Despliegue](docs/DEPLOYMENT.es.md), [docs/README.es.md](docs/README.es.md) |
 
 ## Known limitations
 
 - Speed-based corner detection finds fewer corners than geometry-based detection (7 vs 11 at Imola, because chicanes merge).
 - Suspension bottoming is a heuristic: travel at or above 90 % of the maximum observed travel.
 - Some channels may be absent depending on the simulator and export; the corresponding panels say so instead of guessing.
-- CSV is the stable input. iRacing `.ibt` and MoTeC `.ld` are read natively but are **experimental** (see "Supported formats" in `docs/USER_GUIDE.md`).
-- No upload size limit is enforced (see `MAX_UPLOAD_MB` above); very large files need memory and time.
+- CSV is the stable input. iRacing `.ibt` and MoTeC `.ld` are **experimental**: tested on 53 real files from one author, other simulators and cars are untested.
+- The theoretical optimal lap grows as the microsector shrinks, and with a synthesised `Distance` the optimal lap is only indicative.
+- Setup units are shown only where they are certain; encrypted car data (`data.acd`) is never opened, so ranges are missing for most cars.
+- **No authentication or authorization.** The library is shared by anyone who can reach the API (the `owner_id` column is reserved for the future). Do not expose the app to the internet as is.
+- Docker, Compose and Kubernetes files have only been validated statically (see [Deployment](#deployment)).
+- Library payloads are limited to 5 MB; very large uploads need memory and time (the limit is per file, `MAX_UPLOAD_MB`).
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). In short: fork, branch, run `python -m pytest tests -q`, open a Pull Request against `main`. Do not commit telemetry CSVs or secrets.
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short: fork, branch, run `python -m pytest tests -q`, open a Pull Request against `main`. Do not commit telemetry files or secrets.
 
 ## License
 
