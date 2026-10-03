@@ -10,6 +10,7 @@ Endpoints:
 """
 
 import os
+import re
 import tempfile
 import logging
 from pathlib import Path
@@ -140,6 +141,31 @@ async def _limit_content_length(request: Request, call_next):
     return await call_next(request)
 
 
+def _segment_laps_or_422(df) -> list:
+    """Segment a session into laps; a file with a single lap is a client error (422), not a 500."""
+    try:
+        return segmentar_vueltas_desde_csv(df)
+    except ValueError:
+        raise HTTPException(status_code=422, detail=_("api_err_single_lap"))
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    """Last-resort 500 that keeps the CORS headers (ServerErrorMiddleware sits outside CORSMiddleware,
+    so without this the browser reports a CORS error instead of the real failure)."""
+    logger.error("Excepción no controlada en %s: %s", request.url.path, exc, exc_info=True)
+    try:
+        set_language(_detect_lang(request))
+        detail = _("api_err_internal", err=str(exc))
+    except Exception:
+        detail = "Internal error"
+    headers = {}
+    origin = request.headers.get("origin")
+    if origin and ("*" in CORS_ORIGINS or origin in CORS_ORIGINS):
+        headers = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true", "Vary": "Origin"}
+    return JSONResponse(status_code=500, content={"detail": detail}, headers=headers)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -256,6 +282,23 @@ def _build_health_summary(result: dict) -> dict:
     return {**modules, "overall": overall}
 
 
+_HEADER_META_KEYS = ("venue", "vehicle", "driver", "date_iso", "log_date", "log_time", "session_type")
+
+
+def _add_header_meta(meta: dict, path: str, filename: Optional[str] = None) -> dict:
+    """Additively copy circuit / car / driver / date / session type read from the file header
+    (CSV, .ibt, .ld) into a comparison ``metadata`` dict. Never overwrites, never raises."""
+    try:
+        header = read_session_header(path, filename)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("header metadata: %s", exc)
+        return meta
+    for k in _HEADER_META_KEYS:
+        if header.get(k) and not meta.get(k):
+            meta[k] = header[k]
+    return meta
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "service": "motorsport-analytics-api", "version": "1.2.0"}
@@ -275,10 +318,13 @@ def generate_pdf_from_json(
         lang = _detect_lang(request)
         set_language(lang)
         pdf_bytes = export_report_pdf(result, lang=lang)
-        meta      = result.get("metadata", {})
+        meta      = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
         label_a   = meta.get("label_a", "A")
         label_b   = meta.get("label_b", "B")
         filename  = f"report_{label_a}_vs_{label_b}.pdf"
+        if meta.get("venue"):       # motorsport_<circuit>_<car>_<date>_<A>-vs-<B>.pdf
+            _lap = re.sub(r"[^A-Za-z0-9]+", "", f"{label_a}") + "-vs-" + re.sub(r"[^A-Za-z0-9]+", "", f"{label_b}")
+            filename = build_report_filename(meta)[:-4] + f"_{_lap}.pdf"
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -349,7 +395,7 @@ def generate_pdf_report(
 
         df = load_telemetry_data(path)
         df = apply_standard_filters(df)
-        laps = segmentar_vueltas_desde_csv(df)
+        laps = _segment_laps_or_422(df)
         n = len(laps)
 
         if lap_a == 0 or lap_b == 0:
@@ -406,6 +452,19 @@ def generate_pdf_report(
         except Exception as exc:
             logger.warning("Pipeline avanzado parcial en PDF: %s", exc, exc_info=False)
 
+        # Same summary keys as compare-session-laps (corner windows are disjoint: the remainder is
+        # time between corners) so the report's executive summary never shows empty tiles.
+        _corners = [c for c in (result.get("corners") or []) if isinstance(c, dict)
+                    and isinstance(c.get("time_loss_seconds"), (int, float))]
+        if _corners:
+            _worst = max(_corners, key=lambda c: c["time_loss_seconds"])
+            _sum = round(sum(c["time_loss_seconds"] for c in _corners), 3)
+            result["summary"]["worst_corner"] = _worst.get("corner_number")
+            result["summary"]["worst_corner_loss"] = round(max(0.0, _worst["time_loss_seconds"]), 3)
+            result["summary"]["num_corners_analyzed"] = len(_corners)
+            result["summary"]["corners_time_delta_s"] = _sum
+            result["summary"]["outside_corners_delta_s"] = round(result["summary"]["total_time_delta"] - _sum, 3)
+
         result["metadata"] = {
             "driver_a":          _("lap_n", n=lap_a),
             "vehicle_a":         session_file.filename,
@@ -420,9 +479,25 @@ def generate_pdf_report(
             "apexes_detected":   len(apexes) if apexes is not None else 0,
             "distance_synthetic": df.attrs.get("distance_synthetic", False),
         }
+        _add_header_meta(result["metadata"], path, session_file.filename)
+        try:
+            circuits_db.enrich_compare(
+                result, read_motec_metadata(path).get("venue"), circuits_db.lap_length_of(df_a_aligned))
+        except Exception as _exc:  # nunca debe romper el informe
+            logger.warning("circuits (report/pdf): %s", _exc)
+
+        try:
+            result["health_summary"] = _build_health_summary(result)
+            result["data_quality"] = safe_assess_dq(
+                df, build_dq_meta(path, session_file.filename, "compare", n_laps_detected=n, n_laps_compared=2),
+                result, lang)
+        except Exception as _exc:  # la calidad de datos es informativa: nunca rompe el informe
+            logger.warning("data quality (report/pdf): %s", _exc)
 
         pdf_bytes = export_report_pdf(result, lang=lang)
         filename  = f"report_V{lap_a}_vs_V{lap_b}.pdf"
+        if result["metadata"].get("venue"):     # motorsport_<circuit>_<car>_<date>_V11-vs-V4.pdf
+            filename = build_report_filename(result["metadata"])[:-4] + f"_V{lap_a}-vs-V{lap_b}.pdf"
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
@@ -634,6 +709,11 @@ def compare_laps_endpoint(
             df_a.attrs.get("distance_synthetic", False) or
             df_b.attrs.get("distance_synthetic", False)
         )
+        _add_header_meta(result["metadata"], path_a, lap_a.filename)
+        for _k in ("vehicle", "driver"):      # a header value only describes the pair if both laps agree
+            if _k in result["metadata"] and result["metadata"].get(f"{_k}_a") not in (None, "?") \
+                    and result["metadata"].get(f"{_k}_a") != result["metadata"].get(f"{_k}_b"):
+                result["metadata"].pop(_k, None)
         try:
             circuits_db.enrich_compare(result, venue, circuits_db.lap_length_of(df_a_aligned))
         except Exception as _exc:  # nunca debe romper el análisis
@@ -767,7 +847,7 @@ def compare_session_laps_endpoint(
         df = inp.filtered()
 
         logger.info("Paso 2/3: Segmentando vueltas...")
-        laps = segmentar_vueltas_desde_csv(df)
+        laps = _segment_laps_or_422(df)
         n = len(laps)
 
         # Auto-select best (fastest) and worst (slowest) flying lap when 0 is passed
@@ -1001,6 +1081,7 @@ def compare_session_laps_endpoint(
             "aligned_samples":       len(df_a_aligned),
             "distance_synthetic":    df.attrs.get("distance_synthetic", False),
         }
+        _add_header_meta(result["metadata"], path, filename)
         try:
             circuits_db.enrich_compare(
                 result, read_motec_metadata(path).get("venue"), circuits_db.lap_length_of(df_a_aligned))
@@ -1124,6 +1205,7 @@ def compare_telemetry_endpoint(
             "sectores":    sectores_json,
             "corners":     insights_curvas,
         }
+        _add_header_meta(payload["metadata"], path_fast, lap_fast.filename)
         try:
             circuits_db.enrich_compare(
                 payload, payload["metadata"]["venue"], circuits_db.lap_length_of(df_alineado))
@@ -1283,6 +1365,7 @@ def analyze_telemetry_endpoint(
             "tiempo_potencial": tiempo_potencial,
             "xgboost_pred":     xgboost_pred,
         }
+        _add_header_meta(payload["metadata"], path_fast, fast_name)
         try:
             circuits_db.enrich_compare(
                 payload, meta_dict.get("venue"), circuits_db.lap_length_of(df_aligned))
@@ -1347,10 +1430,7 @@ def analyze_stint_endpoint(
             df_session = inp.raw()
             dq_src = df_session
             logger.info(f"Modo sesión única: segmentando '{first_name}' ({len(df_session)} filas)...")
-            try:
-                dfs = segmentar_vueltas_desde_csv(df_session)
-            except ValueError as exc:
-                raise HTTPException(status_code=422, detail=str(exc))
+            dfs = _segment_laps_or_422(df_session)
         else:
             if len(laps) < 3:
                 raise HTTPException(
@@ -1396,8 +1476,10 @@ def analyze_stint_endpoint(
             logger.warning("session_telemetry_analysis: %s", _exc)
         try:
             if curvas_sesion.get("available") or telemetria_sesion.get("available"):
+                from src.analytics.tyre_degradation import detect_wear_tracking
                 setup_sesion = analizar_setup_sesion(
-                    curvas_sesion, degradacion, telemetria_sesion, lang=lang
+                    curvas_sesion, degradacion, telemetria_sesion, lang=lang,
+                    wear_active=detect_wear_tracking(dfs)["active"],
                 )
         except Exception as _exc:
             logger.warning("setup_sesion: %s", _exc)

@@ -42,6 +42,6 @@
 .row:first-of-type { border-top: 0; }
 .rowLbl { color: var(--ink-2); min-width: 0; }
 .rowVal { color: var(--ink-1); white-space: nowrap; text-align: right; }
-.rowRange { display: block; font-size: var(--fs-xs); color: var(--ink-4); }
+.rowRange { display: block; font-size: var(--fs-xs); color: var(--ink-3); }
 .touched .rowVal { color: var(--accent); }
 .foot { font-size: var(--fs-xs); color: var(--ink-3); line-height: 1.5; margin: 10px 0 0; }

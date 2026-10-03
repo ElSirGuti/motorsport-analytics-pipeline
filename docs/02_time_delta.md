@@ -1,6 +1,6 @@
 # Spatial Alignment and Cumulative Time Delta
 
-🌐 [Ver en Español](./02_time_delta.es.md)
+[Ver en Español](./02_time_delta.es.md)
 
 ---
 

@@ -9,7 +9,7 @@ kind/minikube/Docker Desktop, production-shaped overlay).
 > **Honesty note.** The container images, the Compose file and the Kubernetes manifests were
 > written and statically validated (YAML syntax, Kubernetes schemas, cross-reference checks,
 > `bash -n`, PowerShell parser) on a machine **without Docker or Kubernetes**. They have not been
-> built or applied yet. See [What has been verified](#what-has-been-verified) for the exact list
+> built or applied yet. See [Verification done and pending](#verification-done-and-pending) for the exact list
 > and the commands to run on your own machine.
 
 ## Architecture
@@ -236,36 +236,123 @@ NOT production-ready (be upfront about this):
 - NetworkPolicies are only enforced by CNIs that support them (not kind's default).
 - Images are not scanned or signed; no registry or CI pipeline is set up (deliberately).
 
-## What has been verified
+<a id="what-has-been-verified"></a>
+## Verification done and pending
 
-Done on a machine without Docker/Kubernetes:
+Be precise about what "verified" means here: **nothing has been built or run inside Docker or
+Kubernetes yet** (the machine used for development has neither). What was done on 2026-10-03 is a
+real static verification with the official standalone tools (downloaded from their GitHub releases
+to a temporary folder, no daemon, nothing installed in the repo), plus a simulation of the backend
+start-up and of the nginx proxy on the host.
 
-- `python scripts/validate_k8s.py`: YAML parses; selectors vs labels; Service ports vs container
-  ports; ConfigMap/Secret/PVC references and keys; probes; volumes; HPA/PDB/NetworkPolicy targets;
-  overlay patch targets; security rules (also run by `tests/test_k8s_manifests.py`).
-- `kubernetes-validate` strict schema validation of the base objects against Kubernetes 1.30.
-- `yamllint` on `k8s/`, `docker-compose.yml` and the override example; compose file parsed with PyYAML.
-- Unit tests for the upload limit (`tests/test_upload_limit.py`), real code path in `main.py`.
-- Syntax check of `kind-up.sh` (`bash -n`) and the PowerShell scripts (parser).
+### Done
 
-NOT verified (needs Docker/kind): image builds, container start-up and healthchecks, nginx
-template rendering and proxying, `docker compose config/up`, Kustomize rendering
-(`kubectl kustomize`), server-side validation, probes and read-only filesystems at runtime,
-NetworkPolicy behaviour, Alembic migrations in the cluster (depends on the database feature
-being merged: `alembic.ini` and `psycopg` in `requirements.txt`), ingress-nginx version URL.
+| Tool (version) | What was run | Result |
+|---|---|---|
+| `docker-compose` v2.29.7 | `config -q` (with `POSTGRES_PASSWORD` set) and `--profile dev config -q` | valid; without `POSTGRES_PASSWORD` it fails with the intended message |
+| `kustomize` v5.8.2 | `build k8s/overlays/local` and `k8s/overlays/prod` | renders: 16 and 18 objects |
+| `kubeconform` v0.8.0 | `-strict -kubernetes-version 1.30.0` on both rendered overlays | 16/16 and 18/18 valid, 0 errors, 0 skipped |
+| `hadolint` v2.15.1 | `Dockerfile`, `frontend/Dockerfile` | clean after the fixes below, except DL3008 (apt packages not version-pinned: deliberate, versions drift per Debian release) |
+| `shellcheck` v0.11.0 | `docker/entrypoint.sh`, `frontend/docker/15-upload-limit.envsh`, `scripts/kind-up.sh` | no findings |
+| `yamllint` 1.38 | `k8s/`, compose files | clean |
+| `checkov` 3.3.22 | Dockerfiles; rendered Kubernetes overlays | Dockerfiles: 157 passed, 0 failed (after adding an explicit `USER` to the frontend image). Kubernetes: 535 passed, 20 failed on local+prod, all of these accepted kinds: image not pinned by digest (CKV_K8S_43), pull policy not `Always` (CKV_K8S_15; `Always` would break kind-loaded local images), secrets as env vars instead of files (CKV_K8S_35), UID below 10000 for the frontend (101) and PostgreSQL (70), imposed by the upstream images (CKV_K8S_40). The security items that matter (`runAsNonRoot`, read-only root filesystem, dropped capabilities, no privilege escalation, seccomp, resource limits) pass |
+| `scripts/validate_k8s.py` | cross-reference checks | 0 errors, 1 expected warning (the prod Secret is created outside the repo) |
+| `nginx` 1.27.5 (Windows build) | `nginx -t` on the template rendered with three sets of `BACKEND_URL` / `MAX_UPLOAD_MB` / `PROXY_TIMEOUT`, using the same logic as the official entrypoint (the `.envsh` script sourced by `sh`, then substitution of defined variables only) | all valid; `client_max_body_size` is `4097m` (2048), `201m` (100) and `3m` (1); no `${...}` left over |
+| `nginx` live | The rendered config serving `frontend/dist` and proxying to the real backend | `/healthz` 200, `/api/health` 200 (JSON, `no-store`), `/` and SPA routes 200 with `no-cache`, CSP and `X-Frame-Options`, a missing asset 404 |
+| Backend start-up simulation | `docker/entrypoint.sh` with `RUN_MIGRATIONS=1`, `UVICORN_WORKERS=2` (and 1), `API_PORT=8260`, temporary SQLite `DATABASE_URL`, `STORAGE_DIR`/`TEMP_DIR` in a temp folder | `alembic upgrade head` creates `library_sessions` and `alembic_version` (revision `0001`), uvicorn starts the workers, `/api/health` returns 200; stopped afterwards |
+| `.dockerignore` | Simulated against the 405 tracked files | `alembic/`, `alembic.ini`, `src/` (including `src/data/circuits.json`, `src/locales/` and `src/locales/extra/`), `main.py`, `docker/` and `requirements.txt` are included; tests, docs, k8s, frontend sources, `data/`, CSVs and caches are not. Guarded now by `tests/test_container_build_context.py` |
 
-Commands to run once Docker Desktop / kind are installed:
+A caveat on the nginx rows: a trailing slash in `BACKEND_URL` (for example `http://backend:8000/`) still
+passes `nginx -t`, but because `proxy_pass` would then have a URI part, `/api/` would be rewritten and
+the API would break. Use `BACKEND_URL` without a path.
 
-```bash
-docker compose config -q                                   # compose syntax and variables
-docker build -t motorsport-backend:dev . && docker build -t motorsport-frontend:dev ./frontend
-docker run --rm motorsport-backend:dev python -c "import xgboost, reportlab, matplotlib"
-docker compose up --build -d && curl -f http://localhost:8080/api/health
-kubectl kustomize k8s/overlays/local | kubectl apply --dry-run=server -f -   # after kind-up
-make kind-up && kubectl -n motorsport get pods
-```
+### Found and fixed during this verification
 
-Optional extra linters: `hadolint Dockerfile frontend/Dockerfile`, `kubeconform`, `trivy config .`.
+- **`alembic upgrade head` failed in the container** with `ModuleNotFoundError: No module named 'src'`:
+  the `alembic` console script does not put the working directory on `sys.path`, so
+  `alembic/env.py` could not import `src.db`. This would have broken `RUN_MIGRATIONS=1` and the
+  Kubernetes `migrate` initContainer. Fixed with `prepend_sys_path = .` in `alembic.ini` and
+  `PYTHONPATH=/app` in the backend image.
+- Backend image: the builder stage copied `requirements.txt` to a relative path without `WORKDIR`
+  (now `/build`); both HEALTHCHECKs use the exec form (no shell).
+- Frontend image: explicit `USER 101` (the nginx-unprivileged user, same as the Kubernetes
+  `runAsUser`).
+- `.dockerignore`: `__pycache__` and `*.pyc` were only excluded at the root (the file is anchored);
+  they are now excluded at any depth.
+- `.gitattributes`: forced LF for `*.envsh` and `frontend/nginx.conf` (a CRLF checkout on Windows would
+  break the script and the template inside the Linux image).
+- `Makefile`: `kind-up` ran `sh scripts/kind-up.sh`, but the script is bash (`set -o pipefail`);
+  it now runs `bash`.
+
+### NOT verified (needs Docker, kind or PostgreSQL)
+
+- Building either image (`pip install` of the scientific stack on Linux, `apt`, `npm ci`), the image
+  size, and that the non-root user (uid 10001) can run everything with a read-only root filesystem and
+  the `tmpfs` / volume mounts (the simulation above ran as your Windows user).
+- The official `nginxinc/nginx-unprivileged` entrypoint itself (that it sources `*.envsh` before the
+  template step and runs as uid 101 on a read-only filesystem): reproduced by reasoning and by the
+  emulation above, not by running the image.
+- Docker healthchecks, `depends_on: service_healthy`, the compose networks (`backend-net` internal),
+  `docker compose up`.
+- PostgreSQL: the backend was only exercised with SQLite. `psycopg` is not installed on the
+  development machine, and migration `0001` inspects the live connection, so
+  `alembic upgrade head --sql` (offline SQL for review) is not supported either. The Postgres path
+  (`postgresql+psycopg://`, JSONB column) is unverified.
+- Everything that needs a cluster: `kubectl apply`, server-side dry run, Pod Security `restricted`
+  admission, probes, PVC binding, the HPA (needs metrics-server), `ingress-nginx` and the pinned
+  `INGRESS_NGINX_VERSION` URL, NetworkPolicy enforcement (kind's default CNI does not enforce it).
+- The `scripts/kind-up.ps1` and `scripts/kind-up.sh` flows end to end.
+
+### What only the owner can do (Windows)
+
+1. Install Docker Desktop (WSL 2 backend), kind and kubectl, for example from PowerShell:
+
+   ```powershell
+   winget install -e --id Docker.DockerDesktop
+   winget install -e --id Kubernetes.kind
+   winget install -e --id Kubernetes.kubectl
+   # optional, to use the Makefile on Windows:
+   winget install -e --id ezwinports.make
+   ```
+
+   Reboot or log out if Docker Desktop asks for it, start it, and check `docker version`,
+   `kind version` and `kubectl version --client`.
+2. From the repository root, in this order (stop at the first failure and keep the output):
+
+   ```powershell
+   Copy-Item .env.example .env            # then edit POSTGRES_PASSWORD
+   docker compose config -q               # syntax and variables
+   docker build -t motorsport-backend:dev .
+   docker build -t motorsport-frontend:dev ./frontend
+   docker run --rm motorsport-backend:dev python -c "import xgboost, reportlab, matplotlib, psycopg"
+   docker compose up --build -d
+   curl.exe -f http://localhost:8080/api/health
+   docker compose exec backend id         # expect uid=10001
+   docker compose exec backend sh -c "touch /app/x"   # expect: Read-only file system
+   docker compose logs backend            # look for "[entrypoint] alembic upgrade head"
+   docker compose down
+   ```
+
+3. Kubernetes with kind (ports 8088/8443 must be free):
+
+   ```powershell
+   .\scripts\kind-up.ps1                   # or: make kind-up
+   kubectl -n motorsport get pods          # postgres, backend, frontend Ready
+   kubectl -n motorsport logs deploy/backend -c migrate
+   kubectl kustomize k8s/overlays/local | kubectl apply --dry-run=server -f -
+   curl.exe -f http://localhost:8088/api/health
+   make kind-down                          # or: kind delete cluster --name motorsport
+   ```
+
+4. Optional extra scanning: `trivy config .` and `trivy image motorsport-backend:dev`.
+5. To repeat the static checks of this section without Docker, download the same standalone
+   binaries (`docker-compose`, `kustomize`, `kubeconform`, `hadolint`, `shellcheck` from their GitHub
+   releases) and run `kustomize build k8s/overlays/local | kubeconform -strict -kubernetes-version 1.30.0 -summary`,
+   `docker-compose config -q`, `hadolint Dockerfile frontend/Dockerfile`, `python scripts/validate_k8s.py`
+   and `python -m pytest tests/test_container_build_context.py tests/test_k8s_manifests.py`.
+
+If any step fails, send the failing command and its output: that is exactly the information the
+static checks above could not produce.
 
 ## Troubleshooting
 

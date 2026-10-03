@@ -1,6 +1,6 @@
 # Suspension — Pitch, Roll & Bottoming Detection
 
-🌐 [Ver en Español](./12_suspension.es.md)
+[Ver en Español](./12_suspension.es.md)
 
 **Module:** `src/analytics/suspension.py`  
 **Review date:** 2026-06-12
@@ -256,4 +256,4 @@ Visualisation of bottoming events on the lap distance map. Each event is represe
 
 ---
 
-*Also available in [Español 🇪🇸](./12_suspension.es.md)*
+*Also available in [Español](./12_suspension.es.md)*

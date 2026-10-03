@@ -16,12 +16,51 @@ logger = logging.getLogger(__name__)
 
 FUEL_CHANNELS     = ["Fuel", "FuelLevel", "Fuel Level", "fuel_level", "FuelMass", "Fuel Mass"]
 MAX_FUEL_CHANNELS = ["Max Fuel", "MaxFuel", "max_fuel", "FuelCapacity", "Fuel Capacity"]
+# Tyre temperature channels (canonical names produced by every loader, see
+# src/io/loaders.py COLUMN_ALIASES and src/io/native_common.py):
+#   TyreTemp{Middle|Core|Inner|Outer}{FL|FR|RL|RR}  (deg C)
+# ``tyre_temp_avg`` per lap = mean over the 4 corners of ONE value per corner, chosen in order:
+#   1. TyreTempMiddle<corner>   surface temperature, centre strip (iRacing .ibt/.ld/CSV, AC)
+#   2. TyreTempCore<corner>     core/carcass temperature (ACTI .ld when no surface channel)
+#   3. mean(Inner, Outer)       surface edges, when there is no centre strip
+#   4. legacy generic names     TyreTemp_FL / Tyre Temp FL / TyreTempFL
+# Corners with no usable channel (all NaN or <= 0 C = sensor not logged) are skipped; if no
+# corner has data the result is NaN.
+_TYRE_ZONE_ORDER = (("Middle",), ("Core",), ("Inner", "Outer"))
 TYRE_CHANNELS = {
     "FL": ["TyreTemp_FL", "Tyre Temp FL", "TyreTempFL"],
     "FR": ["TyreTemp_FR", "Tyre Temp FR", "TyreTempFR"],
     "RL": ["TyreTemp_RL", "Tyre Temp RL", "TyreTempRL"],
     "RR": ["TyreTemp_RR", "Tyre Temp RR", "TyreTempRR"],
 }
+
+
+def _mean_temp(df, col):
+    v = pd.to_numeric(df[col], errors="coerce").dropna()
+    if v.empty:
+        return None
+    m = float(v.mean())
+    return m if m > 0 else None
+
+
+def lap_tyre_temp_avg(df) -> float:
+    """Mean tyre temperature (deg C) of one lap segment; NaN when no channel is available."""
+    temps = []
+    for corner, legacy in TYRE_CHANNELS.items():
+        val = None
+        for zones in _TYRE_ZONE_ORDER:
+            cols = [f"TyreTemp{z}{corner}" for z in zones if f"TyreTemp{z}{corner}" in df.columns]
+            vals = [m for m in (_mean_temp(df, c) for c in cols) if m is not None]
+            if vals:
+                val = float(np.mean(vals))
+                break
+        if val is None:
+            col = _find_channel(df, legacy)
+            if col:
+                val = _mean_temp(df, col)
+        if val is not None:
+            temps.append(val)
+    return float(np.mean(temps)) if temps else float("nan")
 N_SIMULATIONS = 500
 N_FUTURE_LAPS = 12
 FUEL_SIGMA_SCALE = 1.65  # percentil 95
@@ -251,12 +290,8 @@ def extraer_metricas_por_vuelta(dfs):
             row["fuel_end"]    = float("nan")
             row["fuel_burned"] = float("nan")
 
-        tyre_temps = []
-        for corner, candidates in TYRE_CHANNELS.items():
-            col = _find_channel(df, candidates)
-            if col:
-                tyre_temps.append(float(df[col].mean()))
-        row["tyre_temp_avg"] = round(float(np.mean(tyre_temps)), 1) if tyre_temps else float("nan")
+        _tt = lap_tyre_temp_avg(df)
+        row["tyre_temp_avg"] = round(_tt, 1) if np.isfinite(_tt) else float("nan")
 
         in_pit_col = _find_channel(df, ["In Pit", "InPit", "in_pit"])
         if in_pit_col:

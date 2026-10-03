@@ -1,6 +1,6 @@
 # Driving Style Classification — K-Means per Corner
 
-🌐 [Ver en Español](./06_clustering.es.md)
+[Ver en Español](./06_clustering.es.md)
 
 > **Module:** `src/analytics/ml_clustering.py`
 > **Main function:** `clasificar_curvas(df_aligned, corners, n_clusters=4)`

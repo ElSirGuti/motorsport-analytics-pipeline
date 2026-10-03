@@ -1,303 +1,244 @@
-# Setup Advisor
+# 17 - Asesor de Setup
 
-**Modulo:** `src/analytics/setup_advisor.py`
-**Funciones principales:** `analizar_setup()`, `analizar_setup_sesion()`
+[See in English](./17_setup_advisor.md)
 
----
-
-## Descripcion General
-
-El Setup Advisor es un motor basado en reglas que traduce metricas de telemetria en recomendaciones concretas de puesta a punto del vehiculo, acompanadas de estimaciones cuantitativas de ganancia de tiempo por vuelta. Su proposito es cerrar la brecha entre el dato bruto y la decision de ingenieria: en lugar de exponer numeros sin contexto, el modulo evalua multiples dominios de comportamiento dinamico, detecta patrones de problema, y produce salidas estructuradas que el ingeniero o el piloto pueden consumir directamente.
-
-El modulo opera en dos modos complementarios:
-
-- **Modo comparativo de vuelta (`analizar_setup`)**: analiza la comparacion entre dos vueltas especificas (vuelta A vs. vuelta B) con datos de angulo de deslizamiento, suspension, neumaticos, frenos e inputs del piloto.
-- **Modo de sesion (`analizar_setup_sesion`)**: opera sobre agregados estadisticos de toda la sesion, combinando analisis de curvas, tendencia de degradacion y telemetria de sesion para producir recomendaciones representativas del comportamiento promedio.
-
-Ambos modos generan una salida compatible, de modo que el componente de interfaz `SetupRecommendations` puede consumirlos de forma uniforme.
+**Módulo:** `src/analytics/setup_advisor.py`
+**Puntos de entrada:** `analizar_setup(result, lang)` (comparación de dos vueltas) y `analizar_setup_sesion(curvas_sesion, degradacion, telemetria_sesion, lang)` (sesión completa)
+**Módulo relacionado (vinculación con Assetto Corsa):** `src/analytics/ac_setups.py` y el router `src/api/setups.py`
+**Reconciliado con el código:** 2026-10-03 (las versiones EN y ES comparten la misma estructura)
 
 ---
 
-## Metodologia
+## Tabla de Contenidos
 
-### Arquitectura de reglas
+1. [Descripción General](#1-descripción-general)
+2. [Motor de Reglas](#2-motor-de-reglas)
+3. [Reglas y Umbrales](#3-reglas-y-umbrales)
+4. [Vinculación con el Setup de Assetto Corsa](#4-vinculación-con-el-setup-de-assetto-corsa)
+5. [Requisitos de Entrada](#5-requisitos-de-entrada)
+6. [Esquema de Salida](#6-esquema-de-salida)
+7. [Guía de Interpretación](#7-guía-de-interpretación)
+8. [Limitaciones e Inconsistencias Conocidas](#8-limitaciones-e-inconsistencias-conocidas)
+9. [Estado de Verificación](#9-estado-de-verificación)
 
-El motor esta organizado en seis dominios de analisis independientes, cada uno implementado como una funcion privada de diagnostico:
+---
 
-| Dominio | Funcion privada (modo vuelta) | Funcion privada (modo sesion) |
+## 1. Descripción General
+
+El Asesor de Setup es un motor puramente basado en reglas: umbrales fijos sobre métricas producidas por otros módulos se convierten en recomendaciones de setup, cada una con prioridad, una nota apta para el piloto y un rango estimado de ganancia de tiempo por vuelta. No aprende nada de los datos.
+
+- **`analizar_setup`** lee el diccionario de una comparación de dos vueltas (neumáticos, frenos, suspensión, ángulo de deriva, inputs del piloto, curvas) y devuelve además un `areas_status` por dominio.
+- **`analizar_setup_sesion`** lee agregados de sesión: patrones de curva, la tendencia del stint y la telemetría agregada de `analizar_telemetria_sesion`. Devuelve `{"available": false}` cuando `curvas_sesion["available"]` es falso.
+
+Ambos devuelven la misma estructura de recomendación. Cada recomendación lleva claves estables e independientes del idioma (`problem_key`, `category_key`, `rec_key` y `pos` cuando la regla trata de un neumático concreto) para que otros módulos, en particular el vinculador de setups de Assetto Corsa (sección 4), puedan asociar una recomendación a parámetros concretos del setup sin interpretar texto traducido.
+
+---
+
+## 2. Motor de Reglas
+
+- Cada regla construye una recomendación mediante `_rec_t(...)`: claves de traducción para categoría, problema, causa raíz, recomendación, detalle y "soluciona", un rango de ganancia `(gain_lo, gain_hi)` en segundos por vuelta y una prioridad (`alta`, `media`, `baja`; literales fijos en español).
+- Los textos provienen de los archivos de idioma mediante `src/i18n.py` (`src/locales/*.json` y `src/locales/extra/`). Un argumento `lang` explícito se respeta ahora (las funciones públicas se ejecutan dentro del contexto de i18n de ese idioma); con `lang=None` (por defecto) se sigue usando el idioma del contexto activo fijado por petición en `main.py`.
+- `pilot_note` se obtiene de `_PILOT_NOTE_MAP` (clave de problema a nota en lenguaje llano; por defecto `pilot_note_default`).
+- **Deduplicación:** clave `(categoría, primeros 40 caracteres del texto del problema)`; se conserva la instancia de mayor prioridad (la anterior en caso de empate). El resultado se ordena `alta`, `media`, `baja`.
+- **Totales:** `total_gain_lo` / `total_gain_hi` son las sumas simples de `gain_lo` / `gain_hi` de las recomendaciones conservadas (2 decimales); `total_gain_range` es el formato `"lo-hi"`.
+- **`areas_status`** (solo modo vuelta): para cada dominio con datos disponibles, la peor prioridad presente o `nominal`, más `n_issues`.
+- **`corner_priority`**: curvas con `|time_loss_seconds| >= 0.005`, las 8 primeras por pérdida absoluta. La fase dominante es la mayor entre `|brake_delta| x 0,015`, `|apex_delta| x 0,012` y `|throttle_delta| x 0,010` (sensibilidades supuestas en s por m o km/h, no medidas), con etiquetas `frenada` / `apex` / `salida`.
+
+---
+
+## 3. Reglas y Umbrales
+
+Las ganancias son los rangos heurísticos fijos en segundos por vuelta y no tienen validación empírica. Las reglas del "modo vuelta" se ejecutan una vez para la vuelta A y otra para la B.
+
+### 3.1 Neumáticos
+
+| Modo | Regla | Condición | Prioridad | Ganancia (s/vuelta) |
+|---|---|---|---|---|
+| Vuelta | Caída, interior caliente | `inner - outer > 15` degC | alta | 0,04-0,18 |
+| Vuelta | Caída, exterior caliente | `inner - outer < -12` degC | media | 0,03-0,15 |
+| Vuelta | Presión, sobrecalentado | `window_status == "sobrecalentada"` | alta | 0,05-0,15 |
+| Vuelta | Presión, frío | `window_status == "fria"` | media | 0,03-0,12 |
+| Vuelta | Temperatura superficial delantero vs trasero | media delantera - media trasera `> 14` o `< -14` | alta | 0,10-0,30 |
+| Vuelta | Asimetría izquierda vs derecha | `|izq - der| > 12` | baja | 0,02-0,08 |
+| Sesión | Sobrecalentamiento | temperatura media `> 120` (ventana 80-100 + 20) | alta | 0,05-0,18 |
+| Sesión | Demasiado frío | temperatura media `< 65` (80 - 15) | media | 0,04-0,12 |
+| Sesión | Caída | `|camber_gradient| > 18` con `camber_gradient = inner_mean - outer_mean` | media | 0,03-0,10 |
+| Sesión | Temperatura de freno por esquina | `brake_temp_mean > 750` (alta si `> 900`) | media/alta | 0,05-0,20 |
+| Sesión | Delta delantero/trasero | `|front_rear_delta| > 14` (delantero más caliente / trasero más caliente) | media | 0,08-0,25 / 0,06-0,20 |
+| Sesión | Delta izquierda/derecha | `|left_right_delta| > 12` | baja | 0,02-0,08 |
+
+### 3.2 Frenos
+
+| Modo | Condición | Prioridad | Ganancia |
+|---|---|---|---|
+| Vuelta | Fade `(1 - score/baseline) x 100 > 15` % (alta si `> 30`) | media/alta | 0,08-0,25 |
+| Vuelta | Zonas de fade con `severity > 0.30` | alta | 0,05-0,20 |
+| Sesión | `mean_fade_severity > 0.25` o `0 < mean_efficiency < 0.70` (alta si la severidad `> 0.35`) | media/alta | 0,08-0,30 |
+| Sesión | `mean_fade_severity > 0.10` (leve) | baja | 0,03-0,10 |
+
+### 3.3 Suspensión
+
+| Modo | Condición | Prioridad | Ganancia |
+|---|---|---|---|
+| Vuelta | Ratio de balanceo delantero/trasero `> 1.35` (requiere ambos máximos de balanceo `> 3`) | media | 0,06-0,20 |
+| Vuelta | Ratio de balanceo `< 0.75` | media | 0,06-0,20 |
+| Vuelta | Cualquier evento de tope (alta si la severidad máxima `> 0.95`) | media/alta | 0,05-0,20 |
+| Vuelta | `max_pitch > 15` | baja | 0,03-0,12 |
+| Sesión | Alguna esquina con topes `> 3` % o media de eventos/vuelta `> 0.5` (alta si eventos `> 1.5` o una esquina `> 8` %) | media/alta | 0,05-0,25 |
+| Sesión | `roll_ratio > 1.40` / `< 0.70` | media | 0,05-0,18 |
+| Sesión | `mean_pitch > 15` | baja | 0,03-0,12 |
+
+### 3.4 Balance (a partir de resúmenes de ángulo de deriva / guiñada)
+
+| Modo | Condición (la primera que coincida) | Prioridad | Ganancia |
+|---|---|---|---|
+| Vuelta | `understeer_pct > 60` | alta | 0,12-0,40 |
+| Vuelta | `oversteer_pct > 30` | alta | 0,10-0,35 |
+| Vuelta | `2 < balance_mean <= 4` y `understeer_pct > 45` | baja | 0,04-0,12 |
+| Sesión | `mean_understeer_pct > 60` | alta | 0,12-0,40 |
+| Sesión | `mean_oversteer_pct > 30` | alta | 0,10-0,35 |
+| Sesión | `mean_understeer_pct > 40` | baja | 0,05-0,15 |
+
+### 3.5 Inputs del piloto
+
+| Modo | Condición | Prioridad | Ganancia |
+|---|---|---|---|
+| Vuelta | nerviosismo `> 0.65` y banda de alta frecuencia `> 0.25` | media | 0,05-0,15 |
+| Vuelta | nerviosismo `> 0.65` y banda media `> 0.35` (si no es alta) | baja | 0,04-0,12 |
+| Vuelta | nerviosismo `> 0.65`, ninguna banda | media | 0,05-0,20 |
+| Vuelta | solapamiento freno/acelerador `< 5` % | baja | 0,03-0,10 |
+| Sesión | nerviosismo `> 0.65` y `fft_high > 0.28` | media | 0,04-0,15 |
+| Sesión | nerviosismo `> 0.65` y `fft_mid > 0.38` (independiente de la regla anterior) | baja | 0,03-0,10 |
+| Sesión | `0.40 < nerviosismo <= 0.65` | baja | 0,02-0,08 |
+| Sesión | solapamiento medio `< 4` % | baja | 0,04-0,12 |
+
+### 3.6 Curvas y consistencia
+
+| Condición | Prioridad | Ganancia |
 |---|---|---|
-| Neumaticos | `_analyse_tyres` | `_analyse_tyres_sesion` |
-| Frenos | `_analyse_brakes` | `_analyse_frenos_sesion` |
-| Suspension | `_analyse_suspension` | `_analyse_suspension_sesion` |
-| Balance aerodinamico | `_analyse_slip` | `_analyse_balance_sesion` |
-| Inputs del piloto | `_analyse_inputs` | `_analyse_inputs_sesion` |
-| Analisis por curvas | `_analyse_corners` | `_analyse_corners` (compartida) |
+| Al menos 3 curvas con `braking_delta_meters > 10` | media | 0,05 x n a 0,15 x n |
+| Al menos 2 curvas con `apex_speed_delta_kmh < -5` | alta | 0,08 x n a 0,20 x n |
+| Al menos 3 curvas con `throttle_delta_meters > 10` | media | 0,04 x n a 0,12 x n |
+| Sesión: al menos 2 curvas con `std_loss_seconds > 0.12` | media | 0,05 x n a 0,15 x n |
 
-Cada funcion recibe el dict de resultados del modulo correspondiente, verifica la disponibilidad de datos mediante la clave `available`, y retorna una lista de recomendaciones o una lista vacia si los datos no estan presentes.
+### 3.7 Degradación (solo modo sesión)
 
-### Diagnostico de neumaticos
+`_analyse_degradacion_ritmo` usa `tasa_s_per_lap` y `r_squared` de `analizar_degradacion_stint`:
 
-El analisis de neumaticos opera en tres niveles:
+| Condición | Prioridad | Ganancia |
+|---|---|---|
+| tasa neta `> 0,12` y `r2 > 0.65` (alta si `>= 0,15`) | media/alta | `0,25 x tasa` a `0,55 x tasa` |
+| `0,08 < tasa neta <= 0,12` y `r2 > 0.45` | baja | `0,15 x tasa` a `0,35 x tasa` |
 
-1. **Gradiente de camber por posicion**: se calcula la diferencia entre la temperatura del borde interior y el borde exterior de cada neumatico. Un gradiente positivo mayor a 15 °C indica camber insuficiente (la banda interior trabaja en exceso); un gradiente negativo inferior a -12 °C indica camber excesivo. Los umbrales difieren porque la penalizacion asimetrica del camber es mas sensible al calentamiento interior.
-
-2. **Estado de ventana de presion**: el estado `sobrecalentada` activa una recomendacion de aumento de presion de inflado; el estado `fria` activa una recomendacion de reduccion. La logica asume que presion y temperatura superficial estan correlacionadas en el regimen de operacion cubierto.
-
-3. **Balance termico axial y lateral**: se calculan promedios de temperatura superficial por eje (delantero/trasero) y por lado (izquierdo/derecho). Un diferencial axial superior a 14 °C produce una recomendacion de balance termico; un diferencial lateral superior a 12 °C produce una recomendacion de asimetria. El umbral lateral es deliberadamente menor al axial porque la asimetria lateral tiene menor impacto en el tiempo de vuelta, y se clasifica con prioridad baja.
-
-### Diagnostico de frenos
-
-Se analiza la degradacion de eficiencia de frenada comparando la puntuacion de frenada observada contra una linea base de referencia. La formula de degradacion es:
-
-```
-degradacion_pct = (1 - score / baseline) * 100
-```
-
-Si la degradacion supera el 15 %, se emite una recomendacion de fade. Valores superiores al 30 % elevan la prioridad a `alta`. Adicionalmente, se identifican zonas de fade severo (severidad mayor al 30 % en zonas individuales) para permitir una intervencion puntual por curva o sector.
-
-En el modo sesion, el diagnostico opera sobre la eficiencia media de frenada y la severidad media de fade. Una severidad media superior al 25 % o una eficiencia media inferior al 70 % activan una recomendacion de gestion termica de frenos.
-
-### Diagnostico de suspension
-
-La suspension se diagnostica en tres dimensiones:
-
-- **Balance de barra estabilizadora (ARB)**: se calcula el cociente entre el roll maximo del eje delantero y el eje trasero. Un cociente mayor a 1.35 (delantero rola mas) indica subviraje estructural y sugiere endurecer el ARB trasero o ablandar el delantero. Un cociente menor a 0.75 indica sobreviraje estructural y sugiere la accion inversa.
-
-- **Eventos de fondo de carrera (bottoming)**: se contabilizan los eventos en que el vehiculo toca el fondo durante la vuelta. La severidad maxima determina la prioridad: mayor al 95 % eleva la prioridad a `alta`. La recomendacion resultante apunta a un aumento de altura minima o rigidez de muelles.
-
-- **Pitch longitudinal**: un angulo maximo de cabeceo superior a 15° bajo frenada indica transferencia de peso longitudinal excesiva. La recomendacion asociada apunta a ajuste de muelles delanteros o topes de compresion.
-
-### Diagnostico de balance aerodinamico
-
-El balance se extrae del modulo de angulo de deslizamiento (`slip_angle`). Los porcentajes de subviraje y sobreviraje se calculan sobre el tiempo total en cornering:
-
-- Subviraje superior al 60 %: recomendacion de balance aerodinamico con prioridad `alta`, orientada a reducir downforce delantero o incrementar el trasero.
-- Sobreviraje superior al 30 %: recomendacion opuesta con prioridad `alta`.
-- Subviraje entre 45 % y 60 % con balance medio entre 2 y 4 grados: recomendacion de ajuste fino con prioridad `baja`.
-
-En el modo sesion, los mismos umbrales se aplican sobre los promedios estadisticos de la sesion completa.
-
-### Diagnostico de inputs del piloto / amortiguadores
-
-La nerviosidad del volante se cuantifica mediante un score normalizado entre 0 y 1. Si el score supera 0.65, el modulo aplica un analisis espectral:
-
-- **Alta frecuencia (banda `high` > 25 %)**: el origen probable es el rebote del amortiguador. La recomendacion apunta a reducir la rigidez de rebote.
-- **Frecuencia media (banda `mid` > 35 %)**: el origen probable es la rigidez de muelles. La recomendacion apunta a ablandar los muelles.
-- **Sin dominancia espectral clara**: recomendacion general de balance mecanico.
-
-Adicionalmente, se evalua el porcentaje de solapamiento freno-acelerador como indicador de frenada de punta. Un solapamiento inferior al 5 % indica que el piloto no utiliza trail braking, lo que es una oportunidad tecnica, no un problema de setup.
-
-### Analisis por curvas
-
-El modulo identifica patrones repetidos entre curvas. Las detecciones activas son:
-
-- **Frenada temprana sistematica**: tres o mas curvas con delta de punto de frenada mayor a 10 metros. La ganancia estimada escala linealmente con el numero de curvas afectadas (0.05–0.15 s por curva).
-- **Velocidad de apex baja**: dos o mas curvas con delta de velocidad de apex inferior a -5 km/h. Ganancia estimada: 0.08–0.20 s por curva.
-- **Aceleracion tardia**: tres o mas curvas con delta de punto de aceleracion mayor a 10 metros.
-
-### Analisis de consistencia y degradacion (modo sesion)
-
-Dos funciones adicionales operan exclusivamente en el modo sesion:
-
-- `_analyse_consistency_sesion`: detecta curvas con desviacion estandar de perdida de tiempo superior a 0.12 s entre vueltas. Dos o mas curvas inconsistentes producen una recomendacion de tecnica, con ganancia proporcional al numero de curvas afectadas.
-
-- `_analyse_degradacion_ritmo`: opera sobre la salida de `analizar_degradacion_stint()`. Una tasa de degradacion superior a 0.20 s/vuelta con R² mayor a 0.65 activa una recomendacion de alta prioridad. Tasas entre 0.08 y 0.20 s/vuelta con R² mayor a 0.45 producen una recomendacion de baja prioridad orientada a gestion de neumaticos.
-
-### Deduplicacion y ordenamiento
-
-Antes de retornar, el motor deduplica las recomendaciones por clave `(categoria, problema[:40])`, conservando la version de mayor prioridad cuando existe conflicto. El resultado se ordena por prioridad (`alta` > `media` > `baja`).
-
-### Prioridad por curva
-
-La funcion `_corner_priority` produce una lista independiente de las curvas con mayor perdida de tiempo (hasta 8 curvas), con un umbral minimo de 5 ms. Para cada curva, se identifica la fase dominante (frenada, apex, salida) aplicando factores de conversion aproximados:
-
-- Frenada: 0.015 s por metro de delta de punto de frenada
-- Apex: 0.012 s por km/h de delta de velocidad de apex
-- Salida: 0.010 s por metro de delta de punto de aceleracion
+Ver el apartado 8 sobre la primera fila: no puede dispararse con el módulo de stint actual.
 
 ---
 
-## Canales Requeridos
+## 4. Vinculación con el Setup de Assetto Corsa
 
-### Modo comparativo de vuelta (`analizar_setup`)
+`src/analytics/ac_setups.py` vincula las recomendaciones del asesor con los parámetros reales del setup de Assetto Corsa del usuario (`.ini` / `.sp`) y produce una vista "actual -> sugerido". Se expone en `src/api/setups.py` bajo `/api/setups`:
 
-| Canal / Seccion | Origen | Descripcion |
-|---|---|---|
-| `tyre_analysis.available` | Modulo de analisis de neumaticos | Habilita el diagnostico de presiones y camber |
-| `tyre_analysis.lap_a / lap_b[].corners[]` | Modulo de analisis de neumaticos | Temperaturas interior, medio y exterior por posicion |
-| `tyre_analysis.*.corners[].window_status` | Modulo de analisis de neumaticos | Estado de ventana de temperatura (`sobrecalentada`, `fria`, `optima`) |
-| `tyre_analysis.*.corners[].surface_mean` | Modulo de analisis de neumaticos | Temperatura superficial media por neumatico |
-| `brake_analysis.available` | Modulo de frenada | Habilita el diagnostico de fade |
-| `brake_analysis.score_a / score_b` | Modulo de frenada | Puntuacion de eficiencia de frenada por vuelta |
-| `brake_analysis.baseline_a / baseline_b` | Modulo de frenada | Linea base de referencia por vuelta |
-| `brake_analysis.fade_zones_a / fade_zones_b` | Modulo de frenada | Zonas de fade con inicio, fin y severidad |
-| `suspension.available` | Modulo de suspension | Habilita el diagnostico de ARB y bottoming |
-| `suspension.summary_a / summary_b` | Modulo de suspension | Resumenes estadisticos de roll y pitch |
-| `suspension.bottoming_a / bottoming_b` | Modulo de suspension | Lista de eventos de fondo con severidad y curva |
-| `slip_angle.available` | Modulo de angulo de deslizamiento | Habilita el diagnostico de balance |
-| `slip_angle.summary_a / summary_b` | Modulo de angulo de deslizamiento | Porcentajes de subviraje, sobreviraje y balance medio |
-| `driver_inputs.available` | Modulo de inputs | Habilita el diagnostico de amortiguadores |
-| `driver_inputs.nervousness_score_a / _b` | Modulo de inputs | Score de nerviosidad del volante |
-| `driver_inputs.fft_bands_a / _b` | Modulo de inputs | Distribucion espectral de la senal de direccion |
-| `driver_inputs.overlap_pct_a / _b` | Modulo de inputs | Porcentaje de solapamiento freno-acelerador |
-| `corners[]` | Modulo de analisis por curvas | Lista de curvas con deltas de frenada, apex y aceleracion |
+| Endpoint | Propósito |
+|---|---|
+| `POST /api/setups/detect` | Vehículo / circuito / piloto (y fecha, tipo de sesión, formato) a partir de los primeros bytes de un CSV, `.ibt` o `.ld`, o de un `file_id` almacenado |
+| `GET /api/setups/candidates` | Busca setups para un coche y circuito: estados `track_setups`, `generic_only`, `none`, `no_access` |
+| `GET /api/setups/file` | Lee un setup por id |
+| `POST /api/setups/parse` | Analiza un `.ini` / `.sp` subido (máx. 256 KiB) |
+| `POST /api/setups/annotate` | Cuerpo `{setup, recommendations}`; devuelve las recomendaciones decoradas con `setup_link`, más `n_linked`, `conflicts` y `summary` |
 
-### Modo sesion (`analizar_setup_sesion`)
+Cómo funciona el vínculo:
 
-| Canal / Seccion | Origen | Descripcion |
-|---|---|---|
-| `curvas_sesion.available` | `session_corner_analysis` | Condicion de disponibilidad; aborta si es False |
-| `curvas_sesion.corners[]` | `session_corner_analysis` | Curvas con perdida de tiempo media y desviacion estandar |
-| `degradacion.tasa_s_per_lap` | `tyre_degradation` | Tasa de degradacion de ritmo en s/vuelta |
-| `degradacion.r_squared` | `tyre_degradation` | R² del ajuste lineal de la tendencia de degradacion |
-| `telemetria_sesion.tyre{}` | `session_telemetry_analysis` | Agregados de temperatura por posicion de neumatico |
-| `telemetria_sesion.brake{}` | `session_telemetry_analysis` | Eficiencia media y severidad media de fade de frenos |
-| `telemetria_sesion.suspension{}` | `session_telemetry_analysis` | Roll medio, ratio de roll, pitch medio, eventos de bottoming |
-| `telemetria_sesion.inputs{}` | `session_telemetry_analysis` | Nerviosidad media, bandas FFT medias, solapamiento medio |
-| `telemetria_sesion.balance{}` | `session_telemetry_analysis` | Porcentajes medios de subviraje y sobreviraje de sesion |
+1. **Localización de setups.** La carpeta es `AC_SETUPS_DIR` si está definida; si no, la primera `<Documents>/Assetto Corsa/setups` existente (API de carpetas conocidas de Windows, `USERPROFILE`, home). Estructura `<coche>/<circuito>/*.ini` más `<coche>/generic/last.ini`. Cuando el servidor no puede ver la carpeta (Docker, Linux, macOS) el estado es `no_access` y el usuario puede subir el archivo. En Docker, monta la carpeta en solo lectura y define `AC_SETUPS_DIR` (ver `docker-compose.override.example.yml`).
+2. **Seguridad.** Los nombres de coche y circuito se validan con un conjunto estricto de caracteres y se comparan con el listado real del directorio; la ruta resuelta debe quedar dentro de la carpeta de setups; solo se leen archivos regulares `.ini`/`.sp` de hasta 256 KiB y 2000 secciones.
+3. **Análisis.** Secciones como `PRESSURE_LF`, `CAMBER_RR`, `ARB_FRONT`, `FRONT_BIAS` se clasifican en grupos (aero, tyres, suspension, brakes, diff, electronics, other); los sufijos `LF/RF/LR/RR` se asignan a FL/FR/RL/RR. El juego guarda "clics": las unidades reales solo se afirman donde son seguras (presión en psi, reparto de frenada y potencia de freno en %, combustible en litros); lo demás se muestra en bruto.
+4. **Rangos.** Mínimo/máximo/paso solo se adjuntan si es legible el `content/cars/<coche>/data/setup.ini` desempaquetado del coche (`AC_ROOT` / `AC_INSTALL_DIR`, bibliotecas de Steam). Los archivos cifrados `data.acd` deliberadamente no se abren; la fuente se informa como `car_data`, `encrypted` o `not_found`.
+5. **Mapeo.** `_MAP` se indexa por el `rec_key` del asesor y lista `(base del parámetro, destino, dirección, multiplicador, alternativa)`; `target` es `pos` (el neumático de la regla), `front`, `rear`, `all`, `bias_pos` o ninguno. Ejemplos: `setup_rec_camber_add` -> `CAMBER` en esa rueda, -1; `setup_rec_pressure_raise` -> `PRESSURE`, +1; `setup_rec_arb_front` -> `ARB_FRONT`, +1; `setup_rec_understeer` -> `ARB_FRONT`, -1 marcado como *alternativa* al cambio aerodinámico. `_RELATED` lista parámetros que solo se muestran cuando no se puede derivar un cambio seguro (por ejemplo altura y muelles para los topes).
+6. **Acciones seguras.** Cada acción tiene `current`, `suggested`, `delta`, `direction`, `status` (`ok`, `direction_only`, `at_limit`), `alternative` y una `note`. El valor sugerido es `current + dirección x paso x multiplicador`, limitado a los límites del coche y a cotas duras (ARB y presión >= 0, reparto delantero 0-100). Solo se supone un paso de 1 clic (con nota) para presión, ARB y reparto delantero; en otro caso solo se da la dirección. Si el valor ya está en el límite en la dirección deseada, el estado es `at_limit` en lugar de un consejo incoherente.
+7. **Conflictos.** Si dos acciones no alternativas empujan el mismo parámetro en direcciones opuestas, se lista en `conflicts`.
 
-El parametro `telemetria_sesion` es opcional: si no se proporciona, el modulo opera unicamente con los datos de curvas y degradacion, produciendo un subconjunto reducido de recomendaciones.
+Las recomendaciones sin mapeo se devuelven sin cambios (sin `setup_link`).
 
 ---
 
-## Esquema de Salida
+## 5. Requisitos de Entrada
 
-### Salida de `analizar_setup` y `analizar_setup_sesion`
+### Modo vuelta: `analizar_setup(result)`
+
+Las claves ausentes omiten el dominio en silencio.
+
+| Clave | Campos leídos |
+|---|---|
+| `tyre_analysis` | `available`; `lap_a` / `lap_b` con `corners` (`corner`, `inner`, `middle`, `outer`, `surface_mean`, `window_status` en {`optima`, `sobrecalentada`, `fria`}) |
+| `brake_analysis` | `available`, `score_a/b`, `baseline_a/b`, `fade_zones_a/b` (`start`, `end`, `severity`) |
+| `suspension` | `available`, `summary_a/b` (`max_roll_f`, `max_roll_r`, `max_pitch`, `mean_pitch`), `bottoming_a/b` (`severity`, `corner`) |
+| `slip_angle` | `available`, `summary_a/b` (`understeer_pct`, `oversteer_pct`, `balance_mean`) |
+| `driver_inputs` | `available`, `nervousness_score_a/b`, `fft_bands_a/b` (`high`, `mid`), `overlap_pct_a/b` |
+| `corners` | lista con `corner_number`, `time_loss_seconds`, `braking_delta_meters`, `apex_speed_delta_kmh`, `throttle_delta_meters`, `description` |
+
+### Modo sesión: `analizar_setup_sesion(...)`
+
+| Parámetro | Origen | Campos leídos |
+|---|---|---|
+| `curvas_sesion` | `analizar_curvas_sesion()` | `available`, `corners` (también `std_loss_seconds`) |
+| `degradacion` | `analizar_degradacion_stint()` | `tasa_s_per_lap`, `r_squared` |
+| `telemetria_sesion` | `analizar_telemetria_sesion()` | opcionales `tyre` (por esquina `mean_temp`, `max_temp`, `camber_gradient`, `inner_mean`, `outer_mean`, `brake_temp_mean`, `brake_temp_max`; más `front_rear_delta`, `left_right_delta`), `brake` (`mean_efficiency`, `min_efficiency`, `mean_fade_severity`, `mean_fade_pct`), `suspension` (`mean_roll_f/r`, `roll_ratio`, `mean_pitch`, `mean/max_bottoming_events`, `corner_bottoming_pct`), `inputs` (`mean_nervousness`, `mean_fft_high/mid`, `mean_overlap_pct`), `balance` (`mean_understeer_pct`, `mean_oversteer_pct`, `balance_mean`) |
+
+---
+
+## 6. Esquema de Salida
 
 ```python
 {
-    "available": bool,
-    "recommendations": [
-        {
-            "category":        str,   # Categoria de setup (ej. "Camber")
-            "problem":         str,   # Descripcion del problema detectado
-            "root_cause":      str,   # Causa raiz tecnica
-            "recommendation":  str,   # Accion concreta de ajuste
-            "detail":          str,   # Explicacion tecnica extendida
-            "solves":          str,   # Que mejora en el comportamiento del vehiculo
-            "expected_gain":   str,   # Ganancia estimada en formato "X.XX–X.XXs/v"
-            "gain_lo":         float, # Limite inferior de ganancia en segundos/vuelta
-            "gain_hi":         float, # Limite superior de ganancia en segundos/vuelta
-            "priority":        str,   # "alta" | "media" | "baja"
-            "pilot_note":      str,   # Nota contextual para el piloto en ingles
-        },
-        ...
-    ],
-    "corner_priority": [
-        {
-            "corner_number":         int,
-            "time_loss_seconds":     float,
-            "braking_delta_meters":  float,
-            "apex_speed_delta_kmh":  float,
-            "throttle_delta_meters": float,
-            "dominant_phase":        str,   # "frenada" | "apex" | "salida"
-            "focus":                 str,   # Etiqueta localizada de la fase dominante
-            "description":           str,
-        },
-        ...
-    ],
-    "total_gain_lo":    float, # Suma de gain_lo de todas las recomendaciones
-    "total_gain_hi":    float, # Suma de gain_hi de todas las recomendaciones
-    "total_gain_range": str,   # Formato "X.XX–X.XXs/v"
+    "available": bool,              # modo vuelta: existen recomendaciones o areas_status; modo sesión: existen recomendaciones
+    "recommendations": [{
+        "category": str, "problem": str, "root_cause": str, "recommendation": str,
+        "detail": str, "solves": str,
+        "expected_gain": str,       # "lo-hi s/vuelta" localizado
+        "gain_lo": float, "gain_hi": float,
+        "priority": "alta" | "media" | "baja",
+        "pilot_note": str,
+        "problem_key": str, "category_key": str, "rec_key": str,   # identificadores estables
+        "pos": "FL" | "FR" | "RL" | "RR",                          # solo en reglas por neumático
+        # añadido por /api/setups/annotate:
+        "setup_link": {"actions": [...], "related": [...]},
+    }],
+    "areas_status": [{"domain": str, "label": str, "status": str, "n_issues": int}],   # solo modo vuelta
+    "corner_priority": [{"corner_number": int, "time_loss_seconds": float, "braking_delta_meters": float,
+                         "apex_speed_delta_kmh": float, "throttle_delta_meters": float,
+                         "dominant_phase": "frenada" | "apex" | "salida", "focus": str, "description": str}],
+    "total_gain_lo": float, "total_gain_hi": float, "total_gain_range": str
 }
 ```
 
-La salida de `analizar_setup` incluye adicionalmente la clave `areas_status`, ausente en `analizar_setup_sesion`:
-
-```python
-"areas_status": [
-    {
-        "domain":   str,   # Identificador del dominio
-        "label":    str,   # Nombre legible (ej. "Neumaticos")
-        "status":   str,   # "alta" | "media" | "baja" | "nominal"
-        "n_issues": int,
-    },
-    ...
-]
-```
-
-El campo `areas_status` solo incluye dominios para los que los datos estaban disponibles (`available == True`). Los dominios sin datos no aparecen en la lista.
-
-### Rangos de ganancia estimada por dominio
-
-| Dominio | Rango tipico (s/vuelta) | Base del calculo |
-|---|---|---|
-| Balance aerodinamico (subviraje/sobreviraje) | 0.10 – 0.40 | Porcentaje de tiempo en condicion critica |
-| Temperatura de neumaticos (axial) | 0.10 – 0.30 | Diferencial termico vs. umbral |
-| Fade de frenos (alta severidad) | 0.08 – 0.30 | Porcentaje de degradacion de eficiencia |
-| Velocidad de apex | 0.08 – 0.20 × N curvas | N curvas con deficit > 5 km/h |
-| Bottoming / altura minima | 0.05 – 0.25 | Frecuencia y severidad de eventos |
-| Balance ARB | 0.06 – 0.20 | Ratio de roll fuera de ventana |
-| Camber (gradiente termico) | 0.03 – 0.18 | Magnitud del gradiente interior-exterior |
-| Amortiguadores (rebote) | 0.05 – 0.15 | Score de nerviosidad y energia en alta frecuencia |
-| Consistencia de curvas | 0.05 – 0.15 × N curvas | Desviacion estandar de perdida de tiempo |
-
-Estos rangos son estimaciones conservadoras basadas en correlaciones empiricas de ingenieria de competicion. No incorporan coeficientes de arrastre especificos del vehiculo ni modelos de neumaticos.
+Dominios de `areas_status`: `tyres`, `brakes`, `suspension`, `aero`, `inputs`, `corners`. El modo sesión no devuelve `areas_status`.
 
 ---
 
-## Guia de Interpretacion
+## 7. Guía de Interpretación
 
-### Prioridad
-
-La prioridad de cada recomendacion refleja la magnitud del problema y su impacto probable en el tiempo de vuelta:
-
-- **`alta`**: problema significativo con impacto directo en rendimiento o seguridad. Debe atenderse antes del proximo stint o sesion de clasificacion.
-- **`media`**: problema moderado que afecta el rendimiento de forma consistente. Puede abordarse entre sesiones o durante cambios de setup programados.
-- **`baja`**: oportunidad de mejora menor o ajuste fino. Relevante en contextos de optimizacion cuando los problemas de mayor prioridad ya estan resueltos.
-
-### Ganancia total estimada
-
-El campo `total_gain_range` es la suma de los rangos de ganancia de todas las recomendaciones activas. Este numero NO debe interpretarse como la ganancia esperada si se aplican todos los ajustes simultaneamente: muchos problemas son interdependientes (resolver el balance reduce la degradacion, que a su vez afecta el camber efectivo en las ultimas vueltas del stint). La suma es un indicador del potencial teorico maximo no captado.
-
-### `corner_priority`
-
-La lista de prioridad por curvas permite focalizar el analisis de datos. Las curvas en las posiciones 1 a 3 son los candidatos principales para revision de video y datos sincronizados. La `dominant_phase` indica en que segmento de la curva se concentra la perdida de tiempo:
-
-- **Frenada**: revisar punto de frenada, presion de freno y bloqueos.
-- **Apex**: revisar velocidad de entrada, angulo de direccion y grip transversal.
-- **Salida**: revisar punto de aplicacion de acelerador y traccion trasera.
-
-### `pilot_note`
-
-Este campo contiene una nota en ingles orientada al piloto, generada a partir de la clave del problema. Describe en terminos de sensacion de manejo que cambio puede esperar el piloto despues del ajuste, sin terminologia tecnica de ingenieria. Util para briefings cortos entre sesiones.
-
-### Relacion entre dominios
-
-Algunos problemas en dominios distintos pueden tener una causa raiz comun. Las combinaciones tipicas son:
-
-- **Subviraje alto + frente mas caliente**: indica carga aerodinamica delantera excesiva o camber delantero insuficiente. Las dos recomendaciones son complementarias.
-- **Nerviosidad alta en alta frecuencia + bottoming**: puede indicar un amortiguador trasero con rebote excesivo que provoca que el vehiculo bote sobre irregularidades. Resolver el bottoming puede reducir la nerviosidad derivada.
-- **Fade de frenos + frente mas caliente**: un bias de frenos demasiado adelantado sobrecarga los discos delanteros termicamente. Ajustar el bias puede resolver ambos problemas de forma simultanea.
+- Empieza por `areas_status` (modo vuelta) para el triaje y luego lee las recomendaciones `alta`: `root_cause` nombra el fenómeno y `detail` suele incluir los números que dispararon la regla, que se pueden contrastar con la telemetría.
+- `expected_gain` es un rango heurístico; el total es una suma ingenua. Trátalo como una cota superior optimista, porque los cambios de setup interactúan.
+- Cuando varias reglas se disparan para el mismo neumático (caída y presión), pueden compartir causa; no las apliques todas como correcciones independientes.
+- `pilot_note` describe el síntoma percibido sin jerga de ingeniería; para elementos `alta` es una indicación a corto plazo, no sustituye al cambio.
+- `corner_priority` muestra dónde mirar primero; `dominant_phase` es una heurística basada en sensibilidades supuestas.
+- Con un setup de AC vinculado, lee `setup_link.actions`: `status: ok` da un valor concreto, `direction_only` solo la dirección, `at_limit` significa que el parámetro no puede moverse en ese sentido. Revisa `conflicts` antes de aplicar varios cambios. Las acciones alternativas (`alternative: true`) no se suman: elige una vía.
 
 ---
 
-## Limitaciones
+## 8. Limitaciones e Inconsistencias Conocidas
 
-### Dependencia de datos disponibles
+- **Basado en reglas con umbrales fijos.** No se adapta a circuito, compuesto, condiciones ambientales ni coche. Los rangos de ganancia no están validados con tiempos reales.
+- **Las ganancias no son independientes.** Los totales son sumas simples.
+- **Se necesitan dos vueltas comparables** en modo vuelta; condiciones mezcladas dan resultados engañosos.
+- **La consistencia de sesión** (`std_loss_seconds`) no es fiable con menos de unas 5 vueltas.
+- **`lang`** se respeta ahora cuando se pasa (corregido el 2026-10-03); las prioridades y los valores de `window_status` siguen siendo literales en español.
+- **Las prioridades son cadenas fijas en español** (`alta`/`media`/`baja`) y los valores de `window_status` (`optima`, `sobrecalentada`, `fria`) son literales en español usados como contrato de datos.
+- **Regla de degradación (corregida el 2026-10-03):** la regla "alta" exigía `tasa_s_per_lap > 0.20` aunque la pendiente del stint está limitada a +/-0,15, por lo que nunca se disparaba, y `tasa_s_per_lap` incluye el efecto del combustible. Ahora usa la degradación neta `degradation_s_per_lap` (con respaldo a `tasa_s_per_lap` si falta): alta `> 0,12` (80 % del límite; prioridad alta desde 0,15, alcanzable porque neta = pendiente - efecto combustible puede superar el límite) y moderada `0,08-0,12`. Se omite con `low_confidence`, menos de `MIN_LAPS_FOR_TREND` vueltas o `wear_active=False` (simulador con desgaste apagado; `main.py` pasa `detect_wear_tracking`).
+- **Coherencia vuelta/sesión (corregida el 2026-10-03):** los dos modos daban consejos opuestos. Ahora comparten `_camber_diagnosis` y `_pressure_direction`. Caída: la caída negativa carga el hombro interior, así que interior más caliente que exterior = demasiada caída negativa = REDUCIRLA (la regla de sesión era correcta; el modo vuelta decía "añadir"); exterior más caliente = AÑADIR. Presión (solo con temperatura, sin canal de presión, por lo que es la decisión menos segura): se asume que un neumático sobrecalentado flexiona demasiado (docs 09/14: más presión reduce el calor de deformación), así que SUBIR presión, salvo que el centro de la banda esté más de 5 degC por encima de la media de los hombros (sobreinflado), entonces BAJAR; un neumático frío recibe BAJAR. El modo sesión no tiene desglose por zonas, así que sigue el valor por defecto. Fijado por `tests/test_advisor_rl_fixes.py`.
+- **Dependencia de módulos previos:** la calidad de cada regla es la de la métrica que la alimenta (por ejemplo el resumen de balance del ángulo de deriva).
 
-El modulo aplica las reglas de cada dominio unicamente si la clave `available` del modulo correspondiente es `True`. Si la sesion no incluye datos de angulo de deslizamiento (por ejemplo, por ausencia del canal de velocidad de rueda), el dominio de balance aerodinamico queda sin diagnostico, sin que esto genere un error. La clave `areas_status` refleja cuales dominios fueron evaluados.
+---
 
-### Umbrales fijos sin calibracion por vehiculo
+## 9. Estado de Verificación
 
-Los umbrales numericos (gradientes de temperatura, ratios de roll, porcentajes de subviraje, etc.) son valores genericos derivados de experiencia empirica en vehiculos de competicion de categoria media-alta. No estan calibrados para vehiculos especificos. Un Formula 4 y un GT3 tienen ventanas de operacion de neumaticos, ratios de roll y tolerancias de camber fundamentalmente distintos. El uso del modulo en categorias con dinamica muy diferente (karting, vehiculos de arrastre) puede producir recomendaciones inadecuadas.
-
-### Estimaciones de ganancia no validadas por modelo de vehiculo
-
-Las ganancias estimadas en segundos por vuelta son rangos conservadores basados en correlaciones genericas. No incorporan el modelo de neumatico especifico, las caracteristicas aerodinamicas del circuito, ni el coeficiente de transferencia de calor del sistema de frenos. Deben tratarse como ordenes de magnitud, no como predicciones absolutas.
-
-### Independencia entre recomendaciones
-
-El motor trata cada dominio de forma independiente. No modela la interaccion entre ajustes: aplicar simultaneamente un aumento de camber negativo delantero y un endurecimiento del ARB delantero puede producir un balance diferente al predicho por las recomendaciones individuales. El ingeniero de pista debe evaluar las interacciones al implementar multiples cambios en paralelo.
-
-### Ausencia de modelo de degradacion de neumatico por compuesto
-
-El diagnostico de presiones y temperaturas asume una ventana de operacion fija (80–100 °C para la temperatura superficial). En la practica, la ventana varia segun el compuesto, el proveedor y las condiciones de pista. Los datos de temperatura superficial de neumnaticos pueden reflejar condiciones transitorias de calentamiento o enfriamiento que no representan el estado estacionario del compuesto.
-
-### Modo sesion: sensibilidad a outliers en agregados
-
-Los agregados estadisticos de sesion (medias de roll, temperatura, nerviosidad) son sensibles a vueltas atipicas: vueltas de entrada a boxes, vueltas bajo bandera amarilla o vueltas con incidentes pueden distorsionar las medias y producir recomendaciones incorrectas. Se recomienda filtrar vueltas atipicas antes de alimentar el modulo de telemetria de sesion.
-
-### Falta de feedback de circuito
-
-El modulo no recibe informacion sobre el trazado del circuito (numero de curvas lentas vs. rapidas, superficies abrasivas, perfil de altimetria). Una pista con predominio de curvas rapidas requiere configuraciones de camber y presion diferentes a una pista tecnica de curvas lentas. Esta dimension no esta contemplada en la logica de reglas actual.
+Umbrales, rangos de ganancia, claves y el mapeo de AC se leyeron de `setup_advisor.py`, `ac_setups.py` y `src/api/setups.py` el 2026-10-03; las correcciones anteriores (regla de degradación, coherencia caída/presión y `lang`) se reprodujeron antes con pruebas sintéticas que fallaban. Los textos de recomendación (p. ej. consejos de alerón/ARB) viven en los archivos de idioma y no se auditaron en cuanto a corrección de ingeniería. No verificable desde el código: el significado físico del signo de `balance_mean`, por qué se eligió cada valor umbral y el sentido del consejo de presión (ninguna presión entra en estas reglas). Versiones anteriores de este documento describían un "balance mean = correlación entre G lateral y ángulo de volante" y varios valores de umbral que no son lo que hace el código; esas afirmaciones se eliminaron.

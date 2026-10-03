@@ -11,6 +11,14 @@ Contrato de salida (igual que el camino CSV tras ``load_telemetry_data``):
     LateralG/LongitudinalG en g, YawRate deg/s, presiones en bar, suspension en mm,
     temperaturas en C, Distance en m (acumulada de sesion).
   - ``df.attrs['format']``, ``df.attrs['experimental']``, ``df.attrs['metadata']``.
+
+CONVENCION INTERNA DE LateralG (documentada en ``normalize_lateral_sign``):
+  LateralG tiene el MISMO signo que YawRate en curva estacionaria (ay ~ r*V), es decir
+  corr(LateralG, YawRate*Speed) > 0. Con el YawRate de iRacing (positivo = giro a la
+  izquierda) eso significa LateralG positivo = giro a la izquierda. Las fuentes cuya
+  convencion difiere (p. ej. ACTI/Assetto Corsa .ld: LateralG negativo al girar a la
+  izquierda, corr ~ -0.95) se invierten en el loader nativo; ``df.attrs['lateral_g_flipped']``
+  lo registra. Los CSV de Assetto Corsa NO se tocan (ver ``loaders.load_telemetry_data``).
 """
 
 from __future__ import annotations
@@ -230,6 +238,28 @@ def pick_channels(available: Dict[str, List[RawChannel]], native_first: List[str
     return chosen
 
 
+# ── Convencion de signo de LateralG ───────────────────────────────────────────
+def normalize_lateral_sign(df: pd.DataFrame) -> bool:
+    """Fuerza la convencion interna LateralG ~ +YawRate*Speed (in place).
+
+    Detecta la convencion de la fuente con ``slip_angle.lateral_sign_convention``
+    (correlacion LateralG vs YawRate*Speed a > 10 m/s) y, si es negativa, invierte
+    LateralG. Sin LateralG, YawRate o Speed (o sin datos suficientes) no hace nada.
+    Devuelve True si se invirtio y lo anota en ``df.attrs['lateral_g_flipped']``.
+    """
+    flipped = False
+    if all(c in df.columns for c in ("LateralG", "YawRate", "Speed")):
+        from src.analytics.slip_angle import lateral_sign_convention, _yaw_to_rad
+        ay = pd.to_numeric(df["LateralG"], errors="coerce")
+        yaw = _yaw_to_rad(pd.to_numeric(df["YawRate"], errors="coerce").fillna(0))
+        vx = pd.to_numeric(df["Speed"], errors="coerce").fillna(0) / 3.6
+        if lateral_sign_convention(ay.fillna(0) * G0, yaw, vx) < 0:
+            df["LateralG"] = -ay
+            flipped = True
+    df.attrs["lateral_g_flipped"] = flipped
+    return flipped
+
+
 # ── Remuestreo a rejilla comun ────────────────────────────────────────────────
 def resample(values: np.ndarray, freq: float, grid_hz: float, n_out: int, discrete: bool) -> np.ndarray:
     if len(values) == 0:
@@ -286,6 +316,7 @@ def build_frame(chosen: Dict[str, RawChannel], *, fmt: str, time_s: Optional[np.
         cols[name] = out
 
     df = pd.DataFrame(cols)
+    normalize_lateral_sign(df)
 
     # Distance: LapDist (por vuelta) -> acumulada de sesion
     if "Distance" in df.columns:
@@ -318,6 +349,7 @@ def build_frame(chosen: Dict[str, RawChannel], *, fmt: str, time_s: Optional[np.
 
     df.attrs["format"] = fmt
     df.attrs["experimental"] = True
+    df.attrs.setdefault("lateral_g_flipped", False)
     df.attrs["metadata"] = dict(metadata or {})
     df.attrs["sample_rate_hz"] = hz
     return df

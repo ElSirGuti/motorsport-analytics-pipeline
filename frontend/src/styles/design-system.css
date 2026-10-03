@@ -16,13 +16,13 @@
   --surface-2: #181d25;      /* raised / inputs  */
   --surface-3: #1f252f;      /* hover            */
   --line:      #262d38;      /* hairline borders */
-  --line-strong: #323b48;
+  --line-strong: #637183;   /* control borders: >=3:1 (WCAG 1.4.11) */
 
   /* Text */
   --ink-1: #e8ecf2;
   --ink-2: #a3adbb;
-  --ink-3: #6f7a8a;
-  --ink-4: #4a5361;
+  --ink-3: #838e9f;
+  --ink-4: #667384;   /* muted / decorative, >=3:1 */
 
   /* Accent + status */
   --accent:     #4da3ff;

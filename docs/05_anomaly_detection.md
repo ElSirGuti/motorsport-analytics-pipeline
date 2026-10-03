@@ -1,6 +1,6 @@
 # Anomaly Detection — Isolation Forest
 
-🌐 [Ver en Español](./05_anomaly_detection.es.md)
+[Ver en Español](./05_anomaly_detection.es.md)
 
 > **Module:** `src/analytics/ml_anomaly.py`
 > **Core algorithm:** Isolation Forest (Liu et al., 2008)

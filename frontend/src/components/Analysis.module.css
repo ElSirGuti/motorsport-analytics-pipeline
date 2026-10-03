@@ -1,5 +1,5 @@
 .desc { font-size: var(--fs-sm); color: var(--ink-3); line-height: 1.5; margin: 0 0 16px; max-width: 78ch; }
-.descMuted { color: var(--ink-4); }
+.descMuted { color: var(--ink-3); }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 20px; }
 .card { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 14px; min-width: 0; }
 .cardHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
@@ -13,7 +13,7 @@
 .sub { font-size: var(--fs-xs); color: var(--ink-3); line-height: 1.7; }
 .chartTitle { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 4px 0 8px; }
 .chartLabel { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
-.chartBox { margin-bottom: 16px; }
+.chartBox { margin-bottom: 16px; will-change: transform; } /* composited layer: grayscale text AA (no coloured LCD fringes on axis labels) */
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .legendItem { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-2); }
 .legendLine { width: 14px; height: 0; border-top: 2px solid; }

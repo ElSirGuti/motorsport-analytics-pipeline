@@ -43,7 +43,7 @@ import CompareSessionsView from './components/library/CompareSessionsView';
 import { restoreResults } from './api/library';
 import FormatBadge from './components/FormatBadge';
 import CircuitBadge from './components/CircuitBadge';
-import { pickCircuit } from './utils/cornerLabel';
+import { cornerLabel, cornerNameMap, pickCircuit } from './utils/cornerLabel';
 import { isSupportedFile, ACCEPT_ATTR } from './utils/formats';
 import './styles/shell.css';
 
@@ -372,21 +372,27 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
               actions={<Badge tone="bad">{t.eventsCount(result.dynamic_events.length)}</Badge>}
             >
               <div className="dynamic-events-list">
-                {result.dynamic_events.map((ev, i) => (
-                  <div key={i} className={`dynamic-event dynamic-event--${ev.tipo}`}>
-                    <div className="dynamic-event__header">
-                      <span className="dynamic-event__tipo">
-                        {ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}
-                      </span>
-                      <span className="dynamic-event__curva">{t.eventCorner(ev.curva)}</span>
-                      <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
-                      <span className={`dynamic-event__severidad dynamic-event__severidad--${ev.severidad}`}>
-                        {ev.severidad?.toUpperCase()}
-                      </span>
+                {result.dynamic_events.map((ev, i) => {
+                  // `tipo` / `severidad` come localised from the backend ("subviraje" / "understeer"...).
+                  const isUnder = /^(sub|under)/i.test(ev.tipo || '');
+                  const sev = /^(crit)/i.test(ev.severidad || '') ? 'critico' : /^(med|mod)/i.test(ev.severidad || '') ? 'media' : 'leve';
+                  const cName = cornerNameMap(result.corners)[ev.curva];
+                  return (
+                    <div key={i} className={`dynamic-event dynamic-event--${isUnder ? 'subviraje' : 'sobreviraje'}`}>
+                      <div className="dynamic-event__header">
+                        <span className="dynamic-event__tipo">
+                          {isUnder ? t.eventSub : t.eventOver}
+                        </span>
+                        <span className="dynamic-event__curva">{cName ? cornerLabel(t, ev.curva, cName) : t.eventCorner(ev.curva)}</span>
+                        <span className="dynamic-event__dist">{ev.distancia?.toFixed(0)}m</span>
+                        <span className={`dynamic-event__severidad dynamic-event__severidad--${sev}`}>
+                          {ev.severidad?.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
                     </div>
-                    <div className="dynamic-event__diagnostico">{ev.diagnostico}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Panel>
           </div>
@@ -918,7 +924,7 @@ export default function App() {
 
   // Abre una sesion guardada: restaura los resultados sin subir el CSV.
   const handleOpenSaved = (detail) => {
-    const { sessionResult: sess, stintResult: stint } = restoreResults(detail);
+    const { sessionResult: sess, stintResult: stint, extras } = restoreResults(detail);
     cancelAnalysis();
     setFiles([]);
     setError(null);
@@ -931,7 +937,7 @@ export default function App() {
     setZoomDomain(null);
     setActiveCorner(null);
     setFixedDistance(null);
-    setSavedSession({ id: detail.id, title: detail.title });
+    setSavedSession({ id: detail.id, title: detail.title, extras });
     setView('analysis');
     window.scrollTo({ top: 0 });
   };
@@ -1253,6 +1259,11 @@ export default function App() {
                     <OptimalLapPanel file={files[0]} />
                   </div>
                 )}
+                {!files[0] && savedSession?.extras?.optimal_lap?.available && (
+                  <div className="shell-gap">
+                    <OptimalLapPanel preloaded={savedSession.extras.optimal_lap} />
+                  </div>
+                )}
 
                 <div className="shell-gap">
                   <SessionLapTable
@@ -1326,7 +1337,7 @@ export default function App() {
                   )}
                   {stintResult.setup_sesion?.available && (
                     <div className="shell-gap">
-                      <SetupSection file={files[0]} setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} />
+                      <SetupSection file={files[0]} setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} savedSetup={!files[0] ? (savedSession?.extras?.setup ?? null) : null} />
                     </div>
                   )}
                   {(stintResult.degradacion_neumatico?.available || stintResult.degradacion_neumatico?.reason) && (

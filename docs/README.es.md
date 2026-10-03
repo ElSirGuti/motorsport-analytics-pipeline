@@ -68,10 +68,10 @@ Documentación científica de todos los módulos de análisis. Cada sección inc
 | 11 | [Inputs del Piloto](./11_driver_inputs.es.md) | Welch PSD sobre SteerAngle, índice de nerviosismo, solapamiento freno-gas |
 | 12 | [Suspensión](./12_suspension.es.md) | Pitch y roll desde SuspTravel FL/FR/RL/RR, detección de bottoming |
 | 13 | [Ángulo de Deslizamiento](./13_slip_angle.es.md) | Sideslip β cinemático, αF/αR modelo bicicleta, balance de pista |
-| 14 | [Gestión Térmica](./14_thermal_management.es.md) | Ventana térmica, disipación de calor, optimización temperatura neumáticos/frenos |
-| 15 | [Modelo de Degradación de Neumáticos](./15_tyre_degradation.es.md) | Modelo de degradación de compuesto, predicción de pérdida de grip, estrategia de pit |
-| 16 | [Optimización de Línea de Carrera (RL)](./16_racing_line_rl.es.md) | Optimización de trayectoria con reinforcement learning, trade-offs de apex, eficiencia en curva |
-| 17 | [Asesor de Configuración del Vehículo](./17_setup_advisor.es.md) | Balance aerodinámico, geometría de suspensión, optimización de carga de combustible y recomendaciones |
+| 14 | [Gestión Térmica](./14_thermal_management.es.md) | Análisis térmico de fluidos, frenos y presión de neumáticos con recomendaciones por reglas |
+| 15 | [Modelo de Degradación de Neumáticos](./15_tyre_degradation.es.md) | Tasa de degradación corregida por combustible, detección de desgaste activo, proyección del cliff |
+| 16 | [Optimización de Línea de Carrera (RL)](./16_racing_line_rl.es.md) | Q-learning tabular por curva sobre intervalos de frenada / ápice / acelerador |
+| 17 | [Asesor de Configuración del Vehículo](./17_setup_advisor.es.md) | Recomendaciones de setup por reglas (vuelta y sesión) y vinculación con el setup de Assetto Corsa |
 
 ---
 

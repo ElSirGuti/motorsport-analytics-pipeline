@@ -22,6 +22,8 @@ ENV BACKEND_URL=http://backend:8000 \
     MAX_UPLOAD_MB=2048 \
     PROXY_TIMEOUT=900s
 
+# Explicit non-root user (uid 101 = "nginx" in nginx-unprivileged; matches k8s runAsUser).
+USER 101
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
+    CMD ["wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]

@@ -1,0 +1,3 @@
+{
+  "api_err_single_lap": "El archivo contiene una sola vuelta (o no se pudieron separar las vueltas). Usa el modo comparación con dos archivos (vuelta rápida vs lenta), o sube una sesión con varias vueltas que incluya el canal 'Session Lap Count' o una distancia que se reinicie cada vuelta."
+}

@@ -29,9 +29,11 @@ def test_database_content_policy():
     for c in circuits.values():
         assert c["confidence"] in ("high", "medium")
         assert c["source"].strip()
-        # a corner table is only published for circuits validated against telemetry
+        # a corner table is only published for circuits validated against real laps; the source
+        # must say so, and a single validation lap caps the confidence at "medium"
         if c["corners"]:
-            assert c["confidence"] == "high", c["id"]
+            assert "lap" in c["source"].lower(), c["id"]
+            assert "Nominal lap length" not in c["source"], c["id"]
     assert [k["name"] for k in circuits["imola"]["corners"]][:7] == [
         "Tamburello", "Villeneuve", "Tosa", "Piratella", "Acque Minerali", "Variante Alta", "Rivazza 1"]
     names = [k["name"] for k in circuits["spa_francorchamps"]["corners"]]
@@ -356,3 +358,128 @@ def test_pdf_corner_label():
     assert P._clabel({"n": 4, "name": "A&B"}) == "4 · A&amp;B"
     assert P._name_of(2, [{"n": 2, "name": "Tosa"}]) == "2 · Tosa"
     assert P._name_of(9, [{"n": 2, "name": "Tosa"}]) == "9"
+
+
+# ── corner tables added from real laps (Monaco, Silverstone, Le Mans, Mugello, Brands Hatch) ──
+VALIDATED = {
+    "imola": (8, "high"), "spa_francorchamps": (10, "high"), "monaco": (6, "high"),
+    "silverstone": (10, "high"), "le_mans": (4, "high"), "mugello": (7, "medium"),
+    "brands_hatch": (3, "medium"),
+}
+
+
+def test_validated_tables_and_recognition_only_circuits():
+    circuits = C.load_circuits()
+    for cid, (n, conf) in VALIDATED.items():
+        assert len(circuits[cid]["corners"]) == n, cid
+        assert circuits[cid]["confidence"] == conf, cid
+    # circuits without a verified table must stay recognition-only
+    for cid in ("monza", "red_bull_ring", "nordschleife", "barcelona", "laguna_seca", "zandvoort",
+                "vallelunga", "magione", "sepang", "oran_park_gp", "oran_park_south", "lime_rock_gp"):
+        assert circuits[cid]["corners"] == [], cid
+    # Variante Bassa is flat out in the AC lap (no apex) and is not tabulated
+    assert "Variante Bassa" not in [k["name"] for k in circuits["imola"]["corners"]]
+
+
+def test_corner_order_is_the_real_lap_order():
+    names = lambda cid: [k["name"] for k in C.get_circuit(cid)["corners"]]
+    assert names("monaco") == ["Sainte Devote", "Grand Hotel Hairpin", "Portier", "Nouvelle Chicane", "Tabac", "La Rascasse"]
+    assert names("silverstone") == ["Abbey", "Village", "The Loop", "Aintree", "Brooklands", "Luffield",
+                                    "Copse", "Stowe", "Vale", "Club"]
+    assert names("le_mans") == ["Dunlop Chicane", "Mulsanne", "Arnage", "Ford Chicanes"]
+    assert names("mugello")[:3] == ["San Donato", "Luco", "Poggio Secco"]
+    assert names("brands_hatch") == ["Paddock Hill Bend", "Druids", "Graham Hill Bend"]
+
+
+@pytest.mark.parametrize("cid", list(VALIDATED))
+def test_synthetic_apexes_get_their_own_names(cid):
+    entry = C.get_circuit(cid)
+    length = entry["length_m"] * 0.985
+    pts = [(i, k["apex_fraction"] * length + (15 if i % 2 else -15)) for i, k in enumerate(entry["corners"])]
+    res = C.assign_names(entry, pts, length)
+    assert [res[i]["name"] for i in range(len(pts))] == [k["name"] for k in entry["corners"]]
+
+
+def test_le_mans_tolerance_override_rejects_the_neighbour_corner():
+    le = C.get_circuit("le_mans")
+    assert C.apex_tolerance_m(13571, le) == 90.0 and C.apex_tolerance_m(13571) == 180.0
+    # an apex 330 m before Arnage (Indianapolis) must not take its name
+    arnage = [k for k in le["corners"] if k["name"] == "Arnage"][0]["apex_fraction"] * 13571
+    assert C.assign_names(le, [(0, arnage - 330)], 13571) == {}
+    assert C.assign_names(le, [(0, arnage - 30)], 13571)[0]["name"] == "Arnage"
+
+
+def test_validator_rejects_bad_tolerance_override():
+    data = _raw_db()
+    data["circuits"][0]["apex_tolerance_m"] = 5
+    assert any("apex_tolerance_m" in e for e in C.validate_database(data))
+
+
+def test_wrong_layout_gets_no_names():
+    # Silverstone International (2.95 km) is not the GP table
+    info = C.recognize("ks_silverstone", 2950)
+    corners = [{"corner_number": 1, "apex_distance": 0.133 * 2950}]
+    C.annotate_corners(info, corners, "apex_distance", 2950)
+    assert corners[0]["corner_name"] is None
+
+
+# ── regression on the real telemetry logs (skipped when they are not on this machine) ──
+ACTI = r"C:\Users\elgut\Documents\acti\telem"
+
+
+def _real_laps(folder):
+    import glob
+    import logging
+    import warnings
+    warnings.filterwarnings("ignore")
+    logging.disable(logging.CRITICAL)
+    from src.io.loaders import load_telemetry_data
+    from src.analytics.stint import segmentar_vueltas_desde_csv
+    from src.processing.alignment import align_by_distance
+    from src.telemetry.metrics import segment_corners
+    out = []
+    for f in glob.glob(os.path.join(ACTI, folder, "*.ld")):
+        df = load_telemetry_data(f)
+        venue = (df.attrs.get("metadata") or {}).get("venue")
+        try:
+            segments = segmentar_vueltas_desde_csv(df)
+        except ValueError:      # single-lap stints cannot be segmented
+            continue
+        for lap in segments:
+            lap = lap.copy()
+            lap["Distance"] = lap["Distance"] - lap["Distance"].iloc[0]
+            length = float(lap["Distance"].max())
+            info = C.recognize(venue, length)
+            if not info["matched"] or len(lap) < 200:
+                continue
+            al = align_by_distance(lap[["Distance", "Speed", "Brake", "Throttle"]])
+            apexes = [(i, c["apex"]["distance"]) for i, c in enumerate(segment_corners(al))]
+            out.append((info, length, apexes))
+    return out
+
+
+@pytest.mark.skipif(not os.path.isdir(ACTI), reason="real ACTI logs missing")
+@pytest.mark.parametrize("folder,cid,must_name", [
+    ("monaco_2020_&_cky_porschecarrera_gt_04", "monaco", {"Sainte Devote", "Grand Hotel Hairpin", "Portier", "Tabac"}),
+    ("ks_silverstone_&_ks_porsche_919_hybrid_2016", "silverstone", {"Village", "The Loop", "Luffield", "Copse"}),
+    ("sx_lemans_&_ks_porsche_919_hybrid_2016", "le_mans", {"Mulsanne", "Arnage"}),
+    ("mugello_&_lotus_exos_125", "mugello", {"San Donato", "Luco", "Poggio Secco"}),
+    ("ks_brands_hatch_&_ks_ferrari_330_p4", "brands_hatch", {"Paddock Hill Bend", "Druids", "Graham Hill Bend"}),
+    ("fn_imola_&_ks_porsche_cayman_gt4_clubsport", "imola", {"Tamburello", "Tosa", "Rivazza 1", "Rivazza 2"}),
+])
+def test_real_logs_name_corners_in_order(folder, cid, must_name):
+    laps = _real_laps(folder)
+    assert laps, "no complete matching lap"
+    entry = C.get_circuit(cid)
+    table = {k["name"]: k for k in entry["corners"]}
+    seen = set()
+    for info, length, apexes in laps:
+        assert info["id"] == cid
+        res = C.assign_names(entry, apexes, length)
+        named = sorted((apexes[i][1], v["name"]) for i, v in res.items())
+        orders = [table[n]["order"] for _, n in named]
+        assert orders == sorted(orders) and len({n for _, n in named}) == len(named)
+        for d, n in named:
+            assert abs(d - table[n]["apex_fraction"] * length) <= C.apex_tolerance_m(length, entry) + 1e-6
+        seen |= {n for _, n in named}
+    assert must_name <= seen, (must_name - seen)

@@ -39,7 +39,7 @@ k8s-validate:
 	$(PY) scripts/validate_k8s.py
 
 kind-up:
-	sh scripts/kind-up.sh
+	bash scripts/kind-up.sh
 
 kind-down:
 	kind delete cluster --name motorsport

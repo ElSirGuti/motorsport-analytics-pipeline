@@ -1,6 +1,6 @@
 # G-G Diagram, Friction Circle, and Kinematic Estimation
 
-🌐 [Ver en Español](./03_gg_diagram.es.md)
+[Ver en Español](./03_gg_diagram.es.md)
 
 ---
 

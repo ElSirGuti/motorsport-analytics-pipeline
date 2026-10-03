@@ -1,6 +1,6 @@
 # Lap Time Potential — Reachable Lap, Consistency, and XGBoost
 
-🌐 [Ver en Español](./07_lap_time_potential.es.md)
+[Ver en Español](./07_lap_time_potential.es.md)
 
 > **Module:** `src/analytics/ml_laptime.py`
 > **Version:** 1.0 · 2026-06-11

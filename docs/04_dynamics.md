@@ -1,6 +1,6 @@
 # Understeer and Oversteer Detection — Dynamic Analysis
 
-🌐 [Ver en Español](./04_dynamics.es.md)
+[Ver en Español](./04_dynamics.es.md)
 
 **Module:** `src/analytics/dynamics.py`  
 **Reference version:** pipeline commit `22dd1ae`  

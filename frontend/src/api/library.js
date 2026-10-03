@@ -96,5 +96,6 @@ export function restoreResults(detail) {
   const session = p.session || {
     laps: [], fastest_lap: null, track_map: [], total_laps: stint?.n_laps ?? 0,
   };
-  return { sessionResult: session, stintResult: stint };
+  const extras = p.extras && typeof p.extras === 'object' ? p.extras : {};
+  return { sessionResult: session, stintResult: stint, extras };
 }

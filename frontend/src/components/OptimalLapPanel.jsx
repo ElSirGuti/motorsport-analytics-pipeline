@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
 import { analyzeOptimalLap, isCancelled } from '../api/optimalLap';
+import { setLibraryExtra } from '../api/library';
 import { Panel, Stat, Badge, EmptyState, Icon } from './ui';
 import { ChartTooltip, SeriesLegend } from './chartKit';
 import { COLOR, TICK, AXIS_LINE, GRID_PROPS, CURSOR, fmtDist } from './chartTheme';
@@ -358,11 +359,20 @@ function Body({ data }) {
 }
 
 /** Optimal lap built from the best microsectors. Loads in the background once mounted. */
-export default function OptimalLapPanel({ file }) {
+export default function OptimalLapPanel({ file, preloaded = null }) {
   const { t, lang } = useLanguage();
   const [microsectorM, setMicrosectorM] = useState(25);
   const [attempt, setAttempt] = useState(0);
-  const res = useOptimalLap(file, lang, microsectorM, attempt);
+  const live = useOptimalLap(preloaded ? null : file, lang, microsectorM, attempt);
+  const res = preloaded ? { status: 'ready', data: preloaded } : live;
+
+  // Registers the result so "Save to library" stores it with the session.
+  const liveData = live.status === 'ready' && live.data?.available ? live.data : null;
+  useEffect(() => {
+    if (preloaded) return undefined;
+    setLibraryExtra('optimal_lap', liveData);
+    return () => setLibraryExtra('optimal_lap', null);
+  }, [preloaded, liveData]);
 
   const sizeControl = (
     <div role="group" aria-label={t.optLapMicroSize} className="ui-seg" title={t.optLapMicroSize}>
@@ -402,7 +412,7 @@ export default function OptimalLapPanel({ file }) {
   }
 
   return (
-    <Panel id="optimal-lap" icon="stopwatch" title={t.optLapTitle} subtitle={t.optLapSub} actions={sizeControl}>
+    <Panel id="optimal-lap" icon="stopwatch" title={t.optLapTitle} subtitle={t.optLapSub} actions={preloaded ? undefined : sizeControl}>
       {body}
     </Panel>
   );

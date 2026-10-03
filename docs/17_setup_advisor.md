@@ -1,206 +1,244 @@
-# Vehicle Setup Advisor
+# 17 - Setup Advisor
 
-## Overview
+[Ver en Español](./17_setup_advisor.es.md)
 
-The Setup Advisor is a rule-based telemetry translation engine that converts raw sensor measurements and derived analytics into concrete, prioritised vehicle setup recommendations with estimated lap-time gains. Rather than requiring engineers to correlate dozens of raw channels manually, the module aggregates six independent analytical domains — tyres, brakes, suspension, aerodynamic balance, driver inputs, and corner-level performance — and emits a ranked, deduplicated list of actionable changes.
-
-The module exposes two entry points:
-
-- **`analizar_setup(result, lang)`** — lap-comparison mode. Operates on the structured output of a two-lap telemetry comparison (laps A and B) and is best suited for qualifying and back-to-back setup runs.
-- **`analizar_setup_sesion(curvas_sesion, degradacion, telemetria_sesion, lang)`** — session aggregate mode. Combines corner-pattern consistency analysis, tyre degradation trends, and session-averaged telemetry signals. Intended for race stints and multi-lap practice sessions.
-
-Both entry points return the same output schema and are fully compatible with the `SetupRecommendations` UI component.
+**Module:** `src/analytics/setup_advisor.py`
+**Entry points:** `analizar_setup(result, lang)` (two-lap comparison) and `analizar_setup_sesion(curvas_sesion, degradacion, telemetria_sesion, lang)` (whole session)
+**Related module (Assetto Corsa linkage):** `src/analytics/ac_setups.py` and the router `src/api/setups.py`
+**Reconciled with the code:** 2026-10-03 (EN and ES versions share the same structure)
 
 ---
 
-## Methodology
+## Table of Contents
 
-### Aerodynamic and Mechanical Balance: Lateral G vs Steering Angle Correlation
+1. [Overview](#1-overview)
+2. [Rule Engine](#2-rule-engine)
+3. [Rules and Thresholds](#3-rules-and-thresholds)
+4. [Assetto Corsa Setup Linkage](#4-assetto-corsa-setup-linkage)
+5. [Input Requirements](#5-input-requirements)
+6. [Output Schema](#6-output-schema)
+7. [Interpretation Guide](#7-interpretation-guide)
+8. [Limitations and Known Inconsistencies](#8-limitations-and-known-inconsistencies)
+9. [Verification Status](#9-verification-status)
 
-Balance diagnosis is performed in `_analyse_slip()` and `_analyse_balance_sesion()` using slip-angle summary data derived from the lateral-G and yaw-rate channels.
+---
 
-The core metric is the **balance mean** (`balance_mean`), a signed scalar representing the average yaw demand relative to the available lateral grip. Positive values indicate the front axle is working harder than the rear (understeer tendency); negative values indicate the opposite (oversteer). The companion percentage metrics `understeer_pct` and `oversteer_pct` quantify what fraction of cornering time the vehicle spent in each regime.
+## 1. Overview
 
-Decision thresholds:
+The Setup Advisor is a purely rule-based engine: fixed thresholds on metrics produced by other modules are turned into setup recommendations, each with a priority, a pilot-friendly note and an estimated lap-time gain range. It learns nothing from data.
 
-| Condition | Threshold | Priority | Recommended action |
+- **`analizar_setup`** reads the dictionary of a two-lap comparison (tyres, brakes, suspension, slip angle, driver inputs, corners) and also returns a per-domain `areas_status`.
+- **`analizar_setup_sesion`** reads session aggregates: corner patterns, the stint trend and the aggregated telemetry from `analizar_telemetria_sesion`. It returns `{"available": false}` when `curvas_sesion["available"]` is false.
+
+Both return the same recommendation structure. Every recommendation carries stable, language-independent keys (`problem_key`, `category_key`, `rec_key`, and `pos` when the rule is about one tyre) so that other modules, notably the Assetto Corsa setup linker (section 4), can map a recommendation to concrete setup parameters without parsing translated text.
+
+---
+
+## 2. Rule Engine
+
+- Each rule builds a recommendation through `_rec_t(...)`: translation keys for category, problem, root cause, recommendation, detail and "solves", a gain range `(gain_lo, gain_hi)` in seconds per lap, and a priority (`alta`, `media`, `baja`; fixed Spanish literals).
+- Texts come from the locale files via `src/i18n.py` (`src/locales/*.json` and `src/locales/extra/`). An explicit `lang` argument is now honoured (the public functions run inside that language's i18n context); `lang=None` (default) keeps using the active context language set per request by `main.py`.
+- `pilot_note` is looked up from `_PILOT_NOTE_MAP` (problem key to a plain-language note; default `pilot_note_default`).
+- **De-duplication:** key `(category, first 40 characters of the problem text)`; the highest-priority instance is kept (earlier instance on ties). The result is sorted `alta`, `media`, `baja`.
+- **Totals:** `total_gain_lo` / `total_gain_hi` are the plain sums of `gain_lo` / `gain_hi` over the kept recommendations (2 decimals); `total_gain_range` is `"lo-hi"` formatted.
+- **`areas_status`** (lap mode only): for each domain with available data, the worst priority present or `nominal`, plus `n_issues`.
+- **`corner_priority`**: corners with `|time_loss_seconds| >= 0.005`, top 8 by absolute loss. The dominant phase is the largest of `|brake_delta| x 0.015`, `|apex_delta| x 0.012`, `|throttle_delta| x 0.010` (assumed sensitivities in s per m or km/h, not measured), labelled `frenada` / `apex` / `salida`.
+
+---
+
+## 3. Rules and Thresholds
+
+Gains are the hard-coded heuristic ranges in seconds per lap and have no empirical validation. "Lap mode" rules run once for lap A and once for lap B.
+
+### 3.1 Tyres
+
+| Mode | Rule | Condition | Priority | Gain (s/lap) |
+|---|---|---|---|---|
+| Lap | Camber, inner hot | `inner - outer > 15` degC | alta | 0.04-0.18 |
+| Lap | Camber, outer hot | `inner - outer < -12` degC | media | 0.03-0.15 |
+| Lap | Pressure, overheated | `window_status == "sobrecalentada"` | alta | 0.05-0.15 |
+| Lap | Pressure, cold | `window_status == "fria"` | media | 0.03-0.12 |
+| Lap | Front vs rear surface temperature | front mean - rear mean `> 14` or `< -14` | alta | 0.10-0.30 |
+| Lap | Left vs right asymmetry | `|left - right| > 12` | baja | 0.02-0.08 |
+| Session | Overheating | mean temperature `> 120` (window 80-100 + 20) | alta | 0.05-0.18 |
+| Session | Too cold | mean temperature `< 65` (80 - 15) | media | 0.04-0.12 |
+| Session | Camber | `|camber_gradient| > 18` where `camber_gradient = inner_mean - outer_mean` | media | 0.03-0.10 |
+| Session | Brake temperature per corner | `brake_temp_mean > 750` (alta if `> 900`) | media/alta | 0.05-0.20 |
+| Session | Front/rear delta | `|front_rear_delta| > 14` (front hotter / rear hotter) | media | 0.08-0.25 / 0.06-0.20 |
+| Session | Left/right delta | `|left_right_delta| > 12` | baja | 0.02-0.08 |
+
+### 3.2 Brakes
+
+| Mode | Condition | Priority | Gain |
 |---|---|---|---|
-| Understeer dominant | `understeer_pct > 60 %` | alta | Reduce front wing / stiffen front ARB |
-| Oversteer dominant | `oversteer_pct > 30 %` | alta | Reduce rear wing / stiffen rear ARB |
-| Mild understeer | `balance_mean` in (2, 4] and `understeer_pct > 45 %` | baja | Fine-tune front aero or tyre pressure |
+| Lap | Fade `(1 - score/baseline) x 100 > 15` % (alta if `> 30`) | media/alta | 0.08-0.25 |
+| Lap | Fade zones with `severity > 0.30` | alta | 0.05-0.20 |
+| Session | `mean_fade_severity > 0.25` or `0 < mean_efficiency < 0.70` (alta if severity `> 0.35`) | media/alta | 0.08-0.30 |
+| Session | `mean_fade_severity > 0.10` (light) | baja | 0.03-0.10 |
 
-These thresholds are deliberately conservative: sporadic excursions during track-limit events do not trigger high-priority recommendations. The module requires the imbalance to be structurally persistent across the lap sample before escalating.
+### 3.3 Suspension
 
-### Brake Temperature Differential: Bias and Thermal Fade
+| Mode | Condition | Priority | Gain |
+|---|---|---|---|
+| Lap | Roll ratio front/rear `> 1.35` (needs both roll maxima `> 3`) | media | 0.06-0.20 |
+| Lap | Roll ratio `< 0.75` | media | 0.06-0.20 |
+| Lap | Any bottoming event (alta if max severity `> 0.95`) | media/alta | 0.05-0.20 |
+| Lap | `max_pitch > 15` | baja | 0.03-0.12 |
+| Session | Any corner with bottoming `> 3` % or mean events/lap `> 0.5` (alta if events `> 1.5` or a corner `> 8` %) | media/alta | 0.05-0.25 |
+| Session | `roll_ratio > 1.40` / `< 0.70` | media | 0.05-0.18 |
+| Session | `mean_pitch > 15` | baja | 0.03-0.12 |
 
-Brake analysis operates in two paths.
+### 3.4 Balance (from slip-angle / yaw summaries)
 
-**Fade path** (`_analyse_brakes()`, lap-level): A degradation percentage is computed as `(1 − score / baseline) × 100`, where `score` is the integrated brake-pressure efficiency over the lap and `baseline` is the expected value from the first braking event. Fade exceeding 15 % triggers a recommendation; above 30 % the priority escalates to `alta`. Spatially resolved fade zones (brake events where severity > 30 %) are listed with track-distance coordinates so the engineer can correlate them with specific corner entries.
+| Mode | Condition (first matching) | Priority | Gain |
+|---|---|---|---|
+| Lap | `understeer_pct > 60` | alta | 0.12-0.40 |
+| Lap | `oversteer_pct > 30` | alta | 0.10-0.35 |
+| Lap | `2 < balance_mean <= 4` and `understeer_pct > 45` | baja | 0.04-0.12 |
+| Session | `mean_understeer_pct > 60` | alta | 0.12-0.40 |
+| Session | `mean_oversteer_pct > 30` | alta | 0.10-0.35 |
+| Session | `mean_understeer_pct > 40` | baja | 0.05-0.15 |
 
-**Thermal path** (`_analyse_tyres()`, per-corner tyre section; `_analyse_frenos_sesion()` and `_analyse_tyres_sesion()`, session level): The front-to-rear axle temperature differential (`front_rear_delta`) is compared against a ±14 °C threshold. A front-heavy differential indicates insufficient rear brake contribution and flags a bias adjustment toward the rear. A rear-heavy differential flags the opposite. Per-corner brake temperature (`brake_temp_mean`) is also evaluated: sustained readings above 750 °C indicate the brake compound is operating outside its optimal window; above 900 °C the priority is `alta` and duct sizing becomes the primary recommendation vector.
+### 3.5 Driver inputs
 
-### Camber Analysis: Inner/Middle/Outer Gradient
+| Mode | Condition | Priority | Gain |
+|---|---|---|---|
+| Lap | nervousness `> 0.65` and high-frequency band `> 0.25` | media | 0.05-0.15 |
+| Lap | nervousness `> 0.65` and mid band `> 0.35` (if not high) | baja | 0.04-0.12 |
+| Lap | nervousness `> 0.65`, neither band | media | 0.05-0.20 |
+| Lap | brake/throttle overlap `< 5` % | baja | 0.03-0.10 |
+| Session | nervousness `> 0.65` and `fft_high > 0.28` | media | 0.04-0.15 |
+| Session | nervousness `> 0.65` and `fft_mid > 0.38` (independent of the previous rule) | baja | 0.03-0.10 |
+| Session | `0.40 < nervousness <= 0.65` | baja | 0.02-0.08 |
+| Session | mean overlap `< 4` % | baja | 0.04-0.12 |
 
-Camber diagnosis uses the temperature gradient across the tyre cross-section. For each wheel position, the signed difference `inner − outer` is computed.
+### 3.6 Corners and consistency
 
-- `gradient > 15 °C`: insufficient camber — the inner shoulder is carrying disproportionate load. Recommendation: add camber.
-- `gradient < −12 °C`: excessive camber — the outer shoulder is overworked. Recommendation: reduce camber.
+| Condition | Priority | Gain |
+|---|---|---|
+| At least 3 corners with `braking_delta_meters > 10` | media | 0.05 x n to 0.15 x n |
+| At least 2 corners with `apex_speed_delta_kmh < -5` | alta | 0.08 x n to 0.20 x n |
+| At least 3 corners with `throttle_delta_meters > 10` | media | 0.04 x n to 0.12 x n |
+| Session: at least 2 corners with `std_loss_seconds > 0.12` | media | 0.05 x n to 0.15 x n |
 
-In session mode (`_analyse_tyres_sesion()`), the same gradient logic applies to session-averaged inner/outer mean temperatures, and the trigger threshold is raised slightly to 18 °C to filter out transient laps (out laps, safety car periods) that would otherwise inflate the average.
+### 3.7 Degradation (session mode only)
 
-### Suspension: Anti-Roll Bar Balance, Bottoming, and Pitch
+`_analyse_degradacion_ritmo` uses `tasa_s_per_lap` and `r_squared` from `analizar_degradacion_stint`:
 
-Anti-roll bar diagnosis derives from the **roll ratio** `max_roll_f / max_roll_r` (lap mode) or `mean_roll_f / mean_roll_r` (session mode).
+| Condition | Priority | Gain |
+|---|---|---|
+| net rate `> 0.12` and `r2 > 0.65` (alta if `>= 0.15`) | media/alta | `0.25 x rate` to `0.55 x rate` |
+| `0.08 < net rate <= 0.12` and `r2 > 0.45` | baja | `0.15 x rate` to `0.35 x rate` |
 
-- `ratio > 1.35` (lap) or `> 1.40` (session): front roll angle dominates → stiffen front ARB or soften rear ARB.
-- `ratio < 0.75` (lap) or `< 0.70` (session): rear roll angle dominates → stiffen rear ARB or soften front ARB.
-
-Bottoming events from the plank/skid-block sensors are evaluated both by count and severity. Session averages above 0.5 events per lap, or any corner where bottoming occurs in more than 3 % of laps, trigger a ride-height recommendation. Severity above 95 % escalates priority to `alta`.
-
-Pitch under braking is flagged when `max_pitch > 15°`, indicating excessive longitudinal weight transfer that typically points to spring rate or damper compression settings.
-
-### Driver Inputs and Damper Frequency Analysis
-
-The steering-input nervousness score (0–1) is the normalised RMS of high-frequency steering corrections. When it exceeds 0.65, the FFT band decomposition determines the dominant frequency:
-
-- **High-frequency band > 25 %** of total input energy → damper rebound issue. High-speed rebound that is too soft allows the tyre to lose contact briefly on kerbs and bumps, which the driver compensates for with micro-corrections.
-- **Mid-frequency band > 35 %** → spring rate issue. The chassis resonant frequency is close to a track forcing frequency.
-- **Neither band dominant** → general mechanical balance problem requiring broader investigation.
-
-A secondary diagnostic checks the brake-throttle overlap percentage. A value below 5 % (lap) or 4 % (session) indicates the driver is not trail-braking — a technique deficit that may itself be a consequence of an unstable setup, and is surfaced as a low-priority coaching note.
-
-### Pilot Note Generation
-
-Every recommendation carries a `pilot_note` — a brief, jargon-free sentence the pilot can understand without an engineering intermediary. Notes are resolved by `_pilot_note_for(problem_key)` from a static lookup table (`_PILOT_NOTE_MAP`). The table maps internal problem keys to plain-language descriptions of the **felt symptom** rather than the engineering root cause. When no specific mapping exists, the default note `"Setup adjustment noted — check feel in next sector"` is used.
+See 8 on the first row: it cannot fire with the current stint module.
 
 ---
 
-## Input Requirements
+## 4. Assetto Corsa Setup Linkage
 
-### Lap-comparison mode — `analizar_setup(result, lang)`
+`src/analytics/ac_setups.py` links the advisor's recommendations to the real parameters of the user's Assetto Corsa setup (`.ini` / `.sp`) and produces a "current -> suggested" view. It is exposed by `src/api/setups.py` under `/api/setups`:
 
-`result` is a dictionary aggregating the outputs of the pipeline's upstream analytics modules. The advisor reads the following keys; any absent key causes the corresponding domain to be silently skipped.
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/setups/detect` | Vehicle / venue / driver (and date, session type, format) from the first bytes of a CSV, `.ibt` or `.ld`, or from a stored `file_id` |
+| `GET /api/setups/candidates` | Finds setups for a car and track: states `track_setups`, `generic_only`, `none`, `no_access` |
+| `GET /api/setups/file` | Reads one setup by id |
+| `POST /api/setups/parse` | Parses an uploaded `.ini` / `.sp` (max 256 KiB) |
+| `POST /api/setups/annotate` | Body `{setup, recommendations}`; returns the recommendations decorated with `setup_link`, plus `n_linked`, `conflicts` and `summary` |
 
-| Key | Source module | Required fields |
+How the link works:
+
+1. **Locating setups.** The folder is `AC_SETUPS_DIR` if set, otherwise the first existing `<Documents>/Assetto Corsa/setups` (Windows known-folder API, `USERPROFILE`, home). Layout `<car>/<track>/*.ini` plus `<car>/generic/last.ini`. When the server cannot see the folder (Docker, Linux, macOS) the state is `no_access` and the user can upload the file instead. In Docker, mount the folder read-only and set `AC_SETUPS_DIR` (see `docker-compose.override.example.yml`).
+2. **Safety.** Car and track names are validated against a strict character set and matched against the real directory listing; the resolved path must stay inside the setups folder; only `.ini`/`.sp` regular files up to 256 KiB and 2000 sections are read.
+3. **Parsing.** Sections such as `PRESSURE_LF`, `CAMBER_RR`, `ARB_FRONT`, `FRONT_BIAS` are classified into groups (aero, tyres, suspension, brakes, diff, electronics, other); wheel suffixes `LF/RF/LR/RR` map to FL/FR/RL/RR. The game stores "clicks": real units are claimed only where certain (tyre pressure in psi, front brake bias and brake power in %, fuel in litres); everything else is shown raw.
+4. **Ranges.** Minimum/maximum/step are attached only if the car's unpacked `content/cars/<car>/data/setup.ini` is readable (`AC_ROOT` / `AC_INSTALL_DIR`, Steam libraries). Encrypted `data.acd` archives are deliberately not opened; the source is reported as `car_data`, `encrypted` or `not_found`.
+5. **Mapping.** `_MAP` is keyed by the advisor's `rec_key` and lists `(parameter base, target, direction, multiplier, alternative)`; `target` is `pos` (the tyre of the rule), `front`, `rear`, `all`, `bias_pos` or none. Examples: `setup_rec_camber_add` -> `CAMBER` at that wheel, -1; `setup_rec_pressure_raise` -> `PRESSURE`, +1; `setup_rec_arb_front` -> `ARB_FRONT`, +1; `setup_rec_understeer` -> `ARB_FRONT`, -1 flagged as an *alternative* to the aero change. `_RELATED` lists parameters to merely display when no safe change can be derived (for example ride height and springs for bottoming).
+6. **Safe actions.** Each action has `current`, `suggested`, `delta`, `direction`, `status` (`ok`, `direction_only`, `at_limit`), `alternative` and a `note`. The suggested value is `current + direction x step x multiplier`, clamped to the car's limits and to hard bounds (ARB and pressure >= 0, front bias 0-100). A step of 1 click is assumed (with a note) only for pressure, ARBs and front bias; otherwise only the direction is given. If the value is already at the limit in the wanted direction the status is `at_limit` instead of incoherent advice.
+7. **Conflicts.** If two non-alternative actions push the same parameter in opposite directions, it is listed in `conflicts`.
+
+Recommendations without a mapping are returned unchanged (without `setup_link`).
+
+---
+
+## 5. Input Requirements
+
+### Lap mode: `analizar_setup(result)`
+
+Absent keys silently skip the domain.
+
+| Key | Fields read |
+|---|---|
+| `tyre_analysis` | `available`; `lap_a` / `lap_b` with `corners` (`corner`, `inner`, `middle`, `outer`, `surface_mean`, `window_status` in {`optima`, `sobrecalentada`, `fria`}) |
+| `brake_analysis` | `available`, `score_a/b`, `baseline_a/b`, `fade_zones_a/b` (`start`, `end`, `severity`) |
+| `suspension` | `available`, `summary_a/b` (`max_roll_f`, `max_roll_r`, `max_pitch`, `mean_pitch`), `bottoming_a/b` (`severity`, `corner`) |
+| `slip_angle` | `available`, `summary_a/b` (`understeer_pct`, `oversteer_pct`, `balance_mean`) |
+| `driver_inputs` | `available`, `nervousness_score_a/b`, `fft_bands_a/b` (`high`, `mid`), `overlap_pct_a/b` |
+| `corners` | list with `corner_number`, `time_loss_seconds`, `braking_delta_meters`, `apex_speed_delta_kmh`, `throttle_delta_meters`, `description` |
+
+### Session mode: `analizar_setup_sesion(...)`
+
+| Parameter | Source | Fields read |
 |---|---|---|
-| `tyre_analysis` | Tyre temperature analysis | `available`, `lap_a`, `lap_b` (each with `corners` list; per-corner `inner`, `middle`, `outer`, `surface_mean`, `window_status`) |
-| `brake_analysis` | Brake fade module | `available`, `score_a/b`, `baseline_a/b`, `fade_zones_a/b` |
-| `suspension` | Suspension module | `available`, `summary_a/b` (`max_roll_f/r`, `max_pitch`, `mean_pitch`), `bottoming_a/b` |
-| `slip_angle` | Slip angle module | `available`, `summary_a/b` (`understeer_pct`, `oversteer_pct`, `balance_mean`) |
-| `driver_inputs` | Driver inputs module | `available`, `nervousness_score_a/b`, `fft_bands_a/b` (`high`, `mid`), `overlap_pct_a/b` |
-| `corners` | Corner analysis | List of corner dicts with `corner_number`, `time_loss_seconds`, `braking_delta_meters`, `apex_speed_delta_kmh`, `throttle_delta_meters` |
-
-### Session mode — `analizar_setup_sesion(curvas_sesion, degradacion, telemetria_sesion, lang)`
-
-| Parameter | Source | Required fields |
-|---|---|---|
-| `curvas_sesion` | `analizar_curvas_sesion()` | `available`, `corners` (same schema as above, with `std_loss_seconds` for consistency analysis) |
+| `curvas_sesion` | `analizar_curvas_sesion()` | `available`, `corners` (also `std_loss_seconds`) |
 | `degradacion` | `analizar_degradacion_stint()` | `tasa_s_per_lap`, `r_squared` |
-| `telemetria_sesion` | `analizar_telemetria_sesion()` | Nested dict with keys `tyre`, `brake`, `suspension`, `inputs`, `balance`; all optional |
-
-The `lang` parameter accepts `"es"` (Spanish, default) or `"en"` (English). All human-readable strings in the output are translated accordingly via the `i18n` module.
+| `telemetria_sesion` | `analizar_telemetria_sesion()` | optional `tyre` (per-corner `mean_temp`, `max_temp`, `camber_gradient`, `inner_mean`, `outer_mean`, `brake_temp_mean`, `brake_temp_max`; plus `front_rear_delta`, `left_right_delta`), `brake` (`mean_efficiency`, `min_efficiency`, `mean_fade_severity`, `mean_fade_pct`), `suspension` (`mean_roll_f/r`, `roll_ratio`, `mean_pitch`, `mean/max_bottoming_events`, `corner_bottoming_pct`), `inputs` (`mean_nervousness`, `mean_fft_high/mid`, `mean_overlap_pct`), `balance` (`mean_understeer_pct`, `mean_oversteer_pct`, `balance_mean`) |
 
 ---
 
-## Output Schema
-
-Both entry points return a dictionary with the following structure.
+## 6. Output Schema
 
 ```python
 {
-    "available": bool,                  # False if no input data could be processed
-    "recommendations": [                # Priority-sorted, deduplicated list
-        {
-            "category":        str,     # Domain label (e.g. "Aerodinámica / Balance")
-            "problem":         str,     # Human-readable problem statement
-            "root_cause":      str,     # Engineering root cause
-            "recommendation":  str,     # Specific setup change to make
-            "detail":          str,     # Extended explanation (may be empty)
-            "solves":          str,     # What the change resolves
-            "expected_gain":   str,     # Formatted range e.g. "0.12–0.40s/v"
-            "gain_lo":         float,   # Lower bound of gain estimate (seconds/lap)
-            "gain_hi":         float,   # Upper bound of gain estimate (seconds/lap)
-            "priority":        str,     # "alta" | "media" | "baja"
-            "pilot_note":      str,     # Plain-language note for the driver
-        },
-        ...
-    ],
-    "areas_status": [                   # Per-domain health summary (lap mode only)
-        {
-            "domain":   str,            # Internal key: "tyres" | "brakes" | etc.
-            "label":    str,            # Display label
-            "status":   str,            # Worst priority in domain, or "nominal"
-            "n_issues": int,
-        },
-        ...
-    ],
-    "corner_priority": [                # Top 8 corners ranked by time loss
-        {
-            "corner_number":         int,
-            "time_loss_seconds":     float,
-            "braking_delta_meters":  float,
-            "apex_speed_delta_kmh":  float,
-            "throttle_delta_meters": float,
-            "dominant_phase":        str,   # "frenada" | "apex" | "salida"
-            "focus":                 str,   # Translated phase label
-            "description":           str,
-        },
-        ...
-    ],
-    "total_gain_lo":    float,          # Sum of gain_lo across all recommendations
-    "total_gain_hi":    float,          # Sum of gain_hi across all recommendations
-    "total_gain_range": str,            # Formatted "lo–hi"
+    "available": bool,              # lap mode: recommendations or areas_status exist; session mode: recommendations exist
+    "recommendations": [{
+        "category": str, "problem": str, "root_cause": str, "recommendation": str,
+        "detail": str, "solves": str,
+        "expected_gain": str,       # localized "lo-hi s/lap"
+        "gain_lo": float, "gain_hi": float,
+        "priority": "alta" | "media" | "baja",
+        "pilot_note": str,
+        "problem_key": str, "category_key": str, "rec_key": str,   # stable identifiers
+        "pos": "FL" | "FR" | "RL" | "RR",                          # only for per-tyre rules
+        # added by /api/setups/annotate:
+        "setup_link": {"actions": [...], "related": [...]},
+    }],
+    "areas_status": [{"domain": str, "label": str, "status": str, "n_issues": int}],   # lap mode only
+    "corner_priority": [{"corner_number": int, "time_loss_seconds": float, "braking_delta_meters": float,
+                         "apex_speed_delta_kmh": float, "throttle_delta_meters": float,
+                         "dominant_phase": "frenada" | "apex" | "salida", "focus": str, "description": str}],
+    "total_gain_lo": float, "total_gain_hi": float, "total_gain_range": str
 }
 ```
 
-**Deduplication**: when the same `(category, problem[:40])` key appears from multiple laps or domains, only the highest-priority instance is retained. Ties are broken by first occurrence.
-
-**Priority ordering**: the final list is sorted `alta → media → baja` using `_PRIORITY_RANK = {"alta": 0, "media": 1, "baja": 2}`.
+`areas_status` domains: `tyres`, `brakes`, `suspension`, `aero`, `inputs`, `corners`. Session mode does not return `areas_status`.
 
 ---
 
-## Interpretation Guide
+## 7. Interpretation Guide
 
-### How the Race Engineer reads this output
-
-The engineer's primary entry points are `recommendations` and `areas_status`.
-
-Start with `areas_status` for a domain-level triage: any domain showing `"alta"` needs to be addressed before the next session. Cross-reference with `corner_priority` to understand whether the balance or tyre issues are localised to specific track sectors or are global.
-
-For each `"alta"` recommendation, read `root_cause` and `detail` together. The `root_cause` names the physical phenomenon; `detail` typically includes the raw sensor values that triggered the rule, which can be verified directly against the telemetry overlay. The `expected_gain` range is additive across independent domains but should be treated as a theoretical upper bound — real-world gains depend on the completeness of the setup change and the driver's ability to exploit it.
-
-When multiple recommendations exist in the same domain (e.g., both camber and pressure flags on the same tyre position), investigate whether they are causally linked. Excess camber generates excessive inner-shoulder heat, which can independently trigger an overheating pressure flag — treating both as independent adjustments will over-correct.
-
-The `solves` field is useful for briefing meetings: it describes the downstream effect the change addresses, in terms the whole team can align on (e.g., "reduces understeer at apex" rather than "decreases front roll stiffness ratio").
-
-### How the Driver reads this output
-
-The driver should focus exclusively on `pilot_note` within each recommendation and on `corner_priority`.
-
-`pilot_note` is deliberately free of engineering jargon. It describes the **felt** symptom and, where applicable, the short-term driving adjustment that can compensate until the setup change is applied. Examples:
-
-- "Car is pushing wide — try a later apex and smoother steering inputs" (understeer pending ARB adjustment)
-- "Rear locking under braking — bias adjustment coming" (rear brake overheating pending bias change)
-- "Setup change incoming — expect different kerb response next lap" (ride height adjustment pending)
-
-`corner_priority` tells the driver which corners to prioritise focus on. The `dominant_phase` field (`braking`, `apex`, `exit`) directs attention: a braking-phase deficit calls for a later, harder brake point experiment; an apex-phase deficit suggests the current line geometry is suboptimal; an exit-phase deficit typically points to throttle application timing.
-
-The driver should not attempt to adjust technique to compensate for `alta`-priority mechanical issues — the setup must be changed. `pilot_note` for `alta` items is intended as a lap-survival cue, not a long-term driving strategy.
+- Start with `areas_status` (lap mode) to triage, then read `alta` recommendations: `root_cause` names the phenomenon and `detail` normally embeds the numbers that triggered the rule, which can be checked against the telemetry.
+- `expected_gain` is a heuristic range; the total is a naive sum. Treat it as an optimistic upper bound, because setup changes interact.
+- When several rules fire for the same tyre (camber and pressure), they may share a cause; do not apply all as independent corrections.
+- `pilot_note` describes the felt symptom without engineering jargon; for `alta` items it is a short-term cue, not a substitute for the change.
+- `corner_priority` shows where to look first; `dominant_phase` is a heuristic based on assumed sensitivities.
+- With a linked AC setup, read `setup_link.actions`: `status: ok` gives a concrete value, `direction_only` only the direction, `at_limit` means the parameter cannot move that way. Check `conflicts` before applying several changes. Alternative actions (`alternative: true`) are not additions: choose one route.
 
 ---
 
-## Limitations
+## 8. Limitations and Known Inconsistencies
 
-**Rule-based, not model-based.** All thresholds in the advisor are fixed scalar values derived from domain expertise. They are not learned from data and do not adapt to circuit layout, ambient conditions, or tyre compound characteristics. A 14 °C front/rear temperature differential that indicates a brake bias problem on a high-downforce circuit may be entirely acceptable on a low-speed circuit with balanced corner distribution. Engineers operating on atypical circuits should treat `media` and `baja` recommendations with additional skepticism.
+- **Rule-based with fixed thresholds.** Not adapted to circuit, compound, ambient conditions or car. The gain ranges are not validated against real lap times.
+- **Gains are not independent.** Totals are plain sums.
+- **Two comparable laps** are needed in lap mode; mixed conditions give misleading output.
+- **Session consistency** (`std_loss_seconds`) is unreliable with fewer than about 5 laps.
+- **`lang`** is now honoured when passed (fixed 2026-10-03); the priorities and `window_status` values below remain Spanish literals.
+- **Priorities are fixed Spanish strings** (`alta`/`media`/`baja`) and `window_status` values (`optima`, `sobrecalentada`, `fria`) are Spanish literals used as data contracts.
+- **Degradation rule (fixed 2026-10-03):** the "high" rule required `tasa_s_per_lap > 0.20` although the stint slope is clamped to +/-0.15, so it never fired, and `tasa_s_per_lap` includes the fuel effect. The rule now uses the net `degradation_s_per_lap` (fallback to `tasa_s_per_lap` if absent) with high `> 0.12` (80 % of the clamp; alta from 0.15, reachable because net = slope - fuel effect can exceed the clamp) and moderate `0.08-0.12`. It is skipped with `low_confidence`, fewer than `MIN_LAPS_FOR_TREND` laps, or `wear_active=False` (sim with tyre wear off; `main.py` passes `detect_wear_tracking`).
+- **Lap/session coherence (fixed 2026-10-03):** the two modes gave opposite advice. Both now share `_camber_diagnosis` and `_pressure_direction`. Camber: negative camber loads the inner shoulder, so inner hotter than outer = too much negative camber = REDUCE it (the session rule was right; lap mode said "add"); outer hotter = ADD. Pressure (temperature-only, no pressure channel, so this is the less certain call): an overheated tyre is assumed to be flexing too much (docs 09/14: higher pressure reduces deformation heat), so RAISE pressure, unless the tread centre is more than 5 degC hotter than the shoulder mean (over-inflated), then LOWER; a cold tyre gets LOWER. Session mode has no tread-zone split, so it follows the default. Pinned by `tests/test_advisor_rl_fixes.py`.
+- **Dependence on upstream modules:** the quality of every rule is that of the metric that feeds it (for example the slip-angle balance summary).
 
-**Additive gain estimates are not independent.** `total_gain_lo` and `total_gain_hi` are arithmetic sums of individual recommendation gain ranges. In practice, setup changes interact: correcting camber may partially resolve a temperature imbalance, rendering the pressure recommendation unnecessary. The total gain figure is an upper bound under the assumption that all changes are applied and are fully independent, which is rarely true.
+---
 
-**Lap-mode requires two comparable laps.** `analizar_setup()` is designed for back-to-back lap comparisons (e.g., the fastest lap vs. the previous lap, or a setup-change lap vs. a baseline). Comparing laps from different conditions (wet vs. dry, different fuel loads, different tyre states) will produce misleading recommendations.
+## 9. Verification Status
 
-**Session-mode consistency analysis requires a minimum lap count.** The standard deviation of time loss per corner (`std_loss_seconds`) is only meaningful when computed over several laps. Sessions with fewer than four or five valid laps may produce false consistency alerts driven by a single outlier lap.
-
-**Brake fade zone analysis requires spatially aligned data.** The `fade_zones` detection assumes the telemetry is spatially synchronised to a reference lap. If the data exporter does not normalise to distance-based coordinates, zone boundary values in meters will not correspond to identifiable track positions.
-
-**No ground-truth validation.** The `expected_gain` ranges are heuristic estimates. There is currently no feedback loop between applied recommendations and subsequent lap-time data, so the accuracy of the gain estimates cannot be empirically validated from within the pipeline.
-
-**Language support.** All recommendation text fields are resolved at call time via the `i18n` module. If a translation key is missing for a given language, the system falls back to the raw key string rather than raising an exception. Engineers using `lang="en"` should verify that their installation includes a complete English translation bundle.
+Thresholds, gain ranges, keys and the AC mapping were read from `setup_advisor.py`, `ac_setups.py` and `src/api/setups.py` on 2026-10-03; the degradation rule, camber/pressure coherence and `lang` fixes above were reproduced with failing synthetic tests first. The recommendation texts (e.g. wing/ARB advice) live in the locale files and were not audited for engineering correctness. Not verifiable from the code: the physical meaning of the sign of `balance_mean`, why each threshold value was chosen, and the pressure direction (no pressure data enters these rules). Earlier versions of this document described a "balance mean = lateral-G versus steering-angle correlation" and several threshold values that are not what the code does; those statements were removed.

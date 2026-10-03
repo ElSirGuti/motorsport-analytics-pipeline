@@ -43,6 +43,24 @@ def test_light_theme_passes_all_pairs():
     assert failing == []
 
 
+def test_dark_theme_passes_all_pairs():
+    dark = cc.load_themes()["dark"]
+    failing = [(f, b, round(r, 2)) for f, b, r, _m, _w, ok in cc.check(dark) if not ok]
+    assert failing == []
+
+
+def test_ink_hierarchy_dark_and_light():
+    for name, tokens in cc.load_themes().items():
+        lum = [cc.luminance(tokens[k]) for k in ("ink-1", "ink-2", "ink-3", "ink-4")]
+        surf = cc.luminance(tokens["surface-1"])
+        d = [abs(x - surf) for x in lum]
+        assert d == sorted(d, reverse=True), name
+
+
+def test_strict_flag_exit_code_ok():
+    assert cc.main(["--strict"]) == 0
+
+
 def test_light_theme_defines_every_dark_token_that_matters():
     themes = cc.load_themes()
     for tok in ("surface-0", "surface-1", "ink-1", "accent", "ok", "warn", "bad", *cc.LAPS):

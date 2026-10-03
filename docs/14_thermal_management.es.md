@@ -1,345 +1,240 @@
-# Análisis de Gestión Térmica
+# 14 - Análisis de Gestión Térmica
 
-## Descripción General
+[See in English](./14_thermal_management.md)
 
-El módulo `thermal_management` realiza el análisis térmico integral de una sesión de
-conducción. Procesa datos de temperatura de fluidos del motor, temperaturas de frenos,
-presiones de neumáticos y balance de frenado, y devuelve diagnósticos con
-recomendaciones de ajuste accionables.
-
-### Por qué la gestión térmica es crítica en motorsport
-
-En competición, los sistemas térmicos operan permanentemente cerca de sus límites de
-diseño. Una temperatura de refrigerante fuera de rango puede provocar la detonación del
-motor o la pérdida de potencia por sobreprotección electrónica. Los frenos que no
-alcanzan su ventana de trabajo óptima exhiben fade progresivo o, en el extremo opuesto,
-glazing del disco. Los neumáticos que construyen demasiada presión durante el rodaje
-generan sobreviraje progresivo; los que construyen poca, subviraje con pérdida de
-tracción en la zona de carga.
-
-A diferencia de la telemetría de inputs (acelerador, freno, dirección), los canales
-térmicos son indicadores diferidos: el piloto no percibe directamente la temperatura del
-aceite ni la presión interna del neumático, pero ambas condicionan de forma determinante
-el comportamiento dinámico del vehículo.
-
-### Fuentes de datos y unidades nativas
-
-El módulo es compatible con dos simuladores principales:
-
-| Simulador | Presiones de neumático | Temperatura de fluidos |
-|---|---|---|
-| **iRacing** | kPa (≈ 170–250 kPa en condiciones normales) | °C |
-| **Assetto Corsa (ACTI)** | PSI (≈ 20–40 PSI en condiciones normales) | °C |
-
-La detección de unidades es automática: si el valor máximo del canal supera 100, se
-interpreta como kPa y se convierte a bar (`÷ 100`); si supera 10 pero no 100, se
-interpreta como PSI y se convierte a bar (`÷ 14.5038`). Todos los resultados de presión
-se devuelven en **bar y PSI simultáneamente** para facilitar la comparación entre
-plataformas.
+**Módulo:** `src/analytics/thermal_management.py`
+**Funciones principales:** `analizar_termica(dfs, df_laps)`, `analizar_termica_comparativa(df_a, df_b, label_a, label_b)`
+**Reconciliado con el código:** 2026-10-03 (las versiones EN y ES comparten la misma estructura)
 
 ---
 
-## Algoritmo y Metodología
+## Tabla de Contenidos
 
-### Análisis de temperatura de fluidos del motor
+1. [Descripción General](#1-descripción-general)
+2. [Algoritmo](#2-algoritmo)
+3. [Canales de Entrada](#3-canales-de-entrada)
+4. [Esquema de Salida](#4-esquema-de-salida)
+5. [Guía de Interpretación](#5-guía-de-interpretación)
+6. [Limitaciones](#6-limitaciones)
+7. [Referencia de Constantes](#7-referencia-de-constantes)
+8. [Estado de Verificación](#8-estado-de-verificación)
 
-Se evalúan dos canales independientes: temperatura del refrigerante del motor (agua) y
-temperatura del aceite. Para cada canal se calcula la media por vuelta, el valor pico de
-la sesión y la tendencia lineal (°C por vuelta) mediante regresión polinomial de primer
-grado sobre el vector de medias por vuelta.
+---
 
-**Umbrales operativos:**
+## 1. Descripción General
 
-| Canal | Estado `warning` | Estado `critical` |
+El módulo ofrece un análisis independiente del simulador de cinco señales térmicas relevantes para el tiempo por vuelta y la fiabilidad: temperatura del refrigerante (agua), temperatura del aceite, temperatura de frenos por esquina, presión de neumáticos (en caliente y delta caliente-frío) y reparto de frenada. `analizar_termica` recibe un DataFrame de telemetría por vuelta (`dfs`), calcula cada sub-análisis de forma independiente y devuelve un único diccionario con los resultados por sub-análisis, recomendaciones y alertas. `df_laps` se acepta por simetría de la API pero no se usa.
+
+Cada sub-análisis es opcional: cuando faltan sus canales devuelve `{"available": false, "reason": ...}` y los demás continúan. Si ninguno está disponible, el resultado global es `{"available": false}`.
+
+Todos los umbrales del módulo son heurísticas fijas (ver sección 7). No se derivan de la telemetría ni se ajustan por coche, compuesto o temperatura ambiente, y no provienen de una norma publicada; trátalos como reglas empíricas de ingeniería.
+
+`main.py` llama al módulo para la sesión completa (`analizar_termica(dfs, df_laps)`), para la vista de una vuelta (`analizar_termica(laps, pd.DataFrame())`) y, mediante `analizar_termica_comparativa`, para la comparación de vueltas.
+
+La numeración de vueltas en las salidas (`"lap": 1, 2, ...`) es la **posición** del DataFrame en `dfs` más uno, no el número de vuelta del simulador.
+
+---
+
+## 2. Algoritmo
+
+### 2.1 Temperaturas de fluidos (`_analyse_fluid`)
+
+Una rutina genérica sirve para agua (`"Water"`) y aceite (`"Oil"`). Para cada vuelta resuelve el primer nombre de canal coincidente de la lista de candidatos y toma la media de la vuelta; las vueltas sin el canal se omiten.
+
+- `mean_c`: media de las medias por vuelta; `max_c`: **máximo de las medias por vuelta** (no el pico instantáneo).
+- `trend_c_per_lap`: pendiente de un ajuste de primer grado de las medias por vuelta frente a la posición de vuelta, solo con al menos 3 vueltas (si no, `null`).
+- Estado según `max_c`: `critical` si `>= crit`, `warning` si `>= warn`, si no `normal`.
+
+| Fluido | `warning` desde | `critical` desde |
 |---|---|---|
-| Temperatura de agua | ≥ 105 °C | ≥ 115 °C |
-| Temperatura de aceite | ≥ 130 °C | ≥ 140 °C |
+| Agua | 105 degC | 115 degC |
+| Aceite | 130 degC | 140 degC |
 
-- **`normal`**: temperatura dentro del rango de trabajo seguro; no se emite alerta.
-- **`warning`**: temperatura elevada; se recomienda monitoreo estrecho y posible
-  reducción de carga aerodinámica para aumentar flujo de refrigeración.
-- **`critical`**: temperatura que compromete la integridad del motor; se emite una alerta
-  explícita en la clave `alert` del resultado.
+`warning` y `critical` añaden además una cadena `alert` localizada. El estado usa medias por vuelta, por lo que un pico instantáneo breve dentro de una vuelta no lo dispara.
 
-La tendencia (`trend_c_per_lap`) es especialmente relevante para sesiones de entrenamiento
-largas: una tendencia positiva sostenida indica que el sistema de refrigeración no
-disipa el calor generado a ritmo de carrera.
+### 2.2 Temperaturas de frenos (`_analyse_brake_temps`)
 
-### Zonas de temperatura de frenos
+Para cada esquina (FL, FR, RL, RR) y vuelta se guardan la media, el máximo y el mínimo del canal. Dos protecciones preceden a la clasificación:
 
-Los frenos de carbono-carbono y los compuestos de competición tienen una ventana de
-trabajo térmica estrecha. El módulo clasifica la temperatura media de cada esquina del
-vehículo (FL, FR, RL, RR) en cinco estados:
+- Ningún canal de temperatura de frenos: `available: false` (`thermal_brake_no_channel`).
+- **Protección de canal constante:** si la dispersión de todas las esquinas y vueltas (mayor máximo menos menor mínimo) es inferior a 1 degC, el canal se trata como un valor de relleno que el simulador no completó (por ejemplo fijo en la temperatura ambiente) y el sub-análisis devuelve `available: false` (`thermal_brake_constant`). En caso contrario todos los frenos se marcarían como demasiado fríos.
 
-| Estado | Rango de temperatura media | Interpretación |
-|---|---|---|
-| `too_cold` | < 200 °C | Freno frío; riesgo de glazing y mordida irregular |
-| `suboptimal` | 200–300 °C | Por debajo de la ventana óptima; compuesto sin activar |
-| `optimal` | 300–700 °C | Ventana de trabajo óptima |
-| `hot` | 700–800 °C | Sobrecalentamiento incipiente; monitorear |
-| `critical` | > 800 °C | Riesgo de ebullición de líquido de frenos y fallo de pastilla |
+Se clasifica la media sobre las vueltas de cada esquina:
 
-**Recomendaciones de conducto de freno** (`duct_recs`):
+| Media de la esquina | Estado |
+|---|---|
+| < 200 degC | `too_cold` |
+| 200 a < 300 degC | `suboptimal` |
+| 300 a 700 degC (inclusive) | `optimal` |
+| > 700 a 800 degC (inclusive) | `hot` |
+| > 800 degC | `critical` |
 
-- Estado `too_cold` → acción `close`: cerrar el conducto para retener calor y alcanzar
-  la ventana óptima.
-- Estado `hot` o `critical` → acción `open`: abrir el conducto para incrementar el
-  flujo de aire refrigerante; prioridad `alta` en caso `critical`.
+**Balance térmico:** media de las esquinas delanteras y media de las traseras (las que existan) y `ratio_f_r = delantero / trasero` (`null` si la media trasera no es positiva). El balance se calcula solo si ambos ejes tienen datos.
 
-Adicionalmente, el módulo calcula el **balance térmico freno-freno** como el cociente
-entre la temperatura media del eje delantero y la del eje trasero
-(`ratio_f_r = front_mean_c / rear_mean_c`). Este cociente alimenta directamente el
-análisis de balance de frenado.
+**Recomendaciones de ductos** (las prioridades son las cadenas en español `media` / `alta`, no localizadas):
 
-### Análisis de presión de neumáticos
+- `too_cold` da `close` (prioridad `media`).
+- `hot` da `open` (`media`); `critical` da `open` (`alta`).
+- `suboptimal` y `optimal` no producen recomendación.
 
-Para cada esquina se registran dos presiones:
+La salida incluye también `optimal_range_c: [300, 700]`.
 
-1. **Presión en caliente** (`hot`): media de la presión instantánea durante el rodaje.
-   Si no existe un canal de presión en frío explícito, se estima como la media del
-   primer 5 % del vector de muestras de la vuelta (neumático aún no termalizado).
-2. **Presión en frío** (`cold`): presión de configuración, leída desde el canal de
-   presión de puesta a punto cuando está disponible.
+### 2.3 Presiones de neumáticos (`_analyse_tyre_pressure`)
 
-El **delta frío–caliente** (`delta_bar = hot_mean − cold_mean`) cuantifica la
-construcción de presión durante la termalización. El objetivo de diseño del módulo es
-un delta de **0.15 bar** (≈ 2.2 PSI), dentro de una ventana aceptable de 0.05–0.28 bar.
-
-| Estado del delta | Interpretación | Acción recomendada |
-|---|---|---|
-| `low_delta` (< 0.05 bar) | Presión en frío demasiado alta | Reducir la presión de configuración |
-| `ok` (0.05–0.28 bar) | Delta dentro de la ventana aceptable | Sin ajuste necesario |
-| `high_delta` (> 0.28 bar) | Presión en frío demasiado baja | Aumentar la presión de configuración |
-
-Cuando el ajuste recomendado supera **0.03 bar** de magnitud, el módulo emite una
-recomendación explícita con la presión en frío objetivo calculada como:
+**Detección de unidades (`_to_bar`)**, por canal, a partir del valor máximo observado:
 
 ```
-target_cold = cold_mean − (delta_mean − 0.15)
-target_cold = max(0.80 bar, target_cold)   # límite de seguridad inferior
+max > 100  -> kPa, multiplicar por 0.01
+max > 10   -> PSI, multiplicar por 1/14.5038
+si no      -> ya está en bar
 ```
 
-### Normalización del balance de frenado
+Todos los valores internos y de salida están en bar, y cada salida incluye también `psi` (objetos `{bar, psi}`, bar redondeado a 2 decimales, PSI a 1). La heurística clasifica mal una serie de presión con valores por debajo de 10 PSI o una serie en bar por encima de 10.
 
-El canal de balance de frenado (`BrakeBias`, `dcBrakeBias`) puede entregarse como
-fracción decimal (0.0–1.0, formato iRacing) o como porcentaje (0–100). La función
-`_to_pct_bias` detecta automáticamente el formato: si el valor máximo es ≤ 1.05, se
-multiplica por 100.
+**Presión en caliente** por vuelta: media del canal de presión en vivo (y su máximo, `hot_max_bar`).
 
-El módulo evalúa el balance en dos niveles:
+**La presión en frío** proviene solo de un canal dedicado de presión en frío (`LFcoldPressure`, etc.). No se estima a partir del inicio de la vuelta: en un stint continuo el inicio de la vuelta ya está caliente, y usarlo daba un delta cercano a 0 y consejos falsos de "subir presión" (ese proxy se eliminó). Sin canal en frío, `cold` y `delta` no aparecen, el `status` de la esquina es `ok`, una `note` explica el motivo y no se hace recomendación de presión para esa esquina.
 
-1. **Análisis basado en temperatura** (preferente): si las temperaturas de freno están
-   disponibles y ambos ejes superan los 50 °C (señal con significado físico), se
-   compara el `ratio_f_r` con los umbrales 0.75 y 1.30.
-   - Ratio > 1.30 (frenos delanteros mucho más calientes): reducir balance delantero
-     en ≈ 2 pp, hasta el mínimo de 52 % delantero.
-   - Ratio < 0.75 (frenos traseros mucho más calientes): aumentar balance delantero
-     en ≈ 2 pp, hasta el máximo de 63 % delantero.
+**Delta** = media en caliente menos media en frío por vuelta; el delta de la esquina es la media sobre las vueltas.
 
-2. **Verificación de rango típico**: independientemente del análisis térmico, si el
-   balance medio cae fuera del rango 52–63 % delantero, se emite una advertencia
-   (`out_of_range`) que indica el riesgo asociado (bloqueo trasero por debajo de 52 %,
-   o fade/bloqueo delantero por encima de 63 %).
+| Delta medio | `status` |
+|---|---|
+| < 0,05 bar | `low_delta` (poco aumento: la presión en frío puede ser demasiado alta) |
+| 0,05 a 0,28 bar | `ok` |
+| > 0,28 bar | `high_delta` (mucho aumento: la presión en frío puede ser demasiado baja) |
 
----
+**Recomendación** (solo con frío y delta disponibles):
 
-## Canales de Telemetría Requeridos
+```
+target_cold  = max(0.8, cold - (delta - 0.15))
+delta_adjust = target_cold - cold
+se emite si |delta_adjust| >= 0.03 bar
+direction    = "lower" si delta_adjust < 0, si no "raise"
+priority     = "media" si |delta_adjust| > 0.1, si no "baja"
+```
 
-Los canales marcados como opcionales activan sub-análisis adicionales cuando están
-presentes, pero su ausencia no impide la ejecución del módulo.
+La recomendación se emite siempre que el ajuste alcance 0,03 bar, incluso si `status` es `ok` (el objetivo es el punto medio de 0,15 bar, no la ventana).
 
-| Canal | Nombres aceptados | Unidades nativas | Obligatorio |
-|---|---|---|---|
-| Temperatura de refrigerante | `WaterTemp`, `Water Temp`, `Engine Temp`, `CoolantTemp`, `Coolant Temp`, `Eng Coolant Temp` | °C | No |
-| Temperatura de aceite | `OilTemp`, `Oil Temp`, `Eng Oil Temp`, `Engine Oil Temp`, `EngOilTemp` | °C | No |
-| Temperatura de freno FL | `BrakeTempFL`, `Brake Temp FL`, `BrakeTempFrontLeft` | °C | No |
-| Temperatura de freno FR | `BrakeTempFR`, `Brake Temp FR`, `BrakeTempFrontRight` | °C | No |
-| Temperatura de freno RL | `BrakeTempRL`, `Brake Temp RL`, `BrakeTempRearLeft` | °C | No |
-| Temperatura de freno RR | `BrakeTempRR`, `Brake Temp RR`, `BrakeTempRearRight` | °C | No |
-| Presión en caliente FL | `TyrePressFL`, `Tire Pressure FL`, `Tyre Pres FL`, `LFpressure` | kPa / PSI / bar | No |
-| Presión en caliente FR | `TyrePressFR`, `Tire Pressure FR`, `Tyre Pres FR`, `RFpressure` | kPa / PSI / bar | No |
-| Presión en caliente RL | `TyrePressRL`, `Tire Pressure RL`, `Tyre Pres RL`, `LRpressure` | kPa / PSI / bar | No |
-| Presión en caliente RR | `TyrePressRR`, `Tire Pressure RR`, `Tyre Pres RR`, `RRpressure` | kPa / PSI / bar | No |
-| Presión en frío FL | `LFcoldPressure`, `TyrePressColdFL` | kPa / PSI / bar | No |
-| Presión en frío FR | `RFcoldPressure`, `TyrePressColdFR` | kPa / PSI / bar | No |
-| Presión en frío RL | `LRcoldPressure`, `TyrePressColdRL` | kPa / PSI / bar | No |
-| Presión en frío RR | `RRcoldPressure`, `TyrePressColdRR` | kPa / PSI / bar | No |
-| Balance de frenado | `BrakeBias`, `dcBrakeBias`, `Brake Bias`, `brake_bias` | % o fracción decimal | No |
+### 2.4 Reparto de frenada (`_analyse_brake_bias`)
 
-El módulo acepta también variantes ortográficas menores. Si ningún nombre del grupo
-coincide con las columnas del DataFrame, el sub-análisis correspondiente devuelve
-`{"available": false}` y los demás continúan con normalidad.
+`_to_pct_bias` convierte una fracción a porcentaje cuando el máximo es <= 1,05 (`dcBrakeBias` de iRacing); en otro caso la deja igual. Se informan las medias por vuelta y su promedio (`current_pct`).
+
+1. **Evidencia térmica** (requiere temperaturas de frenos disponibles con balance, ratio no nulo y ambas medias de eje por encima de 50 degC): ratio **> 1,30** da `reduce` con `suggested = max(52, current - 2)`; ratio **< 0,75** da `increase` con `suggested = min(63, current + 2)`. Prioridad `media`.
+2. **Comprobación de rango:** texto `out_of_range` si `current_pct < 52` o `> 63` (orientativo).
 
 ---
 
-## Esquema de Salida
+## 3. Canales de Entrada
 
-La función principal `analizar_termica(dfs, df_laps)` devuelve un diccionario con la
-siguiente estructura:
+Cada búsqueda resuelve el primer nombre coincidente que exista en el DataFrame.
+
+| Señal | Nombres de canal aceptados | Unidad esperada |
+|---|---|---|
+| Agua | `WaterTemp`, `Water Temp`, `Engine Temp`, `CoolantTemp`, `Coolant Temp`, `Eng Coolant Temp` | degC |
+| Aceite | `OilTemp`, `Oil Temp`, `Eng Oil Temp`, `Engine Oil Temp`, `EngOilTemp` | degC |
+| Temp. de frenos | `BrakeTemp{FL,FR,RL,RR}`, `Brake Temp {FL..}`, `BrakeTemp{FrontLeft,...}` | degC |
+| Presión en caliente | `TyrePress{FL..}`, `Tire Pressure {FL..}`, `Tyre Pres {FL..}`, iRacing `LFpressure`, `RFpressure`, `LRpressure`, `RRpressure` | kPa / PSI / bar (auto) |
+| Presión en frío | `LFcoldPressure`, `RFcoldPressure`, `LRcoldPressure`, `RRcoldPressure`, `TyrePressCold{FL..}` | kPa / PSI / bar (auto) |
+| Reparto de frenada | `BrakeBias`, `dcBrakeBias`, `Brake Bias`, `brake_bias` | fracción (0-1) o % |
+
+Notas por simulador (comportamiento típico, no impuesto por el código): iRacing expone temperatura de agua/aceite, presiones en kPa y `dcBrakeBias` como fracción; Assetto Corsa expone temperaturas de frenos y presiones en PSI. Que cada simulador o herramienta de exportación proporcione un canal concreto depende del coche y del exportador; el módulo solo informa de lo que hay.
+
+---
+
+## 4. Esquema de Salida
 
 ```json
 {
   "available": true,
-  "n_recommendations": 4,
-
+  "n_recommendations": 3,
   "water_temp": {
-    "available": true,
-    "channel": "Water",
-    "mean_c": 98.4,
-    "max_c": 107.2,
-    "trend_c_per_lap": 0.31,
-    "status": "warning",
-    "warn_threshold_c": 105,
-    "crit_threshold_c": 115,
-    "per_lap": [{"lap": 1, "mean_c": 96.1}, ...],
-    "alert": "Water temp elevada (107°C ≥ 105°C) — monitorear de cerca"
+    "available": true, "channel": "Water",
+    "per_lap": [{"lap": 1, "mean_c": 92.4}],
+    "mean_c": 93.2, "max_c": 94.1, "trend_c_per_lap": 0.85, "status": "normal",
+    "warn_threshold_c": 105, "crit_threshold_c": 115
   },
-
-  "oil_temp": { ... },
-
+  "oil_temp": {"...": "misma estructura que water_temp"},
   "brake_temps": {
-    "available": true,
-    "optimal_range_c": [300, 700],
-    "corners": {
-      "FL": {"mean_c": 512.3, "max_c": 648.1, "status": "optimal", "per_lap": [...]},
-      "FR": {"mean_c": 541.0, "max_c": 671.4, "status": "optimal", "per_lap": [...]},
-      "RL": {"mean_c": 188.5, "max_c": 221.7, "status": "too_cold", "per_lap": [...]},
-      "RR": {"mean_c": 193.2, "max_c": 229.0, "status": "too_cold", "per_lap": [...]}
-    },
-    "balance": {
-      "front_mean_c": 526.7,
-      "rear_mean_c": 190.9,
-      "ratio_f_r": 2.76
-    },
-    "duct_recs": [
-      {"corner": "RL", "action": "close", "reason": "...", "priority": "media"},
-      {"corner": "RR", "action": "close", "reason": "...", "priority": "media"}
-    ]
+    "available": true, "optimal_range_c": [300, 700],
+    "corners": {"FL": {"mean_c": 312.5, "max_c": 489.0, "status": "optimal",
+                        "per_lap": [{"lap": 1, "mean_c": 305.2, "max_c": 471.0, "min_c": 120.0}]}},
+    "balance": {"front_mean_c": 315.0, "rear_mean_c": 280.0, "ratio_f_r": 1.13},
+    "duct_recs": [{"corner": "RL", "action": "close", "reason": "...", "priority": "media"}]
   },
-
   "tyre_pressure": {
     "available": true,
     "delta_target": {"bar": 0.15, "psi": 2.2},
-    "delta_window": {
-      "low":  {"bar": 0.05, "psi": 0.7},
-      "high": {"bar": 0.28, "psi": 4.1}
-    },
-    "corners": {
-      "FL": {
-        "hot":   {"bar": 1.87, "psi": 27.1},
-        "cold":  {"bar": 1.65, "psi": 23.9},
-        "delta": {"bar": 0.22, "psi": 3.2},
-        "status": "ok",
-        "per_lap": [...]
-      }
-    },
-    "recommendations": [
-      {
-        "corner": "RR",
-        "direction": "raise",
-        "delta_bar": 0.08,
-        "delta_psi": 1.2,
-        "current_cold": {"bar": 1.58, "psi": 22.9},
-        "target_cold":  {"bar": 1.66, "psi": 24.1},
-        "current_hot":  {"bar": 1.96, "psi": 28.4},
-        "reason": "...",
-        "priority": "baja"
-      }
-    ]
+    "delta_window": {"low": {"bar": 0.05, "psi": 0.7}, "high": {"bar": 0.28, "psi": 4.1}},
+    "corners": {"FL": {"hot": {"bar": 1.87, "psi": 27.1}, "cold": {"bar": 1.65, "psi": 23.9},
+                        "delta": {"bar": 0.22, "psi": 3.2}, "status": "ok",
+                        "per_lap": [{"lap": 1, "hot_bar": 1.871, "hot_max_bar": 1.903,
+                                     "cold_bar": 1.65, "delta_bar": 0.221}]}},
+    "recommendations": [{"corner": "RR", "direction": "raise", "delta_bar": 0.09, "delta_psi": 1.3,
+                         "current_cold": {"bar": 1.60, "psi": 23.2},
+                         "target_cold": {"bar": 1.69, "psi": 24.5},
+                         "current_hot": {"bar": 1.94, "psi": 28.1},
+                         "reason": "...", "priority": "baja"}]
   },
-
   "brake_bias": {
-    "available": true,
-    "current_pct": 57.5,
-    "typical_range": [52.0, 63.0],
-    "out_of_range": null,
-    "per_lap": [{"lap": 1, "bias_pct": 57.3}, ...],
-    "recommendation": null
+    "available": true, "current_pct": 57.3,
+    "per_lap": [{"lap": 1, "bias_pct": 57.1}],
+    "typical_range": [52.0, 63.0], "out_of_range": null, "recommendation": null
   }
 }
 ```
 
-Cuando `available` es `false` en la clave raíz, todos los sub-análisis carecen de datos
-de telemetría y el resultado es `{"available": false}`.
+Notas:
+
+- Sin canal en frío, la entrada de una esquina tiene `hot`, `per_lap` (con `cold_bar`/`delta_bar` nulos), `status: "ok"` y `note`; no tiene las claves `cold` ni `delta`.
+- `n_recommendations` = recomendaciones de ductos + recomendaciones de presión + (1 si hay recomendación de reparto) + (1 si hay alerta de agua) + (1 si hay alerta de aceite). El texto `out_of_range` del reparto no cuenta.
+- El `alert` de fluidos solo existe para `warning`/`critical`. Los textos (`reason`, `alert`, `out_of_range`) se localizan (ES/EN) mediante `src/i18n.py` (claves `thermal_*`); los valores de `priority` son cadenas fijas en español.
+- `analizar_termica_comparativa` ejecuta el mismo análisis sobre dos vueltas y añade `label_a` y `label_b`; no calcula ningún diferencial entre las vueltas.
 
 ---
 
-## Guía de Interpretación
+## 5. Guía de Interpretación
 
-### Temperatura de fluidos
-
-Un valor de `trend_c_per_lap` positivo y creciente a lo largo de una sesión extendida
-es el indicador más relevante de un problema de refrigeración: significa que el
-sistema no llega al equilibrio térmico. Un pico puntual (`max_c`) dentro de `warning`
-en vuelta rápida, seguido de retorno a `normal`, es generalmente aceptable.
-
-Ante estado `critical` en cualquier canal de fluido, la prioridad es abandonar la
-puesta a punto de conducción y revisar el sistema de refrigeración antes de continuar.
-
-### Temperaturas de freno
-
-El estado `optimal` en los cuatro rincones simultáneamente es el objetivo de
-configuración de conductos. Sin embargo, las condiciones de pista (temperatura ambiente,
-tiempo en boxes, fases de safety car) pueden desplazar temporalmente las temperaturas.
-Analizar la distribución `per_lap` permite distinguir un problema estructural de una
-perturbación transitoria.
-
-Un `ratio_f_r` muy superior a 1.0 en el campo `balance` indica un balance de frenado
-excesivamente delantero desde el punto de vista térmico, independientemente de los
-tiempos por vuelta. Esta señal es complementaria al comportamiento dinámico percibido
-por el piloto.
-
-### Presión de neumáticos
-
-La presión en caliente de trabajo no es una constante: varía con la temperatura de
-pista, la carga de combustible y el ritmo de conducción. La métrica relevante para la
-configuración es el **delta frío–caliente**, no el valor absoluto de presión en
-caliente. Trabajar con un delta consistente a lo largo de las vueltas indica que el
-proceso de termalización del neumático es estable.
-
-Si el canal de presión en frío no está disponible en la telemetría exportada, el módulo
-estima la presión en frío a partir del primer 5 % de las muestras de la vuelta. Esta
-estimación es menos precisa en vueltas de lanzamiento o salida de boxes, donde el
-neumático aún no ha iniciado su ciclo de carga.
-
-### Balance de frenado
-
-Las recomendaciones de ajuste del balance de frenado son conservadoras por diseño:
-el incremento o decremento sugerido es de ≈ 2 pp para evitar cambios abruptos en el
-comportamiento de frenado. En ausencia de datos de temperatura de freno, el módulo no
-emite recomendación de ajuste; solo verifica que el valor absoluto esté dentro del
-rango típico de seguridad (52–63 % delantero).
+- **Fluidos:** `normal` con una tendencia pequeña es el objetivo. `warning` con una tendencia claramente positiva en un stint largo es el patrón a vigilar, ya que el pico puede derivar a `critical`. La tendencia es una pendiente de medias por vuelta, por lo que es ruidosa con pocas vueltas; 3 vueltas es solo el mínimo para que exista. Afirmaciones como "0,5 degC/vuelta es preocupante" son reglas empíricas, no umbrales codificados.
+- **Frenos:** revisa las cuatro esquinas y compara delantero y trasero con `ratio_f_r`. El código solo actúa con ratios por encima de 1,30 o por debajo de 0,75; un ratio equilibrado cercano a 1 es el ideal intuitivo (una interpretación, no un umbral codificado). Usa `per_lap` para distinguir una vuelta transitoria de frenada fuerte de un patrón consistente.
+- **Presiones de neumáticos:** el `delta` es la cifra a leer, y solo existe con canal en frío. El objetivo de 0,15 bar y la ventana de 0,05-0,28 bar son aproximaciones genéricas; los objetivos varían según compuesto y fabricante, así que usa la recomendación como estimación de dirección y magnitud a contrastar con la guía del proveedor de neumáticos.
+- **Reparto de frenada:** la `recommendation` aparece solo con evidencia térmica fuerte; `out_of_range` es un aviso suave frente a una ventana de 52-63 % que supone coches tipo GT.
+- **Patrones comunes (basados en experiencia, no verificados por el código):** frenos traseros fríos en coches sin ductos traseros, un `warning` transitorio de aceite en la vuelta 2 de una tanda corta, y `high_delta` en todas las esquinas tras un cambio de neumáticos sin mantas térmicas.
 
 ---
 
-## Limitaciones
+## 6. Limitaciones
 
-1. **Dependencia de canales disponibles**: ningún canal de telemetría es obligatorio.
-   Si el simulador o la configuración de exportación no incluye un canal específico
-   (por ejemplo, temperatura de frenos en iRacing con exportación básica), el
-   sub-análisis correspondiente devuelve `{"available": false}` sin interrumpir el
-   resto del análisis.
+- **Análisis por lotes posterior a la sesión.** Sin streaming ni alertas en vivo.
+- **La presión en frío necesita un canal dedicado.** Sin él se omite el consejo basado en el delta (por diseño, tras eliminar el poco fiable proxy del inicio de vuelta).
+- **El pico de fluidos es una media por vuelta.** Un pico breve dentro de una vuelta se promedia.
+- **Sin conocimiento de compuesto, ambiente ni circuito.** Todos los umbrales son fijos y no provienen de una norma.
+- **La autodetección de unidades por el máximo** puede fallar en los límites (ver 2.3).
+- **Promedios de vuelta completa.** Sin sectorización: una zona de frenada fuerte puede ocultar el resto de la vuelta.
+- **La disponibilidad del canal de frenos depende del simulador/exportación.** Si un simulador no exporta temperaturas de frenos, o exporta un valor constante de relleno, `brake_temps` no está disponible y la recomendación de reparto se reduce a la comprobación de rango.
+- **Los índices de vuelta son posicionales**, no números de vuelta del simulador.
+- **Las prioridades son cadenas fijas en español**, no localizadas.
 
-2. **Estimación de presión en frío**: cuando el canal de presión en frío no está
-   disponible, la estimación por el primer 5 % de muestras es una aproximación. En
-   vueltas muy cortas (< 20 muestras) o con salidas de boxes al inicio, la estimación
-   puede desviarse del valor real de configuración.
+---
 
-3. **Rango típico de balance de frenado**: los límites de 52–63 % delantero son valores
-   genéricos de referencia aplicables a la mayoría de los vehículos GT y prototipos.
-   Categorías con distribución de peso muy delantera o trasera (por ejemplo, monoplazas
-   de Fórmula) pueden requerir rangos diferentes.
+## 7. Referencia de Constantes
 
-4. **Temperatura de frenos en iRacing**: la exportación estándar de iRacing no incluye
-   canales de temperatura de freno en todas las configuraciones. En esos casos, el
-   análisis de ductos y el balance térmico se omiten automáticamente.
+| Constante | Valor |
+|---|---|
+| Frenos: frío / óptimo bajo / óptimo alto / límite caliente | 200 / 300 / 700 / 800 degC |
+| Dispersión de canal de frenos constante | < 1 degC |
+| Agua warn / crit | 105 / 115 degC |
+| Aceite warn / crit | 130 / 140 degC |
+| Vueltas mínimas para la tendencia de fluidos | 3 |
+| Delta de presión bajo / alto / objetivo | 0,05 / 0,28 / 0,15 bar |
+| Umbral de recomendación de presión / suelo | 0,03 bar / 0,8 bar |
+| Corte de prioridad de presión | 0,1 bar |
+| Umbrales del ratio de reparto | > 1,30 reducir, < 0,75 aumentar |
+| Paso / límites del reparto | 2,0 puntos / 52-63 % |
+| Temperatura mínima de eje para evidencia de reparto | 50 degC |
+| Conversión de unidades | 1 bar = 14,5038 PSI = 100 kPa |
 
-5. **Sesión única**: `analizar_termica` opera sobre el conjunto de vueltas de una
-   sesión. No está diseñado para comparaciones entre sesiones distintas; para eso se
-   emplea `analizar_termica_comparativa`, que acepta dos DataFrames individuales de
-   vuelta.
+---
 
-6. **Resolución temporal**: el módulo trabaja con medias por vuelta, no con series
-   temporales de alta frecuencia. Los eventos térmicos de duración inferior a una vuelta
-   (por ejemplo, sobretemperatura durante una frenada puntual) quedan capturados
-   únicamente en el campo `max_c`, no en las tendencias ni en los estados por vuelta.
+## 8. Estado de Verificación
+
+Algoritmos, umbrales y claves se leyeron de `thermal_management.py` el 2026-10-03; la eliminación del proxy de presión en frío por inicio de vuelta y la protección de canal de frenos constante están en el código actual y faltaban en versiones anteriores de este documento. No verificable desde el código: la justificación de ingeniería de los umbrales (200/300/700/800 degC, 0,05-0,28 bar, 52-63 %), qué canales exporta cada simulador, y los "patrones comunes" de la sección 5.

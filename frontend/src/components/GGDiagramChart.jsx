@@ -8,13 +8,16 @@ const PAD = { top: 24, right: 24, bottom: 40, left: 44 };
 const CSS_H = 340;
 const MONO = 'JetBrains Mono, monospace';
 
+// Equal scale on both axes (a friction circle must look like a circle); the square plot is centred.
 function makeCoordFns(cssW, limit) {
   const range = limit * 1.15 * 2;
-  const plotW = cssW - PAD.left - PAD.right;
-  const plotH = CSS_H - PAD.top - PAD.bottom;
-  const toX = (v) => PAD.left + (v + limit * 1.15) / range * plotW;
-  const toY = (v) => PAD.top + (limit * 1.15 - v) / range * plotH;
-  return { toX, toY, plotW, plotH, range };
+  const availW = cssW - PAD.left - PAD.right;
+  const availH = CSS_H - PAD.top - PAD.bottom;
+  const side = Math.min(availW, availH);
+  const left = PAD.left + (availW - side) / 2;
+  const toX = (v) => left + (v + limit * 1.15) / range * side;
+  const toY = (v) => PAD.top + (limit * 1.15 - v) / range * side;
+  return { toX, toY, plotW: side, plotH: side, range, left };
 }
 
 // Canvas needs literal colours: resolve theme tokens (computed values) and apply alpha.
@@ -60,7 +63,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
 
-    const { toX, toY, plotW, plotH, range } = makeCoordFns(cssW, limit);
+    const { toX, toY, plotW, plotH, range, left } = makeCoordFns(cssW, limit);
     const ticks = [-limit, -limit * 0.5, 0, limit * 0.5, limit];
 
     // Grid lines
@@ -68,7 +71,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     ctx.lineWidth = 1;
     ticks.forEach(v => {
       ctx.beginPath(); ctx.moveTo(toX(v), PAD.top); ctx.lineTo(toX(v), PAD.top + plotH); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(PAD.left, toY(v)); ctx.lineTo(PAD.left + plotW, toY(v)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(left, toY(v)); ctx.lineTo(left + plotW, toY(v)); ctx.stroke();
     });
 
     // Friction circle
@@ -86,18 +89,7 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
     // Centre axes
     ctx.strokeStyle = withAlpha(colors.ink2, 0.4);
     ctx.beginPath(); ctx.moveTo(cx, PAD.top); ctx.lineTo(cx, PAD.top + plotH); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(PAD.left, cy); ctx.lineTo(PAD.left + plotW, cy); ctx.stroke();
-
-    // Quadrant labels
-    ctx.font = `600 10px ${MONO}`;
-    ctx.fillStyle = withAlpha(colors.ink2, 0.85);
-    ctx.textAlign = 'right';
-    ctx.fillText(t.ggQuadBraking, cx - 8, cy - 5);
-    ctx.textAlign = 'left';
-    ctx.fillText(t.ggQuadTraction, cx + 8, cy - 5);
-    ctx.textAlign = 'center';
-    ctx.fillText(t.ggQuadLeft, cx, PAD.top + 12);
-    ctx.fillText(t.ggQuadRight, cx, PAD.top + plotH - 5);
+    ctx.beginPath(); ctx.moveTo(left, cy); ctx.lineTo(left + plotW, cy); ctx.stroke();
 
     // Points: slow = hollow rings, fast = filled dots (efficiency colour)
     ctx.lineWidth = 1;
@@ -114,6 +106,25 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
       ctx.fill();
     });
 
+    // Quadrant labels
+    ctx.font = `600 10px ${MONO}`;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = withAlpha(colors.surface0, 0.9);
+    ctx.fillStyle = colors.ink1;
+    // Braking / traction sit at the far ends of the horizontal axis so they never collide at the centre.
+    ctx.textAlign = 'left';
+    ctx.strokeText(t.ggQuadBraking, left + 6, cy - 5);
+    ctx.fillText(t.ggQuadBraking, left + 6, cy - 5);
+    ctx.textAlign = 'right';
+    ctx.strokeText(t.ggQuadTraction, left + plotW - 6, cy - 5);
+    ctx.fillText(t.ggQuadTraction, left + plotW - 6, cy - 5);
+    ctx.textAlign = 'center';
+    ctx.strokeText(t.ggQuadLeft, cx, PAD.top + 12);
+    ctx.fillText(t.ggQuadLeft, cx, PAD.top + 12);
+    ctx.strokeText(t.ggQuadRight, cx, PAD.top + plotH - 5);
+    ctx.fillText(t.ggQuadRight, cx, PAD.top + plotH - 5);
+
     // Axis tick values + titles
     ctx.fillStyle = colors.ink3;
     ctx.font = `10px ${MONO}`;
@@ -121,12 +132,12 @@ const GGDiagramChart = ({ ggData, gLimit }) => {
       ctx.textAlign = 'center';
       ctx.fillText(v.toFixed(1), toX(v), PAD.top + plotH + 16);
       ctx.textAlign = 'right';
-      ctx.fillText(v.toFixed(1), PAD.left - 6, toY(v) + 3);
+      ctx.fillText(v.toFixed(1), left - 6, toY(v) + 3);
     });
     ctx.textAlign = 'right';
-    ctx.fillText(t.ggLonG, PAD.left + plotW, PAD.top + plotH + 32);
+    ctx.fillText(t.ggLonG, left + plotW, PAD.top + plotH + 32);
     ctx.textAlign = 'left';
-    ctx.fillText(t.ggLatG, 2, PAD.top - 10);
+    ctx.fillText(t.ggLatG, left - 40, PAD.top - 10);
   }, [fastPoints, slowPoints, limit, t, colors]);
 
   useEffect(() => {

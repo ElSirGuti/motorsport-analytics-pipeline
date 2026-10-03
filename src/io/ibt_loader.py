@@ -136,6 +136,16 @@ class IbtFile:
             if tl:
                 mm = re.match(r"([\d.]+)", tl)
                 meta["track_length_km"] = float(mm.group(1)) if mm else None
+            # Recording date (UTC, from the file's own header) and session type (Practice/Race...)
+            try:
+                if 1_000_000_000 < self.start_date < 4_000_000_000:
+                    from datetime import datetime, timezone
+                    meta["date"] = datetime.fromtimestamp(self.start_date, tz=timezone.utc).date().isoformat()
+            except (OverflowError, OSError, ValueError):
+                pass
+            stype = self.yaml_value("SessionType", "SessionInfo") or self.yaml_value("EventType", "WeekendInfo")
+            if stype:
+                meta["session_type"] = stype
         except Exception:  # los metadatos nunca deben tumbar la carga
             logger.debug("No se pudieron leer metadatos del YAML .ibt", exc_info=True)
         return meta

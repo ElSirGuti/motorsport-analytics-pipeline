@@ -1,0 +1,3 @@
+{
+  "api_err_single_lap": "The file contains a single lap (or the laps could not be separated). Use the two-file comparison mode (fast lap vs slow lap), or upload a session with several laps that includes the 'Session Lap Count' channel or a distance that resets every lap."
+}

@@ -1,6 +1,6 @@
 # Tyre Temperature — Thermal Analysis
 
-🌐 [Ver en Español](./09_thermodynamics.es.md)
+[Ver en Español](./09_thermodynamics.es.md)
 
 **Module:** `src/analytics/thermodynamics.py`  
 **Review date:** 2026-06-12
@@ -221,4 +221,4 @@ Heat map (4 tyres × 4 zones: Inner, Middle, Outer, Core) with mean lap temperat
 
 ---
 
-*Also available in [Español 🇪🇸](./09_thermodynamics.es.md)*
+*Also available in [Español](./09_thermodynamics.es.md)*

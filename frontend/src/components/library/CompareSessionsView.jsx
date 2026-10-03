@@ -6,12 +6,13 @@ import { useLanguage } from '../../context/LanguageContext';
 import { EmptyState, Icon, Panel, Stat } from '../ui';
 import { ChartTooltip, SeriesLegend } from '../chartKit';
 import { ACTIVE_DOT, AXIS_LINE, COLOR, CURSOR, GRID_PROPS, LAP_COLORS, TICK } from '../chartTheme';
-import { compareLibrarySessions, listLibrary } from '../../api/library';
+import { compareLibrarySessions, getLibrarySession, listLibrary } from '../../api/library';
+import { cornerNameMap, cornerShort } from '../../utils/cornerLabel';
 import { fmtDate, fmtLap, fmtSigned, isCompatible } from './libUtil';
 import css from './Library.module.css';
 
 const fmtAxisLap = (s) => (s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
-const label = (s, lang) => `${s.title} · ${fmtDate(s.created_at, lang)} · ${fmtLap(s.best_lap_s)}`;
+const label = (s, lang, dup) => `${s.title}${dup && s.source_filename ? ` (${s.source_filename})` : ''} · ${fmtDate(s.created_at, lang)} · ${fmtLap(s.best_lap_s)}`;
 
 function SessionCard({ tag, color, s, lang }) {
   return (
@@ -21,6 +22,7 @@ function SessionCard({ tag, color, s, lang }) {
         <div className={css.title} title={s.title}>{s.title}</div>
         <div className={css.file}>{[s.venue, s.vehicle].filter(Boolean).join(' · ') || '—'}</div>
         <div className={css.file}>{fmtDate(s.created_at, lang)} · {fmtLap(s.best_lap_s)}</div>
+        {s.source_filename && <div className={css.file} title={s.source_filename}>{s.source_filename}</div>}
       </div>
     </div>
   );
@@ -44,6 +46,12 @@ export default function CompareSessionsView({ seed }) {
   }, [lang]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const items = useMemo(() => list.items ?? [], [list.items]);
+  const dupTitles = useMemo(() => {
+    const seen = new Set();
+    const dup = new Set();
+    items.forEach((s) => (seen.has(s.title) ? dup.add(s.title) : seen.add(s.title)));
+    return dup;
+  }, [items]);
   const sa = items.find((s) => s.id === a);
   const optionsB = useMemo(
     () => items.filter((s) => s.id !== a && (force || !sa || isCompatible(sa, s))),
@@ -65,6 +73,24 @@ export default function CompareSessionsView({ seed }) {
   const data = key && res.key === key ? res.data : null;
   const error = key && res.key === key ? res.error : null;
 
+  // Corner names are not part of the comparison payload: read them from the saved session(s).
+  const [names, setNames] = useState({ key: null, map: {} });
+  const dataKey = data ? `${data.a?.id}|${data.b?.id}` : null;
+  useEffect(() => {
+    if (!dataKey) return undefined;
+    let alive = true;
+    const [ida, idb] = dataKey.split('|');
+    Promise.all([ida, idb].map((id) => getLibrarySession(id, lang).catch(() => null))).then((ds) => {
+      if (!alive) return;
+      const map = {};
+      ds.forEach((d) => Object.assign(map, cornerNameMap(d?.payload?.stint?.curvas_sesion?.corners)));
+      setNames({ key: dataKey, map });
+    });
+    return () => { alive = false; };
+  }, [dataKey, lang]);
+  const cornerNames = names.key === dataKey ? names.map : {};
+  const hasNames = Object.keys(cornerNames).length > 0;
+
   const onA = (e) => {
     const id = e.target.value;
     setA(id);
@@ -75,6 +101,7 @@ export default function CompareSessionsView({ seed }) {
 
   const noPairs = list.items && sa && optionsB.length === 0;
 
+  const perLap = lang === 'es' ? 's/vuelta' : 's/lap';
   const kpis = data && [
     { id: 'best', label: t.bestLap, fmt: fmtLap, tone: true },
     { id: 'mean', label: t.libKpiMean, fmt: fmtLap, tone: true },
@@ -83,7 +110,7 @@ export default function CompareSessionsView({ seed }) {
     { id: 'laps', label: t.libColLaps, fmt: (v) => v ?? '—', digits: 0, unit: '' },
   ].map((k) => ({ ...k, ...data.kpis[k.id] }));
   const extraKpis = data && [
-    { id: 'deg', label: t.degradation, v: data.degradation, digits: 3, unit: ' s/lap', fmt: (v) => (v == null ? '—' : `${v.toFixed(3)} s/lap`), tone: true },
+    { id: 'deg', label: t.degradation, v: data.degradation, digits: 3, unit: ` ${perLap}`, fmt: (v) => (v == null ? '—' : `${v.toFixed(3)} ${perLap}`), tone: true },
     { id: 'fuel', label: t.libKpiFuel, v: data.fuel, digits: 2, unit: ' L', fmt: (v) => (v == null ? '—' : `${v.toFixed(2)} L`) },
   ].filter((k) => k.v.a != null && k.v.b != null);
 
@@ -112,18 +139,23 @@ export default function CompareSessionsView({ seed }) {
                 <span><i className={css.dot} style={{ background: LAP_COLORS[0] }} /> {t.libSessionA}</span>
                 <select className={css.input} value={a} onChange={onA}>
                   <option value="">{t.libChoose}</option>
-                  {items.map((s) => <option key={s.id} value={s.id}>{label(s, lang)}</option>)}
+                  {items.map((s) => <option key={s.id} value={s.id}>{label(s, lang, dupTitles.has(s.title))}</option>)}
                 </select>
               </label>
               <label className={css.field}>
                 <span><i className={css.dot} style={{ background: LAP_COLORS[1] }} /> {t.libSessionB}</span>
                 <select className={css.input} value={b} onChange={(e) => setB(e.target.value)} disabled={!a}>
                   <option value="">{a ? t.libChoose : t.libChooseAFirst}</option>
-                  {optionsB.map((s) => <option key={s.id} value={s.id}>{label(s, lang)}</option>)}
+                  {optionsB.map((s) => <option key={s.id} value={s.id}>{label(s, lang, dupTitles.has(s.title))}</option>)}
                 </select>
               </label>
               <label className={css.check}>
-                <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+                <input type="checkbox" checked={force} onChange={(e) => {
+                    const on = e.target.checked;
+                    setForce(on);
+                    const cur = items.find((x) => x.id === b);
+                    if (!on && sa && cur && !isCompatible(sa, cur)) setB('');
+                  }} />
                 <span>{t.libForce}</span>
               </label>
             </div>
@@ -179,9 +211,9 @@ export default function CompareSessionsView({ seed }) {
             <Panel icon="flag" title={t.libCmpCorners} subtitle={t.libCmpCornersSub}>
               <div className={css.chart}>
                 <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={data.corners.items.map((i) => ({ ...i, name: t.libCornerShort(i.corner) }))} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+                  <BarChart data={data.corners.items.map((i) => ({ ...i, name: hasNames ? cornerShort(i.corner, cornerNames[i.corner]) : t.libCornerShort(i.corner) }))} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
                     <CartesianGrid {...GRID_PROPS} />
-                    <XAxis dataKey="name" tick={TICK} axisLine={AXIS_LINE} tickLine={false} />
+                    <XAxis dataKey="name" tick={TICK} axisLine={AXIS_LINE} tickLine={false} interval={0} {...(hasNames && data.corners.items.length > 8 ? { angle: -30, textAnchor: 'end', height: 64 } : {})} />
                     <YAxis tick={TICK} axisLine={false} tickLine={false} tickFormatter={(v) => v.toFixed(2)} width={48} />
                     <ReferenceLine y={0} stroke={COLOR.ink3} />
                     <Tooltip
@@ -208,8 +240,8 @@ export default function CompareSessionsView({ seed }) {
           {data.series.laps.length > 0 && (
             <Panel icon="trend" title={t.libCmpPace} subtitle={t.libCmpPaceSub}>
               <SeriesLegend items={[
-                { key: 'a', color: LAP_COLORS[0], label: `A · ${data.a.title}` },
-                { key: 'b', color: LAP_COLORS[1], label: `B · ${data.b.title}` },
+                { key: 'a', color: LAP_COLORS[0], label: `A · ${data.a.title}${dupTitles.has(data.a.title) && data.a.source_filename ? ` (${data.a.source_filename})` : ''}` },
+                { key: 'b', color: LAP_COLORS[1], label: `B · ${data.b.title}${dupTitles.has(data.b.title) && data.b.source_filename ? ` (${data.b.source_filename})` : ''}` },
               ]} />
               <div className={css.chart}>
                 <ResponsiveContainer width="100%" height={300}>

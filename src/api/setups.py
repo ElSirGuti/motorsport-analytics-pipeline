@@ -25,16 +25,27 @@ async def _read_upload(upload: UploadFile, limit: int) -> bytes:
 @router.post("/detect")
 async def detect_session_metadata(header: Optional[UploadFile] = File(None),
                                   file_id: Optional[str] = Form(None)):
-    """Vehicle / venue / driver from the first bytes of the telemetry CSV (or of a stored file_id)."""
+    """Vehicle / venue / driver (+ ``date``, ``session_type``, ``format``) from the first bytes of a
+    telemetry file (CSV, .ibt or .ld) or of a stored file_id."""
+    from src.io.header_meta import HEADER_SNIFF_BYTES, read_header_bytes
     if file_id:
         from src.api.files import resolve_input
         inp = resolve_input(None, file_id, "en")
         with open(inp.path, "rb") as fh:
-            return ac.parse_motec_header(fh.read(_HEADER_MAX))
-    if header is None:
+            raw = fh.read(HEADER_SNIFF_BYTES)
+    elif header is None:
         raise HTTPException(status_code=422, detail="header or file_id is required")
-    raw = await _read_upload(header, _HEADER_MAX)
-    return ac.parse_motec_header(raw)
+    else:
+        raw = await _read_upload(header, HEADER_SNIFF_BYTES)
+    meta = read_header_bytes(raw)
+    out = {k: meta.get(k) for k in ("driver", "vehicle", "venue")}
+    if meta.get("date_iso"):
+        out["date"] = meta["date_iso"]
+    if meta.get("session_type"):
+        out["session_type"] = meta["session_type"]
+    if meta.get("format") in ("ibt", "ld"):
+        out["format"] = meta["format"]
+    return out
 
 
 @router.get("/candidates")

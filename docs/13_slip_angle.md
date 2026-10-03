@@ -1,6 +1,6 @@
 # Slip Angle — Sideslip β & αF/αR Balance
 
-🌐 [Ver en Español](./13_slip_angle.es.md)
+[Ver en Español](./13_slip_angle.es.md)
 
 **Module:** `src/analytics/slip_angle.py`  
 **Review date:** 2026-06-12
@@ -280,4 +280,4 @@ Series of on-track balance (αF − αR, degrees) with shaded threshold bands (b
 
 ---
 
-*Also available in [Español 🇪🇸](./13_slip_angle.es.md)*
+*Also available in [Español](./13_slip_angle.es.md)*

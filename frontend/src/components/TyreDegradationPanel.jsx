@@ -69,7 +69,7 @@ export default function TyreDegradationPanel({ data }) {
       <Panel icon="tyre" title={t.tdTitle} actions={<Badge tone={inactive ? undefined : 'warn'}>{inactive ? t.tdWearInactiveBadge : t.tdInsufficientBadge}</Badge>}>
         <EmptyState icon="info">
           <div>{data.reason}</div>
-          {data.wear_evidence && <div style={{ marginTop: 6, fontSize: 'var(--fs-xs)', color: 'var(--ink-4)' }}>{data.wear_evidence}</div>}
+          {data.wear_evidence && <div style={{ marginTop: 6, fontSize: 'var(--fs-xs)', color: 'var(--ink-3)' }}>{data.wear_evidence}</div>}
         </EmptyState>
       </Panel>
     );

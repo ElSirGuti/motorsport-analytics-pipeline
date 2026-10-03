@@ -1,0 +1,16 @@
+{
+ "pdf_q_score": "Data quality: {score}/100 ({level}). Channels: {ok} correct, {warn} with warnings, {miss} missing. Modules: {mok} complete, {mdeg} degraded, {mun} unavailable.",
+ "pdf_dq_good": "good",
+ "pdf_dq_fair": "fair",
+ "pdf_dq_poor": "poor",
+ "pdf_q_improve": "Suggested improvement: {title}.",
+ "pdf_cap_zones_top": "The {shown} most severe zones are shown out of {total} detected (the chart marks all of them).",
+ "pdf_h_bottoming_cmp": "Bottoming events by wheel",
+ "pdf_th_events": "Events",
+ "pdf_th_sev_max": "Max. severity",
+ "pdf_cap_bottoming_cmp": "Count of bottoming events per wheel for each lap; severity is the worst event.",
+ "pdf_th_priority": "Priority",
+ "pdf_prio_s_alta": "High",
+ "pdf_prio_s_media": "Medium",
+ "pdf_prio_s_baja": "Low"
+}

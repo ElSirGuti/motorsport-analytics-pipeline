@@ -2,6 +2,22 @@
 
 Se incluye desde main.py con una linea (``app.include_router(library_router)``).
 Funciona igual con SQLite (desarrollo/tests) y PostgreSQL (contenedores).
+
+Contrato (consumido por el frontend)
+------------------------------------
+* ``POST /api/library`` guarda ``payload = {session, stint, extras}``. ``extras`` es un objeto libre
+  (optimal_lap, setup, data_quality, ...) que se guarda **integro** (solo NaN/Inf -> null) y
+  ``GET /api/library/{id}`` lo devuelve tal cual en ``payload.extras`` para restaurar la vista.
+* Archivo original: el cliente puede enviar ``file_id`` (el devuelto por ``POST /api/files``).
+  La biblioteca NO copia el archivo: guarda solo la referencia (``payload.source_file``) y el
+  almacen de subidas (content-addressed por sha256, ``STORAGE_DIR/uploads``) ya deduplica el
+  contenido. Ese almacen caduca por TTL (``UPLOAD_TTL_HOURS``): ``GET /api/library/{id}`` devuelve
+  ``has_source_file`` (bool, comprobado en el momento) y ``source_file_id``; si caduco, es
+  ``false`` y nada falla. Guardar la sesion no "fija" el archivo contra la limpieza.
+* ``file_sha256``: si hay ``file_id`` valido y el archivo sigue en el almacen, el sha256 completo
+  del servidor es el canonico y sustituye al hash parcial del cliente (primeros/ultimos 4 MB +
+  tamano). Las filas antiguas con hash parcial se reconocen como duplicado y se actualizan al
+  canonico. Sin ``file_id`` todo funciona como antes.
 """
 from __future__ import annotations
 
@@ -27,7 +43,7 @@ from src.i18n import _l
 router = APIRouter(prefix="/api/library", tags=["library"])
 
 MAX_PAYLOAD_BYTES = 5 * 1024 * 1024
-MAX_SNIFF_BYTES = 256 * 1024
+MAX_SNIFF_BYTES = 256 * 1024  # enough for the .ibt YAML header too
 _HEX64 = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -76,6 +92,23 @@ def _circuit_of(venue: Optional[str]) -> Optional[dict]:
     return {"id": c["id"], "name": c["name"], "country": c.get("country")} if c else None
 
 
+def _source_file_id(row: LibrarySession) -> Optional[str]:
+    src = (row.payload or {}).get("source_file") if isinstance(row.payload, dict) else None
+    fid = src.get("file_id") if isinstance(src, dict) else None
+    return fid if isinstance(fid, str) else None
+
+
+def _has_source_file(file_id: Optional[str]) -> bool:
+    """True if the linked upload is still in the store (TTL may have removed it). Never raises."""
+    if not file_id:
+        return False
+    try:
+        from src.io import session_cache as sc
+        return sc.store.get(file_id) is not None
+    except Exception:
+        return False
+
+
 def summary(row: LibrarySession) -> dict:
     return {
         "circuit": _circuit_of(row.venue),
@@ -93,6 +126,11 @@ def summary(row: LibrarySession) -> dict:
         "file_sha256": row.file_sha256,
         "notes": row.notes,
     }
+
+
+def _source_info(row: LibrarySession) -> dict:
+    fid = _source_file_id(row)
+    return {"source_file_id": fid, "has_source_file": _has_source_file(fid)}
 
 
 def _derive_stats(payload: dict) -> tuple[Optional[float], Optional[int]]:
@@ -134,6 +172,7 @@ class SaveRequest(BaseModel):
     driver: Optional[str] = Field(default=None, max_length=160)
     source_filename: Optional[str] = Field(default=None, max_length=260)
     file_sha256: Optional[str] = None
+    file_id: Optional[str] = Field(default=None, max_length=64)
     notes: Optional[str] = Field(default=None, max_length=5000)
     payload: LibraryPayload
 
@@ -184,9 +223,20 @@ async def save_session(request: Request, db: Session = Depends(get_db)):
     best, n_laps = _derive_stats(payload)
     venue, vehicle = _blank(body.venue), _blank(body.vehicle)
     sha = body.file_sha256 or _fingerprint(payload)
+    partial_sha = body.file_sha256
+    linked = None
+    fid = (body.file_id or "").strip().lower()
+    if fid:
+        from src.io import session_cache as sc
+        stored = sc.store.get(fid) if sc.valid_file_id(fid) else None
+        if stored is not None:         # server-side full sha256 is the canonical hash
+            sha, linked = fid, {"file_id": fid, "size_bytes": stored.size}
+    if linked:
+        payload["source_file"] = linked
     title = _blank(body.title) or _blank(body.source_filename) or _l(_lang(request), "lib_default_title")
 
-    q = select(LibrarySession).where(LibrarySession.file_sha256 == sha)
+    hashes = [sha] + ([partial_sha] if partial_sha and partial_sha != sha else [])
+    q = select(LibrarySession).where(LibrarySession.file_sha256.in_(hashes))
     q = q.where(LibrarySession.venue.is_(None) if venue is None else LibrarySession.venue == venue)
     row = db.scalars(q.limit(1)).first()
 
@@ -195,7 +245,10 @@ async def save_session(request: Request, db: Session = Depends(get_db)):
         status = "created"
         row = LibrarySession(title=title[:200], file_sha256=sha, venue=venue, payload=payload)
         db.add(row)
+    if not linked and status == "updated" and _source_file_id(row):
+        payload["source_file"] = (row.payload or {}).get("source_file")     # keep an earlier link
     row.payload = payload
+    row.file_sha256 = sha              # upgrades legacy partial hashes to the canonical one
     row.best_lap_s, row.n_laps = best, n_laps
     row.vehicle = vehicle or row.vehicle
     row.driver = _blank(body.driver) or row.driver
@@ -207,7 +260,8 @@ async def save_session(request: Request, db: Session = Depends(get_db)):
         row.notes = _blank(body.notes)
     db.commit()
     db.refresh(row)
-    return {"status": status, "duplicate": status == "updated", "session": summary(row)}
+    return {"status": status, "duplicate": status == "updated",
+            "session": {**summary(row), **_source_info(row)}}
 
 
 @router.get("")
@@ -279,28 +333,31 @@ def facets(db: Session = Depends(get_db)):
 
 
 @router.post("/sniff")
-async def sniff_metadata(head: UploadFile = File(..., description="Primeros KB del CSV")):
-    """Lee circuito/coche/piloto de la cabecera MoTeC de un CSV (solo se envian los primeros KB)."""
-    from src.io.loaders import read_motec_metadata
+async def sniff_metadata(head: UploadFile = File(..., description="Primeros KB del archivo (CSV, .ibt o .ld)")):
+    """Circuito/coche/piloto/fecha de la cabecera de un CSV MoTeC, un .ibt (SessionInfo) o un .ld.
+
+    Basta con enviar los primeros ~256 KB. Devuelve ``venue``, ``vehicle``, ``driver`` (legibles),
+    ``date`` (ISO, si se conoce), ``session_type``, ``format`` y ``raw`` (valores sin tratar).
+    """
+    from src.io.header_meta import read_header_bytes
 
     data = await head.read(MAX_SNIFF_BYTES + 1)
-    data = data[:MAX_SNIFF_BYTES]
-    fd, path = tempfile.mkstemp(suffix=".csv", prefix="sniff_")
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
-        meta = read_motec_metadata(path)
-    finally:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
-    return {
+    meta = read_header_bytes(data[:MAX_SNIFF_BYTES], head.filename)
+    meta.pop("file", None)
+    out = {
         "venue": _pretty(meta.get("venue")),
         "vehicle": _pretty(meta.get("vehicle")),
         "driver": meta.get("driver"),
-        "raw": meta,
+        "raw": {k: meta.get(k) for k in ("driver", "vehicle", "venue")},
     }
+    # additive fields (only when known): ISO date, session type and, for native files, the format
+    if meta.get("date_iso"):
+        out["date"] = meta["date_iso"]
+    if meta.get("session_type"):
+        out["session_type"] = meta["session_type"]
+    if meta.get("format") in ("ibt", "ld"):
+        out["format"] = meta["format"]
+    return out
 
 
 def _pretty(value: Optional[str]) -> Optional[str]:
@@ -331,7 +388,7 @@ def compare(body: CompareRequest, request: Request, db: Session = Depends(get_db
         fields = ", ".join(_l(lang, f"lib_field_{f}") for f in compat["mismatch"])
         raise HTTPException(status_code=400, detail=_l(lang, "lib_err_incompatible", fields=fields))
 
-    result = compare_sessions(ra.payload or {}, rb.payload or {}, lang=lang)
+    result = compare_sessions(ra.payload or {}, rb.payload or {}, lang=lang, venue_a=ra.venue, venue_b=rb.venue)
     warnings = []
     if compat["unknown"]:
         warnings.append(_l(lang, "lib_warn_unknown", fields=", ".join(_l(lang, f"lib_field_{f}") for f in compat["unknown"])))
@@ -353,7 +410,7 @@ def _get_or_404(request: Request, db: Session, sid: uuid.UUID) -> LibrarySession
 @router.get("/{session_id}")
 def get_session(session_id: uuid.UUID, request: Request, db: Session = Depends(get_db)):
     row = _get_or_404(request, db, session_id)
-    return {**summary(row), "payload": row.payload}
+    return {**summary(row), **_source_info(row), "payload": row.payload}
 
 
 @router.patch("/{session_id}")

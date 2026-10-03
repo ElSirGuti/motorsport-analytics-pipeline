@@ -23,14 +23,14 @@
 .slotDot { display: none; }
 .slotLabel { font-size: var(--fs-sm); font-weight: 600; color: var(--ink-1); min-width: 120px; }
 .slotFile { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--ink-2); }
-.slotEmpty { color: var(--ink-4); font-family: var(--font-sans); }
+.slotEmpty { color: var(--ink-3); font-family: var(--font-sans); }
 .slotBtn { cursor: pointer; flex-shrink: 0; }
 .srOnly { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .warn { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--warn); }
 
 /* Progress */
 .steps { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
-.step { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--ink-4); }
+.step { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--ink-3); }
 .stepDone { color: var(--ink-2); }
 .stepActive { color: var(--ink-1); font-weight: 600; }
 .stepMark { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line-strong); display: inline-flex; align-items: center; justify-content: center; }

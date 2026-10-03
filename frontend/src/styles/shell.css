@@ -218,6 +218,8 @@
 .info-btn__pop p { margin: 0; }
 .shell-help-slot { position: relative; }
 .shell-help-slot__btn { position: absolute; top: 12px; right: 12px; z-index: 10; }
+/* keep panel header actions (badges, controls) clear of the floating help button */
+.shell-help-slot > .ui-panel > .ui-panel__head { padding-right: 56px; }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {

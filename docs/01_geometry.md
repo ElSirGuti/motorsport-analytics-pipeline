@@ -1,6 +1,6 @@
 # Track Geometry and Corner Apex Detection
 
-🌐 [Ver en Español](./01_geometry.es.md)
+[Ver en Español](./01_geometry.es.md)
 
 **Module:** `src/analytics/geometry.py`  
 **Main functions:** `procesar_geometria_pista_perfecta`, `detectar_apexes_perfectos`, `reporte_apexes`  

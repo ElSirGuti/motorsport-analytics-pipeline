@@ -1,6 +1,6 @@
 # Driver Inputs — FFT & Steering Jitter
 
-🌐 [Ver en Español](./11_driver_inputs.es.md)
+[Ver en Español](./11_driver_inputs.es.md)
 
 **Module:** `src/analytics/driver_inputs.py`  
 **Review date:** 2026-06-12
@@ -290,4 +290,4 @@ Area chart of the normalised nervousness index (0–100%) as a function of lap d
 
 ---
 
-*Also available in [Español 🇪🇸](./11_driver_inputs.es.md)*
+*Also available in [Español](./11_driver_inputs.es.md)*

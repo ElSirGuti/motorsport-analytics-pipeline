@@ -1,0 +1,16 @@
+{
+ "pdf_q_score": "Calidad de datos: {score}/100 ({level}). Canales: {ok} correctos, {warn} con avisos, {miss} ausentes. Módulos: {mok} completos, {mdeg} degradados, {mun} no disponibles.",
+ "pdf_dq_good": "buena",
+ "pdf_dq_fair": "aceptable",
+ "pdf_dq_poor": "baja",
+ "pdf_q_improve": "Mejora sugerida: {title}.",
+ "pdf_cap_zones_top": "Se muestran las {shown} zonas más severas de {total} detectadas (la gráfica marca todas).",
+ "pdf_h_bottoming_cmp": "Eventos de bottoming por rueda",
+ "pdf_th_events": "Eventos",
+ "pdf_th_sev_max": "Severidad máx.",
+ "pdf_cap_bottoming_cmp": "Número de eventos de bottoming por rueda en cada vuelta; la severidad es la del peor evento.",
+ "pdf_th_priority": "Prioridad",
+ "pdf_prio_s_alta": "Alta",
+ "pdf_prio_s_media": "Media",
+ "pdf_prio_s_baja": "Baja"
+}

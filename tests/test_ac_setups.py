@@ -269,7 +269,7 @@ def test_advisor_exports_keys():
         {"available": True, "corners": []}, {},
         {"tyre": {"FL": {"mean_temp": 130.0}}}, lang="en")
     rec = res["recommendations"][0]
-    assert rec["rec_key"] == "setup_rec_temp_overheat" and rec["pos"] == "FL"
+    assert rec["rec_key"] == "setup_rec_pressure_raise" and rec["pos"] == "FL"  # unified lap/session rule
     out = _annotate(res["recommendations"])
     assert out["recommendations"][0]["setup_link"]["actions"][0]["param"] == "PRESSURE_LF"
 

@@ -22,12 +22,13 @@ logger = logging.getLogger(__name__)
 _BRAKE_BINS  = [-10.0, 10.0]   # → 3 bins: early / similar / late
 # apex_speed_delta_kmh: negative = slower than ref, positive = faster
 _APEX_BINS   = [-3.0,  3.0]    # → 3 bins: slow / similar / fast
-# throttle_delta_meters: positive = full-throttle zone longer (earlier application)
-_THTL_BINS   = [-8.0,  8.0]    # → 3 bins: late / similar / early
+# thtl_delta: distance (m) at which full throttle is reached, versus the reference lap.
+# Positive = full throttle reached LATER (further along the lap); negative = EARLIER.
+_THTL_BINS   = [-8.0,  8.0]    # → 3 bins: early / similar / late (bin index grows with distance)
 
 _BIN_LABELS_BRAKE  = ['early', 'similar', 'late']
 _BIN_LABELS_APEX   = ['slow',  'similar', 'fast']
-_BIN_LABELS_THTL   = ['late',  'similar', 'early']
+_BIN_LABELS_THTL   = ['early', 'similar', 'late']
 
 # Q-learning hyper-parameters
 _LR      = 0.4   # learning rate
@@ -49,13 +50,16 @@ class _CornerAgent:
         self.Q      = np.full((self.N_BRAKE, self.N_APEX, self.N_THTL), np.nan)
         self.counts = np.zeros((self.N_BRAKE, self.N_APEX, self.N_THTL), dtype=int)
 
-    def update(self, bb: int, ab: int, tb: int, reward: float):
+    def update(self, bb: int, ab: int, tb: int, reward: float, count: bool = True):
+        """Q update. ``count=False`` for repeated training epochs, so ``counts`` holds the
+        number of real observations per cell and not observations x epochs."""
         idx = (bb, ab, tb)
         if np.isnan(self.Q[idx]):
             self.Q[idx] = reward
         else:
             self.Q[idx] += _LR * (reward - self.Q[idx])
-        self.counts[idx] += 1
+        if count:
+            self.counts[idx] += 1
 
     def best_state(self):
         """(brake_bin, apex_bin, thtl_bin) with highest Q (NaN states ignored)."""
@@ -109,14 +113,14 @@ def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None
 
         agent = _CornerAgent()
 
-        for _ in range(_EPOCHS):
+        for epoch in range(_EPOCHS):
             for lap in laps:
                 bb = _bin(lap['brake_delta'], _BRAKE_BINS)
                 ab = _bin(lap['apex_delta'],  _APEX_BINS)
                 tb = _bin(lap['thtl_delta'],  _THTL_BINS)
                 # Reward = negative time loss (higher = better execution)
                 reward = -lap['time_loss']
-                agent.update(bb, ab, tb, reward)
+                agent.update(bb, ab, tb, reward, count=(epoch == 0))
 
         # ── Current driver profile (average of last 3 laps or all) ───────────
         recent = laps[-3:]
@@ -144,7 +148,7 @@ def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None
         if opt_ab != mean_ab:
             recs.append(_tr("rl_apex_faster") if opt_ab > mean_ab else _tr("rl_apex_slower"))
         if opt_tb != mean_tb:
-            recs.append(_tr("rl_throttle_earlier") if opt_tb > mean_tb else _tr("rl_throttle_later"))
+            recs.append(_tr("rl_throttle_later") if opt_tb > mean_tb else _tr("rl_throttle_earlier"))
 
         mean_loss = float(np.mean([l['time_loss'] for l in laps]))
         results.append({

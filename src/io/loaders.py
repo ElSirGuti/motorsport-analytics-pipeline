@@ -417,6 +417,9 @@ def load_telemetry_data(filepath: str,
     df.columns = df.columns.str.strip()
     
     # 2. Resolver alias de columnas
+    # CSV de iRacing (nombres de variable nativos, p. ej. LatAccel / LFtempCM): se normaliza el
+    # signo de LateralG. Los CSV de Assetto Corsa/ACTI conservan su signo original a proposito.
+    _iracing_csv = any(c in df.columns for c in ("LatAccel", "LFtempCM", "LFtempM", "LapDist"))
     df = _resolve_column_names(df)
 
     # 3. Verificación de canales esenciales inicial (sin Distance que puede sintetizarse luego)
@@ -502,6 +505,15 @@ def load_telemetry_data(filepath: str,
         if not _bias_vals.empty and float(_bias_vals.max()) <= 1.05:
             df["BrakeBias"] = pd.to_numeric(df["BrakeBias"], errors="coerce") * 100.0
             logger.info("  Canal 'BrakeBias' fracción → porcentaje (×100)")
+
+    # 5f. Convencion interna de LateralG (ver native_common.normalize_lateral_sign): solo CSV de
+    # iRacing. NO se aplica a CSV de AC/ACTI para no cambiar sus resultados numericos (los
+    # analisis que dependen del signo usan lateral_sign_convention y funcionan con ambos).
+    if _iracing_csv and "LateralG" in df.columns and "YawRate" in df.columns:
+        from src.io.native_common import normalize_lateral_sign
+        for _c in ("LateralG", "YawRate"):
+            df[_c] = pd.to_numeric(df[_c], errors="coerce")
+        normalize_lateral_sign(df)
 
     # 6. Sintetizar Distance desde Speed+tiempo si no está disponible o si el
     # canal presente tiene todos los valores en cero (frecuente en CSVs de MoTeC

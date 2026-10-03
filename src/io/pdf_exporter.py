@@ -171,6 +171,8 @@ def prettify_name(raw: Any) -> str:
     if not s:
         return ""
     s = re.sub(r"^(ks|fn|acc|rf2|ams2|iracing)[_\-]", "", s, flags=re.I)
+    if "_" not in s and " " in s and any(c.isupper() for c in s) and any(c.islower() for c in s):
+        return s    # already a display name ("BMW M2 Racing (G87)", "Oran Park Raceway (Grand Prix)")
     if "_" not in s and " " in s:
         tokens = s.split()
     else:
@@ -186,64 +188,17 @@ def prettify_name(raw: Any) -> str:
     return " ".join(out)
 
 
-def parse_log_date(raw: Any, time_raw: Any = None) -> Optional[date]:
-    """
-    Parse the 'Log Date' of a MoTeC header.
-
-    Ambiguous day/month orders are resolved with the unambiguous cases first (a part > 12),
-    then with the clock format: Spanish 'a. m.' / 'p. m.' markers (and 24 h clocks) come from
-    day-first locales, English 'AM'/'PM' from month-first ones.
-    """
-    if not raw:
-        return None
-    s = str(raw).strip()
-    m = re.fullmatch(r"(\d{4})[/\-.](\d{1,2})[/\-.](\d{1,2})", s)
-    try:
-        if m:
-            return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        m = re.fullmatch(r"(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})", s)
-        if not m:
-            return None
-        a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        if a > 12:
-            return date(y, b, a)
-        if b > 12:
-            return date(y, a, b)
-        tr = str(time_raw or "").lower()
-        day_first = bool(re.search(r"a\.\s?m\.|p\.\s?m\.", tr)) or not re.search(r"\b(am|pm)\b", tr)
-        return date(y, b, a) if day_first else date(y, a, b)
-    except ValueError:
-        return None
+from src.io.header_meta import parse_log_date  # noqa: E402,F401  (re-exported: public helper)
 
 
 def read_session_header(path: str, filename: Optional[str] = None) -> dict:
     """
-    Read venue / vehicle / driver / date / session type from a MoTeC-style CSV header.
-    Never raises: unknown or unreadable files simply yield fewer fields.
+    Read venue / vehicle / driver / date / session type from the header of a CSV (MoTeC-style),
+    an iRacing .ibt (SessionInfo YAML) or a MoTeC .ld. Never raises: unknown or unreadable
+    files simply yield fewer fields.
     """
-    import csv
-
-    out: dict = {}
-    keys = {"venue": "venue", "vehicle": "vehicle", "driver": "driver", "log date": "log_date",
-             "log time": "log_time", "session": "session_type", "comment": "comment"}
-    try:
-        if str(path).lower().endswith((".csv", ".txt")):
-            with open(path, "r", encoding="utf-8", errors="ignore", newline="") as f:
-                for i, row in enumerate(csv.reader(f)):
-                    if i >= 20:
-                        break
-                    for j in range(0, len(row) - 1):
-                        k = row[j].strip().lower()
-                        if k in keys and row[j + 1].strip() and keys[k] not in out:
-                            out[keys[k]] = row[j + 1].strip()
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.debug("read_session_header: %s", exc)
-    d = parse_log_date(out.get("log_date"), out.get("log_time"))
-    if d:
-        out["date_iso"] = d.isoformat()
-    if filename:
-        out["file"] = filename
-    return out
+    from src.io.header_meta import read_header
+    return read_header(path, filename)
 
 
 def _slug(s: str) -> str:
@@ -448,6 +403,8 @@ class Ctx:
         self.la = self._lap_label(cm_.get("label_a"), "pdf_lap_a")
         self.lb = self._lap_label(cm_.get("label_b"), "pdf_lap_b")
         self.kind = "session" if self.session or self.stint else "comparison"
+        # Comparison-only reports are kept short (<= ~8 pages): charts smaller, no repeated tables
+        self.compact = self.kind == "comparison"
 
     @staticmethod
     def _lap_label(raw, fallback_key: str) -> str:
@@ -829,6 +786,7 @@ def _conclusions_compare(ctx: Ctx, corners) -> list[str]:
 
 def _actions(ctx: Ctx, corners: list[dict]) -> list[str]:
     acts: list[str] = []
+    seen: set = set()
     setup = _setup_recs(ctx)
     for r in _sorted_recs(setup):
         if len(acts) >= 3:
@@ -841,6 +799,10 @@ def _actions(ctx: Ctx, corners: list[dict]) -> list[str]:
         txt = f"<b>{esc(cat)}.</b> {esc(rec)}" if cat else esc(rec)
         if gain and gain != "—":
             txt += " " + _colored(t("pdf_a_gain", gain=esc(gain)), charts.INK_2)
+        key = (cat, rec)
+        if key in seen:           # e.g. the same fade advice for both laps: list it once
+            continue
+        seen.add(key)
         acts.append(txt)
     if len(acts) < 3:
         for c in _top_loss_corners(corners, 5):
@@ -855,12 +817,36 @@ def _actions(ctx: Ctx, corners: list[dict]) -> list[str]:
     return acts[:3]
 
 
+def _dq_line(ctx: Ctx) -> str:
+    """One line from the data-quality object (numbers only -> always in the report language)."""
+    for src in (ctx.comp, ctx.stint, ctx.session):
+        dq = _get(src, "data_quality")
+        if not (_avail(dq) and _fin(dq.get("score"))):
+            continue
+        ch, mo = dq.get("channel_summary") or {}, dq.get("module_summary") or {}
+        lvl = dq.get("level") if dq.get("level") in ("good", "fair", "poor") else None
+        txt = t("pdf_q_score", score=N(dq["score"], 0), level=t(f"pdf_dq_{lvl}") if lvl else "—",
+                ok=N(ch.get("ok"), 0), warn=N(ch.get("warning"), 0), miss=N(ch.get("missing"), 0),
+                mok=N(mo.get("ok"), 0), mdeg=N(mo.get("degraded"), 0), mun=N(mo.get("unavailable"), 0))
+        # improvement titles are generated in the request language: only reuse them if it matches
+        imp = [i for i in (dq.get("improvements") or []) if isinstance(i, dict) and i.get("title")]
+        if imp and dq.get("lang") == get_language():
+            txt += " " + t("pdf_q_improve", title=_clean_text(imp[0]["title"]).rstrip("."))
+        return txt
+    return ""
+
+
 def _quality_box(ctx: Ctx, limit: int = 3) -> list:
     S = ctx.S
     notes = sorted(ctx.notes, key=lambda n: 0 if n[0] == "warn" else 1)[:limit]
     el = [Paragraph(esc(t("pdf_h_quality")), S["h2"])]
+    dq = _dq_line(ctx)
+    if dq:
+        el.append(Paragraph(esc(dq), S["small"]))
+        el.append(Spacer(1, 3))
     if not notes:
-        el.append(Paragraph(esc(t("pdf_q_none")), S["small"]))
+        if not dq:
+            el.append(Paragraph(esc(t("pdf_q_none")), S["small"]))
         return el
     rows = []
     for level, text in notes:
@@ -909,14 +895,21 @@ def _exec_summary(ctx: Ctx, laps, pace, corners_s, corners_c) -> list:
     else:
         summ = _get(ctx.comp, "summary", default={}) or {}
         d = summ.get("total_time_delta")
+        in_c, out_c = summ.get("corners_time_delta_s"), summ.get("outside_corners_delta_s")
+        if not _fin(in_c) and corners_c and _fin(d):      # older / lighter results: derive from the corner list
+            in_c = sum(c["loss"] for c in corners_c if _fin(c.get("loss")))
+            out_c = d - in_c
         sub = esc(t("pdf_k_delta_sub", b=ctx.lb, a=ctx.la))
         tiles.append(_tile(S, t("pdf_k_delta_total"), _loss_markup(d, 3, 0.0005, " s"), sub))
-        tiles.append(_tile(S, t("pdf_k_in_corners"), _loss_markup(summ.get("corners_time_delta_s"), 3, 0.0005, " s"),
+        tiles.append(_tile(S, t("pdf_k_in_corners"), _loss_markup(in_c, 3, 0.0005, " s"),
                            esc(t("pdf_k_in_corners_sub"))))
-        tiles.append(_tile(S, t("pdf_k_outside"), _loss_markup(summ.get("outside_corners_delta_s"), 3, 0.0005, " s"),
+        tiles.append(_tile(S, t("pdf_k_outside"), _loss_markup(out_c, 3, 0.0005, " s"),
                            esc(t("pdf_k_outside_sub"))))
         wc = summ.get("worst_corner")
         wl = summ.get("worst_corner_loss")
+        top1 = _top_loss_corners(corners_c, 1)
+        if top1:                                          # same list the tables use -> numbers always agree
+            wc, wl = top1[0]["n"], top1[0]["loss"]
         tiles.append(_tile(S, t("pdf_k_worst_corner"),
                            esc(t("pdf_corner_short", n=_name_of(wc, corners_c))) if wc not in (None, 0, "") else "—",
                            _loss_markup(wl, 3, 0.0005, " s") if wc not in (None, 0, "") else ""))
@@ -1016,11 +1009,12 @@ def _section_corners(ctx: Ctx, corners: list[dict], kind: str) -> list:
         intro = t("pdf_intro_corners_compare", a=esc(ctx.la), b=esc(ctx.lb))
     el.append(Paragraph(esc(intro), S["caption"]))
     ch = charts.chart_corner_bars([{"n": c["n"], "loss": c["loss"], "sigma": c.get("sigma")} for c in corners],
-                                  ylabel)
+                                  ylabel, h=4.4 if ctx.compact else 5.6)
     if ch:
         el.append(_img(ch))
         el.append(Paragraph(esc(t("pdf_cap_corner_bars")), S["caption"]))
-    el += _priority_table(ctx, corners)
+    if not ctx.compact:   # compact reports already list the top losses (with phase) on page 1 and in the detail table
+        el += _priority_table(ctx, corners)
 
     el.append(Paragraph(esc(t("pdf_h_corner_detail")), S["h2"]))
     head = [t("pdf_th_corner"), t("pdf_th_loss"), t("pdf_th_sigma") if kind == "session" else "",
@@ -1046,7 +1040,7 @@ def _section_corners(ctx: Ctx, corners: list[dict], kind: str) -> list:
     widths = [widths_full[i] for i in cols]
     nums = [k for k, i in enumerate(cols) if i in (0, 1, 2, 3, 4, 5)]
     phase_col = cols.index(6)
-    el.append(make_table(S, rows, widths, num_cols=nums, pad=2.6,
+    el.append(make_table(S, rows, widths, num_cols=nums, pad=2.1 if ctx.compact else 2.6,
                          extra_style=[("LEFTPADDING", (phase_col, 0), (phase_col, -1), 10)]))
     el.append(Paragraph(esc(t("pdf_cap_corner_table_session" if kind == "session" else "pdf_cap_corner_table_compare",
                               a=ctx.la, b=ctx.lb)), S["caption"]))
@@ -1056,7 +1050,29 @@ def _section_corners(ctx: Ctx, corners: list[dict], kind: str) -> list:
 # ── Setup & strategy ──────────────────────────────────────────────────────────
 
 _PRIO_TEXT = {"alta": "pdf_prio_high", "media": "pdf_prio_mid", "baja": "pdf_prio_low"}
+_PRIO_SHORT = {"alta": "pdf_prio_s_alta", "media": "pdf_prio_s_media", "baja": "pdf_prio_s_baja"}
 _PRIO_COL = {"alta": charts.BAD, "media": charts.WARN, "baja": charts.OK}
+
+
+def _setup_compact_table(ctx: Ctx, recs: list[dict]) -> list:
+    """One table for all priorities; identical advice given for both laps is merged into one row."""
+    S = ctx.S
+    merged: dict = {}
+    for r in recs:
+        key = (r.get("priority"), _rec_text(r.get("category")), _rec_text(r.get("recommendation")))
+        e = merged.setdefault(key, {"problems": [], "details": [], "gain": _rec_text(r.get("expected_gain")) or "—"})
+        for fld, bucket in (("problem", "problems"), ("detail", "details")):
+            v = _rec_text(r.get(fld))
+            if v and v not in e[bucket]:
+                e[bucket].append(v)
+    rows = [[t("pdf_th_priority"), t("pdf_setup_area"), t("pdf_setup_problem"), t("pdf_setup_rec"), t("pdf_setup_gain")]]
+    for (prio, cat, rec), e in merged.items():
+        rec_txt = esc(rec)
+        if e["details"]:
+            rec_txt += "<br/>" + _colored(f'<font size="6.6">{esc(" · ".join(e["details"]))}</font>', charts.INK_2)
+        tag = _colored(f"<b>{esc(t(_PRIO_SHORT[prio])).upper()}</b>", _PRIO_COL[prio]) if prio in _PRIO_TEXT else "—"
+        rows.append([tag, f"<b>{esc(cat)}</b>", esc(" · ".join(e["problems"])), rec_txt, esc(e["gain"])])
+    return [make_table(S, rows, [1.7, 2.5, 4.4, 6.9, 2.3], num_cols=(4,), pad=2.4)]
 
 
 def _section_setup(ctx: Ctx) -> list:
@@ -1071,6 +1087,10 @@ def _section_setup(ctx: Ctx) -> list:
     el.append(Paragraph(esc(t("pdf_setup_summary", n=len(recs), gain=gain or "—")) if gain
                         else esc(t("pdf_setup_summary_nogain", n=len(recs))), S["body"]))
     el.append(Spacer(1, 3))
+    if ctx.compact:
+        el += _setup_compact_table(ctx, recs)
+        el.append(Paragraph(esc(t("pdf_setup_disclaimer")), S["caption"]))
+        return el
     for prio in ("alta", "media", "baja"):
         group = [r for r in recs if r.get("priority") == prio]
         if not group:
@@ -1331,20 +1351,53 @@ def _section_traces(ctx: Ctx) -> list:
     if not comp:
         return []
     S, la, lb = ctx.S, ctx.la, ctx.lb
-    el: list = [CondPageBreak(7 * cm), Paragraph(esc(t("pdf_h_traces")), S["h1"])]
+    el: list = [CondPageBreak(5.5 * cm if ctx.compact else 7 * cm), Paragraph(esc(t("pdf_h_traces")), S["h1"])]
     n0 = len(el)
-    el += _chart_block(S, t("pdf_h_speed"), charts.chart_speed(comp.get("speed_comparison") or {}, la, lb),
+    c = ctx.compact
+    el += _chart_block(S, t("pdf_h_speed"),
+                       charts.chart_speed(comp.get("speed_comparison") or {}, la, lb, h=4.6 if c else 6.0),
                        "pdf_cap_speed")
-    el += _chart_block(S, t("pdf_h_delta"), charts.chart_delta(comp.get("time_delta_series") or {}, lb), "pdf_cap_delta")
+    el += _chart_block(S, t("pdf_h_delta"),
+                       charts.chart_delta(comp.get("time_delta_series") or {}, lb, h=3.4 if c else 4.4),
+                       "pdf_cap_delta")
     el += _chart_block(S, t("pdf_h_brake_throttle"),
                        charts.chart_brake_throttle(comp.get("brake_comparison") or {},
-                                                   comp.get("throttle_comparison") or {}, la, lb),
+                                                   comp.get("throttle_comparison") or {}, la, lb,
+                                                   h=6.0 if c else 8.6),
                        "pdf_cap_brake_throttle")
-    gg = charts.chart_gg(comp.get("gg_diagram"), la, lb)
-    el += _chart_block(S, t("pdf_h_gg"), gg, "pdf_cap_gg", max_w=9.5)
+    gg = charts.chart_gg(comp.get("gg_diagram"), la, lb, **({"w": 7.2, "h": 6.6} if c else {}))
+    el += _chart_block(S, t("pdf_h_gg"), gg, "pdf_cap_gg", max_w=7.5 if c else 9.5)
     if len(el) == n0:
         return []
     return el
+
+
+def _bottoming_summary(ctx: Ctx, susp: dict) -> list:
+    """Events per wheel and worst severity for each lap (instead of one row per event)."""
+    S, la, lb = ctx.S, ctx.la, ctx.lb
+    per: dict = {}
+    for idx, key in ((0, "bottoming_a"), (1, "bottoming_b")):
+        for ev in susp.get(key) or []:
+            pos = str(ev.get("corner") or "").strip() or "—"
+            e = per.setdefault(pos, [[0, None], [0, None]])
+            e[idx][0] += 1
+            sev = ev.get("severity")
+            if _fin(sev) and (e[idx][1] is None or sev > e[idx][1]):
+                e[idx][1] = sev
+    if not per:
+        return []
+    order = {"FL": 0, "FR": 1, "RL": 2, "RR": 3}
+    pos_key = {"FL": "pdf_pos_fl", "FR": "pdf_pos_fr", "RL": "pdf_pos_rl", "RR": "pdf_pos_rr"}
+    rows = [[t("pdf_th_position"), f"{esc(la)} – {esc(t('pdf_th_events'))}", f"{esc(la)} – {esc(t('pdf_th_sev_max'))}",
+             f"{esc(lb)} – {esc(t('pdf_th_events'))}", f"{esc(lb)} – {esc(t('pdf_th_sev_max'))}"]]
+    for pos in sorted(per, key=lambda p: order.get(p, 9)):
+        (na, sa), (nb, sb) = per[pos]
+        rows.append([esc(t(pos_key[pos])) if pos in pos_key else esc(pos), N(na, 0),
+                     N(sa * 100, 0, False, " %") if sa is not None else "—", N(nb, 0),
+                     N(sb * 100, 0, False, " %") if sb is not None else "—"])
+    return [Paragraph(esc(t("pdf_h_bottoming_cmp")), S["h2"]),
+            make_table(S, rows, [3.4, 3.4, 3.8, 3.4, 3.8], num_cols=(1, 2, 3, 4), pad=2.2),
+            Paragraph(esc(t("pdf_cap_bottoming_cmp")), S["caption"])]
 
 
 def _section_comp_tech(ctx: Ctx) -> list:
@@ -1354,10 +1407,12 @@ def _section_comp_tech(ctx: Ctx) -> list:
     S, la, lb = ctx.S, ctx.la, ctx.lb
     el: list = []
     missing = []
+    c = ctx.compact
+    brk = CondPageBreak(5.5 * cm if c else 7 * cm)
 
     tyre = comp.get("tyre_analysis") or {}
     if _avail(tyre):
-        el += [CondPageBreak(7 * cm),
+        el += [brk,
                Paragraph(esc(t("pdf_h_tyres_cmp", tmin=N(tyre.get("t_min", 80), 0), tmax=N(tyre.get("t_max", 100), 0))),
                          S["h1"])]
         ca = {c["corner"]: c for c in (tyre.get("lap_a") or {}).get("corners", [])}
@@ -1376,16 +1431,19 @@ def _section_comp_tech(ctx: Ctx) -> list:
                          N(b.get("surface_mean"), 1)])
         if len(rows) > 1:
             el.append(make_table(S, rows, [3.2, 4.2, 2.6, 4.2, 2.6], num_cols=(2, 4), pad=2.8))
-        ch = _img(charts.chart_tyre_bars(tyre, la, lb))
-        if ch:
-            el.append(Spacer(1, 4))
-            el += [ch, Paragraph(esc(t("pdf_cap_tyres")), S["caption"])]
+        if c:       # the table above already carries state + temperature per tyre: no repeated chart
+            el.append(Paragraph(esc(t("pdf_cap_tyres")), S["caption"]))
+        else:
+            ch = _img(charts.chart_tyre_bars(tyre, la, lb))
+            if ch:
+                el.append(Spacer(1, 4))
+                el += [ch, Paragraph(esc(t("pdf_cap_tyres")), S["caption"])]
     else:
         missing.append(t("pdf_mod_tyres"))
 
     brake = comp.get("brake_analysis") or {}
     if _avail(brake):
-        el += [CondPageBreak(7 * cm), Paragraph(esc(t("pdf_h_brakes")), S["h1"])]
+        el += [brk, Paragraph(esc(t("pdf_h_brakes")), S["h1"])]
         sa, sb = brake.get("score_a"), brake.get("score_b")
         ba, bb = brake.get("baseline_a"), brake.get("baseline_b")
         da = (1 - sa / ba) * 100 if _fin(sa) and _fin(ba) and ba else None
@@ -1398,6 +1456,10 @@ def _section_comp_tech(ctx: Ctx) -> list:
         ]))
         for key, lap in (("fade_zones_a", la), ("fade_zones_b", lb)):
             zones = brake.get(key) or []
+            n_zones = len(zones)
+            if c and n_zones > 5:     # the chart shades every zone; the table lists the 5 worst
+                zones = sorted(sorted(zones, key=lambda z: -(z.get("severity") or 0))[:5],
+                               key=lambda z: z.get("start") or 0)
             if zones:
                 el.append(Paragraph(esc(t("pdf_h_fade_zones", lap=lap)), S["h2"]))
                 rows = [[t("pdf_th_start_m"), t("pdf_th_end_m"), t("pdf_th_severity"), t("pdf_th_diagnosis")]]
@@ -1408,14 +1470,17 @@ def _section_comp_tech(ctx: Ctx) -> list:
                         d = t("pdf_sev_mild") if sev < 0.15 else t("pdf_sev_mod") if sev < 0.30 else t("pdf_sev_severe")
                     rows.append([N(z.get("start"), 0), N(z.get("end"), 0),
                                  N(sev * 100, 0, False, " %") if _fin(sev) else "—", esc(d)])
-                el.append(make_table(S, rows, [3.5, 3.5, 3.5, 5.0], num_cols=(0, 1, 2), pad=2.4))
-        el += _chart_block(S, t("pdf_h_brake_eff_chart"), charts.chart_brake_fade(brake, la, lb), "pdf_cap_brake_fade")
+                el.append(make_table(S, rows, [3.5, 3.5, 3.5, 5.0], num_cols=(0, 1, 2), pad=2.0 if c else 2.4))
+                if len(zones) < n_zones:
+                    el.append(Paragraph(esc(t("pdf_cap_zones_top", shown=len(zones), total=n_zones)), S["caption"]))
+        el += _chart_block(S, t("pdf_h_brake_eff_chart"),
+                           charts.chart_brake_fade(brake, la, lb, h=4.2 if c else 5.6), "pdf_cap_brake_fade")
     else:
         missing.append(t("pdf_mod_brakes"))
 
     inputs = comp.get("driver_inputs") or {}
     if _avail(inputs):
-        el += [CondPageBreak(7 * cm), Paragraph(esc(t("pdf_h_inputs")), S["h1"])]
+        el += [brk, Paragraph(esc(t("pdf_h_inputs")), S["h1"])]
         na, nb = inputs.get("nervousness_score_a"), inputs.get("nervousness_score_b")
 
         def nerv(v):
@@ -1434,13 +1499,14 @@ def _section_comp_tech(ctx: Ctx) -> list:
         rows.append((t("pdf_kv_overlap"), N(inputs.get("overlap_pct_a"), 1, False, " %"),
                      N(inputs.get("overlap_pct_b"), 1, False, " %")))
         el.append(_two_lap_table(S, la, lb, rows))
-        el += _chart_block(S, t("pdf_h_nerv_chart"), charts.chart_nervousness(inputs, la, lb), "pdf_cap_nerv")
+        el += _chart_block(S, t("pdf_h_nerv_chart"), charts.chart_nervousness(inputs, la, lb, h=3.8 if c else 5.2),
+                           "pdf_cap_nerv")
     else:
         missing.append(t("pdf_mod_inputs"))
 
     susp = comp.get("suspension") or {}
     if _avail(susp):
-        el += [CondPageBreak(7 * cm), Paragraph(esc(t("pdf_h_suspension")), S["h1"])]
+        el += [brk, Paragraph(esc(t("pdf_h_suspension")), S["h1"])]
         sa, sb = susp.get("summary_a") or {}, susp.get("summary_b") or {}
         rows = []
         for key, lbl, dec, unit in (("max_roll_f", "pdf_kv_roll_max_f", 1, " mm"), ("max_roll_r", "pdf_kv_roll_max_r", 1, " mm"),
@@ -1448,7 +1514,9 @@ def _section_comp_tech(ctx: Ctx) -> list:
                                     ("bottoming_events", "pdf_kv_bottoming_events", 0, "")):
             rows.append((t(lbl), N(sa.get(key), dec, False, unit), N(sb.get(key), dec, False, unit)))
         el.append(_two_lap_table(S, la, lb, rows))
-        for key, lap in (("bottoming_a", la), ("bottoming_b", lb)):
+        if c:
+            el += _bottoming_summary(ctx, susp)
+        for key, lap in (() if c else (("bottoming_a", la), ("bottoming_b", lb))):
             evs = susp.get(key) or []
             if evs:
                 el.append(Paragraph(esc(t("pdf_h_bottoming", lap=lap)), S["h2"]))
@@ -1457,13 +1525,14 @@ def _section_comp_tech(ctx: Ctx) -> list:
                     rows2.append([esc(ev.get("corner", "")), N(ev.get("start_m"), 0), N(ev.get("end_m"), 0),
                                   N(ev["severity"] * 100, 0, False, " %") if _fin(ev.get("severity")) else "—"])
                 el.append(make_table(S, rows2, [3.0, 3.5, 3.5, 3.5], num_cols=(1, 2, 3), pad=2.4))
-        el += _chart_block(S, t("pdf_h_susp_chart"), charts.chart_suspension(susp, la, lb), "pdf_cap_susp")
+        el += _chart_block(S, t("pdf_h_susp_chart"), charts.chart_suspension(susp, la, lb, h=6.2 if c else 8.6),
+                           "pdf_cap_susp")
     else:
         missing.append(t("pdf_mod_suspension"))
 
     slip = comp.get("slip_angle") or {}
     if _avail(slip):
-        el += [CondPageBreak(7 * cm), Paragraph(esc(t("pdf_h_slip")), S["h1"])]
+        el += [brk, Paragraph(esc(t("pdf_h_slip")), S["h1"])]
         sa, sb = slip.get("summary_a") or {}, slip.get("summary_b") or {}
         rows = []
         for key, lbl, dec, unit in (("beta_max", "pdf_kv_beta_max", 1, " °"), ("beta_p95", "pdf_kv_beta_p95", 1, " °"),
@@ -1473,7 +1542,8 @@ def _section_comp_tech(ctx: Ctx) -> list:
                                     ("oversteer_pct", "pdf_oversteer_pct", 1, "")):
             rows.append((t(lbl), N(sa.get(key), dec, False, unit), N(sb.get(key), dec, False, unit)))
         el.append(_two_lap_table(S, la, lb, rows))
-        el += _chart_block(S, t("pdf_h_slip_chart"), charts.chart_slip(slip, la, lb), "pdf_cap_slip")
+        el += _chart_block(S, t("pdf_h_slip_chart"), charts.chart_slip(slip, la, lb, h=6.2 if c else 8.6),
+                           "pdf_cap_slip")
     else:
         missing.append(t("pdf_mod_slip"))
 
@@ -1615,7 +1685,11 @@ def _build(ctx: Ctx, lang: str) -> bytes:
         body.append(Paragraph(esc(t("pdf_no_data")), S["body"]))
     # Quality notes may have grown while rendering sections; build the front page last.
     front = _header_block(ctx) + _exec_summary(ctx, laps, pace, corners_s, corners_c) + _quality_box(ctx)
-    story = front + [PageBreak()] + body + _section_quality(ctx)
+    if ctx.compact and len(ctx.notes) <= 3:
+        # everything is already on page 1: no closing page for the limitations, just the standing disclaimer
+        story = front + [Spacer(1, 4), Paragraph(esc(t("pdf_limits_general")), S["caption"]), PageBreak()] + body
+    else:
+        story = front + [PageBreak()] + body + _section_quality(ctx)
 
     m = ctx.meta
     header_left = _join([m["venue"], m["vehicle"]], " – ") or _title_for(ctx)

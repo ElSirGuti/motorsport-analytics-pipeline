@@ -1,6 +1,6 @@
 # Brake Fade — Braking Efficiency & Degradation
 
-🌐 [Ver en Español](./10_brake_fade.es.md)
+[Ver en Español](./10_brake_fade.es.md)
 
 **Module:** `src/analytics/brake_fade.py`  
 **Review date:** 2026-06-12
@@ -253,4 +253,4 @@ Linear map of lap distance (X axis) with markers for detected fade zones. The th
 
 ---
 
-*Also available in [Español 🇪🇸](./10_brake_fade.es.md)*
+*Also available in [Español](./10_brake_fade.es.md)*

@@ -121,7 +121,7 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
       {betaData.length > 0 && (
         <div className={styles.chartBox}>
           <div className={styles.chartTitle}>
-            <span className={styles.chartLabel}>{t.slipAngleChassis} (°)</span>
+            <span className={styles.chartLabel}>{t.slipAngleChassis}</span>
             <Legend items={[
               ...(hasA ? [{ label: labelA, color: COLOR_A }] : []),
               ...(hasB ? [{ label: labelB, color: COLOR_B }] : []),
@@ -136,7 +136,7 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
                 </linearGradient>
               </defs>
               <CartesianGrid {...GRID_PROPS} />
-              <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
+              <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} interval="preserveStartEnd" minTickGap={44} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit="°" width={40} domain={['auto', 'auto']} />
               <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
               <ReferenceLine y={0} stroke={REF_ZERO} />
@@ -165,7 +165,7 @@ const SlipAngleChart = ({ slip_angle, metadata }) => {
           <ResponsiveContainer width="100%" height={150}>
             <ComposedChart data={balanceData} margin={CHART_MARGIN}>
               <CartesianGrid {...GRID_PROPS} />
-              <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} />
+              <XAxis dataKey="distance" tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} tickFormatter={fmtDist} interval="preserveStartEnd" minTickGap={44} />
               <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} unit="°" width={40} domain={['auto', 'auto']} />
               <Tooltip content={tooltip} cursor={{ stroke: 'var(--line-strong)' }} />
               <ReferenceLine y={0} stroke={REF_ZERO} />

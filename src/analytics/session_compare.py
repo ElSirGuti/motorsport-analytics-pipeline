@@ -40,21 +40,34 @@ def _num(v: Any) -> Optional[float]:
     return f if f == f and abs(f) != float("inf") else None
 
 
+def _d(v: Any) -> dict:
+    return v if isinstance(v, dict) else {}
+
+
+def _dicts(v: Any) -> list[dict]:
+    return [x for x in v if isinstance(x, dict)] if isinstance(v, list) else []
+
+
+def _lap_no(raw: Any, fallback: int) -> int:
+    n = _num(raw)
+    return int(n) if n is not None else fallback
+
+
 def racing_laps(payload: dict) -> list[dict]:
-    """[{lap, time}] de vueltas validas (sin pit/outliers). Prefiere el stint."""
+    """[{lap, time}] de vueltas validas (sin pit/outliers). Prefiere el stint. Tolera payloads vacios o raros."""
     out: list[dict] = []
-    stint = (payload or {}).get("stint") or {}
-    for lap in stint.get("laps") or []:
+    stint = _d(_d(payload).get("stint"))
+    for lap in _dicts(stint.get("laps")):
         t = _num(lap.get("lap_time_s"))
         if t and t > 0 and not lap.get("is_pit_lap"):
-            out.append({"lap": int(lap.get("lap_number") or len(out) + 1), "time": t})
+            out.append({"lap": _lap_no(lap.get("lap_number"), len(out) + 1), "time": t})
     if out:
         return out
-    sess = (payload or {}).get("session") or {}
-    for lap in sess.get("laps") or []:
+    sess = _d(_d(payload).get("session"))
+    for lap in _dicts(sess.get("laps")):
         t = _num(lap.get("lap_time"))
         if t and t > 0 and not lap.get("is_pit_lap"):
-            out.append({"lap": int(lap.get("lap_number") or len(out) + 1), "time": t})
+            out.append({"lap": _lap_no(lap.get("lap_number"), len(out) + 1), "time": t})
     return out
 
 
@@ -102,14 +115,16 @@ def match_corners(ca: list[dict], cb: list[dict]) -> tuple[list[tuple[dict, dict
     return [(a, by_num[a.get("corner_number")]) for a in ca if a.get("corner_number") in by_num], "corner_number"
 
 
-def compare_corners(pa: dict, pb: dict) -> dict:
+def compare_corners(pa: dict, pb: dict, different_circuit: bool = False) -> dict:
     def corners(p):
-        cs = (((p or {}).get("stint") or {}).get("curvas_sesion") or {})
-        return [c for c in (cs.get("corners") or []) if _num(c.get("time_loss_seconds")) is not None]
+        cs = _d(_d(_d(p).get("stint")).get("curvas_sesion"))
+        return [c for c in _dicts(cs.get("corners")) if _num(c.get("time_loss_seconds")) is not None]
 
     ca, cb = corners(pa), corners(pb)
     if not ca or not cb:
         return {"available": False, "items": [], "matched_by": None}
+    if different_circuit:      # corner N of one track is not corner N of another: do not pair them
+        return {"available": False, "items": [], "matched_by": None, "reason": "different_circuit"}
     pairs, how = match_corners(ca, cb)
     items = []
     for a, b in pairs:
@@ -122,17 +137,17 @@ def compare_corners(pa: dict, pb: dict) -> dict:
             "loss_b": round(lb, 3),
             "delta": round(lb - la, 3),
         })
-    items.sort(key=lambda i: (i["corner"] is None, i["corner"]))
+    items.sort(key=lambda i: (i["corner"] is None, str(type(i["corner"]).__name__), i["corner"] if i["corner"] is not None else 0))
     return {"available": bool(items), "items": items, "matched_by": how}
 
 
 def _degradation(p: dict) -> Optional[float]:
-    d = ((p or {}).get("stint") or {}).get("degradacion") or {}
+    d = _d(_d(_d(p).get("stint")).get("degradacion"))
     return _num(d.get("tasa_s_per_lap")) if d.get("available") else None
 
 
 def _fuel(p: dict) -> Optional[float]:
-    f = ((p or {}).get("stint") or {}).get("combustible") or {}
+    f = _d(_d(_d(p).get("stint")).get("combustible"))
     return _num(f.get("consumo_medio_l")) if f.get("available") else None
 
 
@@ -176,7 +191,8 @@ def build_summary(lang: str, kpis: dict, corners: dict, deg: dict, fuel: dict) -
     return lines
 
 
-def compare_sessions(pa: dict, pb: dict, lang: str = "es") -> dict:
+def compare_sessions(pa: dict, pb: dict, lang: str = "es", venue_a: Optional[str] = None,
+                     venue_b: Optional[str] = None) -> dict:
     la, lb = racing_laps(pa), racing_laps(pb)
     sa, sb = pace_stats(la), pace_stats(lb)
     kpis = {
@@ -185,7 +201,8 @@ def compare_sessions(pa: dict, pb: dict, lang: str = "es") -> dict:
     }
     kpis["laps"] = {"a": sa["n"], "b": sb["n"], "delta": sb["n"] - sa["n"]}
 
-    corners = compare_corners(pa, pb)
+    different_circuit = norm_key(venue_a) != norm_key(venue_b) and bool(norm_key(venue_a) and norm_key(venue_b))
+    corners = compare_corners(pa, pb, different_circuit)
     da, db_ = _degradation(pa), _degradation(pb)
     fa, fb = _fuel(pa), _fuel(pb)
     deg = {"a": da, "b": db_, "delta": _delta(da, db_, 4)}

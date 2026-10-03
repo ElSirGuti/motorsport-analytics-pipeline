@@ -30,7 +30,7 @@ select.input { padding-right: 6px; }
 
 /* Table */
 .tableWrap { overflow-x: auto; }
-.dim { color: var(--ink-4); }
+.dim { color: var(--ink-3); }
 .tableWrap.dim { opacity: .6; color: inherit; }
 .cellTitle { max-width: 320px; }
 .title { display: block; font-weight: 600; color: var(--ink-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

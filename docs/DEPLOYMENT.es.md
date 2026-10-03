@@ -10,7 +10,7 @@ pensada para kind/minikube/Docker Desktop y un overlay de producción).
 > escribieron y validaron solo de forma estática (sintaxis YAML, esquemas de Kubernetes,
 > comprobaciones cruzadas, `bash -n`, parser de PowerShell) en una máquina **sin Docker ni
 > Kubernetes**. Todavía no se han construido ni aplicado. Consulta
-> [Qué se ha verificado](#qué-se-ha-verificado) para la lista exacta y los comandos que debes
+> [Verificación realizada y pendiente](#verificación-realizada-y-pendiente) para la lista exacta y los comandos que debes
 > ejecutar en tu equipo.
 
 ## Arquitectura
@@ -239,38 +239,122 @@ NO está listo para producción (hay que decirlo claro):
 - Las NetworkPolicies solo se aplican con CNIs que las soportan (no el CNI por defecto de kind).
 - Las imágenes no se escanean ni se firman; no hay registro ni pipeline de CI (decisión deliberada).
 
-## Qué se ha verificado
+<a id="que-se-ha-verificado"></a>
+## Verificación realizada y pendiente
 
-Hecho en una máquina sin Docker/Kubernetes:
+Sé preciso con lo que aquí significa "verificado": **todavía no se ha construido ni ejecutado nada
+dentro de Docker o Kubernetes** (la máquina de desarrollo no tiene ninguno). Lo hecho el 2026-10-03 es
+una verificación estática real con las herramientas oficiales standalone (descargadas de sus releases de
+GitHub a una carpeta temporal, sin daemon y sin instalar nada en el repositorio), más una simulación del
+arranque del backend y del proxy nginx en el equipo anfitrión.
 
-- `python scripts/validate_k8s.py`: el YAML parsea; selectores vs labels; puertos de Service vs
-  puertos del contenedor; referencias y claves de ConfigMap/Secret/PVC; probes; volúmenes; destinos de
-  HPA/PDB/NetworkPolicy; destinos de los parches de overlays; reglas de seguridad (también lo ejecuta
-  `tests/test_k8s_manifests.py`).
-- Validación estricta de esquemas con `kubernetes-validate` de los objetos de la base contra Kubernetes 1.30.
-- `yamllint` sobre `k8s/`, `docker-compose.yml` y el override de ejemplo; compose parseado con PyYAML.
-- Tests unitarios del límite de subida (`tests/test_upload_limit.py`), sobre el código real de `main.py`.
-- Chequeo de sintaxis de `kind-up.sh` (`bash -n`) y de los scripts PowerShell (parser).
+### Realizado
 
-NO verificado (requiere Docker/kind): construcción de imágenes, arranque de contenedores y
-healthchecks, renderizado de la plantilla nginx y el proxy, `docker compose config/up`, renderizado de
-Kustomize (`kubectl kustomize`), validación del lado servidor, probes y sistemas de archivos de solo
-lectura en ejecución, comportamiento de las NetworkPolicies, migraciones Alembic en el clúster
-(dependen de que la funcionalidad de BD esté integrada: `alembic.ini` y `psycopg` en
-`requirements.txt`), la URL de versión de ingress-nginx.
+| Herramienta (versión) | Qué se ejecutó | Resultado |
+|---|---|---|
+| `docker-compose` v2.29.7 | `config -q` (con `POSTGRES_PASSWORD` definida) y `--profile dev config -q` | válido; sin `POSTGRES_PASSWORD` falla con el mensaje previsto |
+| `kustomize` v5.8.2 | `build k8s/overlays/local` y `k8s/overlays/prod` | renderiza: 16 y 18 objetos |
+| `kubeconform` v0.8.0 | `-strict -kubernetes-version 1.30.0` sobre ambos overlays renderizados | 16/16 y 18/18 válidos, 0 errores, 0 omitidos |
+| `hadolint` v2.15.1 | `Dockerfile`, `frontend/Dockerfile` | limpio tras las correcciones de abajo, salvo DL3008 (paquetes apt sin versión fijada: deliberado, las versiones cambian con cada release de Debian) |
+| `shellcheck` v0.11.0 | `docker/entrypoint.sh`, `frontend/docker/15-upload-limit.envsh`, `scripts/kind-up.sh` | sin hallazgos |
+| `yamllint` 1.38 | `k8s/`, archivos compose | limpio |
+| `checkov` 3.3.22 | Dockerfiles; overlays de Kubernetes renderizados | Dockerfiles: 157 superados, 0 fallidos (tras añadir un `USER` explícito a la imagen del frontend). Kubernetes: 535 superados, 20 fallidos en local+prod, todos de estos tipos aceptados: imagen sin fijar por digest (CKV_K8S_43), pull policy distinta de `Always` (CKV_K8S_15; `Always` rompería las imágenes locales cargadas en kind), secretos como variables de entorno y no como archivos (CKV_K8S_35), UID menor de 10000 en frontend (101) y PostgreSQL (70), impuesto por las imágenes originales (CKV_K8S_40). Los puntos de seguridad que importan (`runAsNonRoot`, sistema raíz de solo lectura, capabilities eliminadas, sin escalada de privilegios, seccomp, límites de recursos) pasan |
+| `scripts/validate_k8s.py` | comprobaciones cruzadas | 0 errores, 1 aviso esperado (el Secret de prod se crea fuera del repo) |
+| `nginx` 1.27.5 (build para Windows) | `nginx -t` sobre la plantilla renderizada con tres combinaciones de `BACKEND_URL` / `MAX_UPLOAD_MB` / `PROXY_TIMEOUT`, con la misma lógica del entrypoint oficial (el script `.envsh` cargado con `sh`, luego sustitución solo de las variables definidas) | todas válidas; `client_max_body_size` es `4097m` (2048), `201m` (100) y `3m` (1); no queda ningún `${...}` |
+| `nginx` en vivo | La configuración renderizada sirviendo `frontend/dist` y haciendo proxy al backend real | `/healthz` 200, `/api/health` 200 (JSON, `no-store`), `/` y rutas SPA 200 con `no-cache`, CSP y `X-Frame-Options`, un asset inexistente 404 |
+| Simulación del arranque del backend | `docker/entrypoint.sh` con `RUN_MIGRATIONS=1`, `UVICORN_WORKERS=2` (y 1), `API_PORT=8260`, `DATABASE_URL` SQLite temporal, `STORAGE_DIR`/`TEMP_DIR` en carpeta temporal | `alembic upgrade head` crea `library_sessions` y `alembic_version` (revisión `0001`), uvicorn arranca los workers, `/api/health` devuelve 200; se apagó después |
+| `.dockerignore` | Simulado sobre los 405 archivos versionados | se incluyen `alembic/`, `alembic.ini`, `src/` (con `src/data/circuits.json`, `src/locales/` y `src/locales/extra/`), `main.py`, `docker/` y `requirements.txt`; no se incluyen tests, docs, k8s, fuentes del frontend, `data/`, CSV ni cachés. Ahora lo protege `tests/test_container_build_context.py` |
 
-Comandos a ejecutar cuando instales Docker Desktop / kind:
+Una salvedad sobre las filas de nginx: una barra final en `BACKEND_URL` (por ejemplo `http://backend:8000/`)
+sigue pasando `nginx -t`, pero como `proxy_pass` tendría entonces parte de URI, `/api/` se reescribiría y
+la API dejaría de funcionar. Usa `BACKEND_URL` sin ruta.
 
-```bash
-docker compose config -q                                   # sintaxis de compose y variables
-docker build -t motorsport-backend:dev . && docker build -t motorsport-frontend:dev ./frontend
-docker run --rm motorsport-backend:dev python -c "import xgboost, reportlab, matplotlib"
-docker compose up --build -d && curl -f http://localhost:8080/api/health
-kubectl kustomize k8s/overlays/local | kubectl apply --dry-run=server -f -   # tras kind-up
-make kind-up && kubectl -n motorsport get pods
-```
+### Hallado y corregido durante esta verificación
 
-Linters opcionales extra: `hadolint Dockerfile frontend/Dockerfile`, `kubeconform`, `trivy config .`.
+- **`alembic upgrade head` fallaba en el contenedor** con `ModuleNotFoundError: No module named 'src'`:
+  el script de consola `alembic` no pone el directorio de trabajo en `sys.path`, así que `alembic/env.py`
+  no podía importar `src.db`. Habría roto `RUN_MIGRATIONS=1` y el initContainer `migrate` de Kubernetes.
+  Corregido con `prepend_sys_path = .` en `alembic.ini` y `PYTHONPATH=/app` en la imagen del backend.
+- Imagen del backend: la etapa builder copiaba `requirements.txt` a una ruta relativa sin `WORKDIR`
+  (ahora `/build`); ambos HEALTHCHECK usan la forma exec (sin shell).
+- Imagen del frontend: `USER 101` explícito (el usuario de nginx-unprivileged, igual que el `runAsUser`
+  de Kubernetes).
+- `.dockerignore`: `__pycache__` y `*.pyc` solo se excluían en la raíz (el archivo está anclado); ahora se
+  excluyen a cualquier profundidad.
+- `.gitattributes`: se fuerza LF para `*.envsh` y `frontend/nginx.conf` (un checkout con CRLF en Windows
+  rompería el script y la plantilla dentro de la imagen Linux).
+- `Makefile`: `kind-up` ejecutaba `sh scripts/kind-up.sh`, pero el script es bash (`set -o pipefail`);
+  ahora ejecuta `bash`.
+
+### NO verificado (requiere Docker, kind o PostgreSQL)
+
+- Construir cualquiera de las imágenes (`pip install` del stack científico en Linux, `apt`, `npm ci`), el
+  tamaño de la imagen, y que el usuario no root (uid 10001) pueda ejecutar todo con el sistema raíz de
+  solo lectura y los montajes `tmpfs` / volumen (la simulación anterior corrió con tu usuario de Windows).
+- El propio entrypoint oficial de `nginxinc/nginx-unprivileged` (que cargue los `*.envsh` antes del paso
+  de plantillas y corra como uid 101 sobre un sistema de solo lectura): reproducido por razonamiento y
+  por la emulación anterior, no ejecutando la imagen.
+- Healthchecks de Docker, `depends_on: service_healthy`, las redes de compose (`backend-net` interna),
+  `docker compose up`.
+- PostgreSQL: el backend solo se ejercitó con SQLite. `psycopg` no está instalado en la máquina de
+  desarrollo y la migración `0001` inspecciona la conexión viva, por lo que tampoco funciona
+  `alembic upgrade head --sql` (SQL offline para revisión). La ruta Postgres (`postgresql+psycopg://`,
+  columna JSONB) no está verificada.
+- Todo lo que necesita un clúster: `kubectl apply`, dry run del lado servidor, admisión Pod Security
+  `restricted`, probes, enlace de PVC, el HPA (necesita metrics-server), `ingress-nginx` y la URL con
+  `INGRESS_NGINX_VERSION` fijada, y la aplicación de NetworkPolicy (el CNI por defecto de kind no la aplica).
+- Los flujos completos de `scripts/kind-up.ps1` y `scripts/kind-up.sh`.
+
+### Lo que solo puede hacer el propietario (Windows)
+
+1. Instalar Docker Desktop (backend WSL 2), kind y kubectl, por ejemplo desde PowerShell:
+
+   ```powershell
+   winget install -e --id Docker.DockerDesktop
+   winget install -e --id Kubernetes.kind
+   winget install -e --id Kubernetes.kubectl
+   # opcional, para usar el Makefile en Windows:
+   winget install -e --id ezwinports.make
+   ```
+
+   Reinicia o cierra sesión si Docker Desktop lo pide, arráncalo y comprueba `docker version`,
+   `kind version` y `kubectl version --client`.
+2. Desde la raíz del repositorio, en este orden (detente en el primer fallo y guarda la salida):
+
+   ```powershell
+   Copy-Item .env.example .env            # luego edita POSTGRES_PASSWORD
+   docker compose config -q               # sintaxis y variables
+   docker build -t motorsport-backend:dev .
+   docker build -t motorsport-frontend:dev ./frontend
+   docker run --rm motorsport-backend:dev python -c "import xgboost, reportlab, matplotlib, psycopg"
+   docker compose up --build -d
+   curl.exe -f http://localhost:8080/api/health
+   docker compose exec backend id         # espera uid=10001
+   docker compose exec backend sh -c "touch /app/x"   # espera: Read-only file system
+   docker compose logs backend            # busca "[entrypoint] alembic upgrade head"
+   docker compose down
+   ```
+
+3. Kubernetes con kind (los puertos 8088/8443 deben estar libres):
+
+   ```powershell
+   .\scripts\kind-up.ps1                   # o: make kind-up
+   kubectl -n motorsport get pods          # postgres, backend, frontend Ready
+   kubectl -n motorsport logs deploy/backend -c migrate
+   kubectl kustomize k8s/overlays/local | kubectl apply --dry-run=server -f -
+   curl.exe -f http://localhost:8088/api/health
+   make kind-down                          # o: kind delete cluster --name motorsport
+   ```
+
+4. Escaneo extra opcional: `trivy config .` y `trivy image motorsport-backend:dev`.
+5. Para repetir las comprobaciones estáticas de esta sección sin Docker, descarga los mismos binarios
+   standalone (`docker-compose`, `kustomize`, `kubeconform`, `hadolint`, `shellcheck` desde sus releases
+   de GitHub) y ejecuta `kustomize build k8s/overlays/local | kubeconform -strict -kubernetes-version 1.30.0 -summary`,
+   `docker-compose config -q`, `hadolint Dockerfile frontend/Dockerfile`, `python scripts/validate_k8s.py`
+   y `python -m pytest tests/test_container_build_context.py tests/test_k8s_manifests.py`.
+
+Si algún paso falla, envía el comando que falla y su salida: es justo la información que las
+comprobaciones estáticas anteriores no pudieron producir.
 
 ## Solución de problemas
 

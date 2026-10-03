@@ -1,6 +1,6 @@
 # Stint Analysis — Degradation, Fuel Strategy & Monte Carlo
 
-🌐 [Ver en Español](./08_stint_analysis.es.md)
+[Ver en Español](./08_stint_analysis.es.md)
 
 > Module: `src/analytics/stint.py`  
 > Documented version: main pipeline — branch `main`  
@@ -342,4 +342,4 @@ Horizontal timeline diagram that visually summarises the entire fuel strategy: t
 
 ---
 
-*Also available in [Español 🇪🇸](./08_stint_analysis.es.md)*
+*Also available in [Español](./08_stint_analysis.es.md)*

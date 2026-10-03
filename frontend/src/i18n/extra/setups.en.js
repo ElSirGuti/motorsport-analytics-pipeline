@@ -48,6 +48,17 @@ export default {
   acsRelated: 'Related parameters in your setup',
   acsConflictTitle: 'Conflicting suggestions',
   acsConflictBody: (labels) => `Different recommendations push ${labels} in opposite directions. Change one thing at a time and verify on track.`,
+  acsErrMap: {
+    'not a text file': 'This is not a text file.',
+    'file too large': 'The file is too large.',
+    'no setup parameters found': 'No setup parameters were found in the file.',
+    'only .ini / .sp files are accepted': 'Only .ini / .sp files are accepted.',
+    'setup has no parameters': 'The setup has no parameters.',
+    'setup not found': 'Setup not found.',
+    'setups folder not available': 'The setups folder is not available.',
+    'cannot read file': 'The file cannot be read.',
+    'cannot decode file': 'The file cannot be decoded.',
+  },
   acsLinkedCount: (n) => `${n} linked to your setup`,
   acsStepNote: 'Suggested values are one click from the current value; apply gradually.',
 };

@@ -27,6 +27,8 @@ function writeSaved(key, value) {
   }
 }
 
+const errText = (t, msg) => (t.acsErrMap && t.acsErrMap[msg]) || msg;
+
 const fmtDate = (mtime, lang) => (mtime ? new Date(mtime * 1000).toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 function DropZone({ onFile, busy, error }) {
@@ -182,7 +184,7 @@ export default function SetupSelector({ file, onChange }) {
     return (
       <div className={`${s.bar} ${s.barWarn}`} role="alert">
         <Icon name="alert" size={15} />
-        <span>{t.acsError}{err ? `: ${err}` : ''}</span>
+        <span>{t.acsError}{err ? `: ${errText(t, err)}` : ''}</span>
         <button type="button" className="ui-btn ui-btn--sm" onClick={() => setReload((n) => n + 1)}>{t.acsRetry}</button>
       </div>
     );
@@ -266,7 +268,7 @@ export default function SetupSelector({ file, onChange }) {
 
       {showUpload && (
         <>
-          <DropZone onFile={handleUpload} busy={busy} error={err} />
+          <DropZone onFile={handleUpload} busy={busy} error={err ? errText(t, err) : null} />
           <div className={s.actions}>
             {cand?.state !== 'none' && cand?.state !== 'no_access' && (
               <button type="button" className="ui-btn" onClick={() => setMode('default')}>{t.acsPickTitle}</button>
@@ -275,7 +277,7 @@ export default function SetupSelector({ file, onChange }) {
           </div>
         </>
       )}
-      {!showUpload && err && <div className={s.err} role="alert"><Icon name="alert" size={14} />{err}</div>}
+      {!showUpload && err && <div className={s.err} role="alert"><Icon name="alert" size={14} />{errText(t, err)}</div>}
     </Panel>
   );
 }

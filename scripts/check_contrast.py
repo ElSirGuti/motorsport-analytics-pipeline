@@ -10,9 +10,15 @@ pairs that actually appear in the UI:
 Also reports the minimum colour distance between lap series under simulated
 colour-vision deficiency (informative, not a failure condition).
 
-The light theme is new and must pass every pair. The dark theme predates this
-check and is reported as a baseline only (it does not fail the run) unless
-``--strict`` is given.
+Both themes must pass every pair; the dark theme is now held to the same bar
+(``--strict`` is kept as an accepted no-op flag for compatibility).
+
+``ink-4`` is the "muted / decorative" tier (disabled labels, step hints, dots,
+zero reference lines, hover borders). It is deliberately held to the 3:1
+non-text threshold and NOT to 4.5:1: lifting it to 4.5 would make it
+indistinguishable from ``ink-3`` and flatten the ink-1 > ink-2 > ink-3 > ink-4
+hierarchy of the graphite palette. Components must not use it for essential
+reading text (use ``ink-3``).
 
 Usage:  python scripts/check_contrast.py [--strict]   (exit 1 on failing pairs)
 """
@@ -191,7 +197,6 @@ def min_lap_distance(tokens: dict) -> dict[str, tuple[float, str, str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    strict = "--strict" in (argv if argv is not None else sys.argv[1:])
     themes = load_themes()
     failures = 0
     for theme, tokens in themes.items():
@@ -199,9 +204,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n=== {theme.upper()} ===")
         for fg, bg, ratio, minimum, what, ok in rows:
             if not ok:
-                if strict or theme == "light":
+                if True:
                     failures += 1
-                print(f"  {'FAIL' if strict or theme == 'light' else 'baseline'} {ratio:5.2f} < {minimum}  {fg} on {bg}  ({what})")
+                print(f"  FAIL {ratio:5.2f} < {minimum}  {fg} on {bg}  ({what})")
         worst: dict[str, tuple[float, float, str, str]] = {}
         for fg, bg, ratio, minimum, what, ok in rows:
             if what not in worst or ratio / minimum < worst[what][0]:

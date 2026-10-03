@@ -4,3 +4,5 @@
 *.yml text eol=lf
 Dockerfile text eol=lf
 Makefile text eol=lf
+*.envsh text eol=lf
+frontend/nginx.conf text eol=lf

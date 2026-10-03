@@ -90,6 +90,10 @@ def validate_database(data) -> list:
                 elif key in seen_aliases and seen_aliases[key] != cid:
                     errors.append(f"{tag}: alias {a!r} already used by {seen_aliases[key]}")
                 seen_aliases.setdefault(key, cid)
+        if "apex_tolerance_m" in c:
+            at = c["apex_tolerance_m"]
+            if not isinstance(at, (int, float)) or isinstance(at, bool) or not 30 <= at <= APEX_TOLERANCE_MAX_M:
+                errors.append(f"{tag}: apex_tolerance_m must be between 30 and {APEX_TOLERANCE_MAX_M:g}")
         corners = c.get("corners")
         if not isinstance(corners, list):
             errors.append(f"{tag}: corners must be a list")
@@ -224,7 +228,11 @@ def recognize(venue, measured_length_m: Optional[float] = None,
 
 # ── Corner naming ──────────────────────────────────────────────────────────────
 
-def apex_tolerance_m(lap_length_m: float) -> float:
+def apex_tolerance_m(lap_length_m: float, circuit: Optional[dict] = None) -> float:
+    """Matching tolerance (m); a circuit may tighten it with `apex_tolerance_m` (long circuits with close corners)."""
+    override = circuit.get("apex_tolerance_m") if isinstance(circuit, dict) else None
+    if isinstance(override, (int, float)) and not isinstance(override, bool) and 30 <= override <= APEX_TOLERANCE_MAX_M:
+        return float(override)
     return min(APEX_TOLERANCE_MAX_M, max(APEX_TOLERANCE_MIN_M, APEX_TOLERANCE_FRACTION * lap_length_m))
 
 
@@ -257,7 +265,7 @@ def assign_names(circuit: Optional[dict], apexes: Iterable, lap_length_m: Option
     if not corners or not pts:
         return {}
     length = float(lap_length_m) if lap_length_m and lap_length_m > 0 else float(circuit["length_m"])
-    tol = apex_tolerance_m(length)
+    tol = apex_tolerance_m(length, circuit)
 
     n, m = len(pts), len(corners)
     cost = [[None] * m for _ in range(n)]

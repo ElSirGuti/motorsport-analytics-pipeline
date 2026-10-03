@@ -48,6 +48,17 @@ export default {
   acsRelated: 'Parámetros relacionados en tu setup',
   acsConflictTitle: 'Sugerencias contradictorias',
   acsConflictBody: (labels) => `Distintas recomendaciones empujan ${labels} en sentidos opuestos. Cambia una sola cosa a la vez y verifica en pista.`,
-  acsLinkedCount: (n) => `${n} vinculadas a tu setup`,
+  acsErrMap: {
+    'not a text file': 'No es un archivo de texto.',
+    'file too large': 'El archivo es demasiado grande.',
+    'no setup parameters found': 'No se encontraron parámetros de setup en el archivo.',
+    'only .ini / .sp files are accepted': 'Solo se aceptan archivos .ini / .sp.',
+    'setup has no parameters': 'El setup no tiene parámetros.',
+    'setup not found': 'Setup no encontrado.',
+    'setups folder not available': 'La carpeta de setups no está disponible.',
+    'cannot read file': 'No se puede leer el archivo.',
+    'cannot decode file': 'No se puede decodificar el archivo.',
+  },
+  acsLinkedCount: (n) => `${n} ${n === 1 ? 'vinculada' : 'vinculadas'} a tu setup`,
   acsStepNote: 'Los valores sugeridos están a un clic del valor actual; aplícalos de forma gradual.',
 };

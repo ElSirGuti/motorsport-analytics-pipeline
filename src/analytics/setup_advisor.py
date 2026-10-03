@@ -8,7 +8,7 @@ dampers, aerodynamic balance, brake cooling, and per-corner focus areas.
 
 import logging
 import numpy as np
-from src.i18n import _ as t
+from src.i18n import _ as t, _l as _t_lang, LanguageContext
 
 logger = logging.getLogger(__name__)
 
@@ -80,12 +80,35 @@ def _rec(category: str, problem: str, root_cause: str, recommendation: str,
     return out
 
 
-def _tr(key: str, lang: str = "es", **kwargs) -> str:
-    return t(key, lang=lang, **kwargs)
+def _with_lang(fn):
+    """Make an explicit ``lang`` argument (keyword or positional) effective for everything the
+    function renders (nested helpers, pilot notes, axle/side names) by running it in that
+    language's i18n context. ``lang=None`` leaves the caller's context language untouched."""
+    import functools
+    import inspect
+
+    sig = inspect.signature(fn)
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        lang = sig.bind(*args, **kwargs).arguments.get("lang")
+        if lang:
+            with LanguageContext(lang):
+                return fn(*args, **kwargs)
+        return fn(*args, **kwargs)
+    return wrapper
+
+
+def _tr(key: str, lang: str | None = None, **kwargs) -> str:
+    """Translate ``key``. An explicit ``lang`` wins; ``None`` uses the i18n context language
+    (``set_language``), which is what the API sets per request."""
+    if lang:
+        return _t_lang(lang, key, **kwargs)
+    return t(key, **kwargs)
 
 
 def _rec_t(t_cat, t_prob, t_rc, t_rec, t_det, t_sol,
-           gain_lo, gain_hi, priority, lang="es", **t_fmt):
+           gain_lo, gain_hi, priority, lang=None, **t_fmt):
     return _rec(
         category=_tr(t_cat, lang=lang),
         problem=_tr(t_prob, lang=lang, **t_fmt),
@@ -102,9 +125,90 @@ def _ratio(a, b, default=1.0):
     return a / b if b and b > 0 else default
 
 
+# ── Shared tyre diagnosis (lap AND session mode use the same logic) ───────────
+
+# Inner-outer surface gradient thresholds (deg C). Lap mode compares two single laps, session
+# mode compares session means, which are smoother, hence the symmetric and slightly higher value.
+CAMBER_LAP_INNER_HOT, CAMBER_LAP_OUTER_HOT = 15.0, 12.0
+CAMBER_SESSION_THRESHOLD = 18.0
+# Centre hotter than the mean of the shoulders by more than this (deg C) = over-inflated.
+PRESSURE_CENTRE_HOT_C = 5.0
+
+
+def _camber_diagnosis(inner, outer, thr_inner_hot: float, thr_outer_hot: float):
+    """Camber advice from the inner-outer temperature gradient (same rule in both modes).
+
+    Negative camber loads the INNER shoulder, so inner hotter than outer means too much
+    negative camber -> REDUCE it ("excess"). Outer hotter than inner means too little negative
+    camber -> ADD it ("insufficient"). Returns (kind, gradient) with kind in
+    {"excess", "insufficient", None}; gradient = inner - outer.
+    """
+    if inner is None or outer is None:
+        return None, 0.0
+    grad = float(inner) - float(outer)
+    if grad > thr_inner_hot:
+        return "excess", grad
+    if grad < -thr_outer_hot:
+        return "insufficient", grad
+    return None, grad
+
+
+def _pressure_direction(status: str, inner=None, middle=None, outer=None):
+    """Pressure advice from the tyre temperature state (same rule in both modes).
+
+    No pressure channel is available here, so the decision rests on temperature only:
+    - overheated: heat from sidewall flex (pressure too LOW) is the default -> RAISE; if the
+      centre of the tread is clearly hotter than the shoulders the tyre is over-inflated
+      (contact patch concentrated in the centre) -> LOWER.
+    - cold: the tyre is not being worked/flexed enough -> LOWER (more deflection, more heat).
+    Returns ("raise" | "lower" | None, centre_hot: bool).
+    """
+    centre_hot = False
+    if None not in (inner, middle, outer):
+        centre_hot = float(middle) - (float(inner) + float(outer)) / 2.0 > PRESSURE_CENTRE_HOT_C
+    if status == "sobrecalentada":
+        return ("lower" if centre_hot else "raise"), centre_hot
+    if status == "fria":
+        return "lower", centre_hot
+    return None, centre_hot
+
+
+def _camber_rec(kind: str, problem_key: str, grad: float, gain_lo: float, gain_hi: float,
+                priority: str, lang, **fmt):
+    """One camber recommendation; kind='excess' (reduce) or 'insufficient' (add)."""
+    if kind == "excess":
+        keys = ("setup_rc_camber_excess_rc", "setup_rec_camber_excess",
+                "setup_detail_camber_excess", "setup_solves_camber_excess")
+    else:
+        keys = ("setup_rc_camber_insufficient_rc", "setup_rec_camber_insufficient",
+                "setup_detail_camber_insufficient", "setup_solves_camber_insufficient")
+    return _rec_t("setup_cat_camber", problem_key, *keys, gain_lo=gain_lo, gain_hi=gain_hi,
+                  priority=priority, lang=lang, grad=f"{abs(grad):.0f}", **fmt)
+
+
+def _pressure_rec(direction: str, centre_hot: bool, overheated: bool, problem_key: str,
+                  gain_lo: float, gain_hi: float, priority: str, lang,
+                  rc: str | None = None, det: str | None = None, **fmt):
+    """One pressure recommendation (raise or lower) with a matching root cause.
+
+    ``rc`` / ``det`` let a mode supply its own (direction-agnostic) root-cause / detail text;
+    an over-inflated centre always gets its specific root cause.
+    """
+    if direction == "raise":
+        rc_key, rec, sol = "setup_rc_overheat", "setup_rec_pressure_raise", "setup_solves_pressure"
+    elif overheated:      # lower because the centre runs hot (over-inflated)
+        rc_key, rec, sol = "setup_rc_overheat_centre", "setup_rec_pressure_lower", "setup_solves_pressure"
+        rc = None
+    else:                 # lower because the tyre is cold
+        rc_key, rec, sol = "setup_rc_cold", "setup_rec_pressure_lower", "setup_solves_cold"
+    det = det or ("setup_detail_overheat" if overheated else "setup_detail_cold")
+    return _rec_t("setup_cat_pressure", problem_key, rc or rc_key, rec, det, sol,
+                  gain_lo=gain_lo, gain_hi=gain_hi, priority=priority, lang=lang, **fmt)
+
+
 # ── Tyre analysis ─────────────────────────────────────────────────────────────
 
-def _analyse_tyres(result: dict, lang: str = "es") -> list:
+def _analyse_tyres(result: dict, lang: str | None = None) -> list:
     tyre = result.get("tyre_analysis") or {}
     if not tyre.get("available"):
         return []
@@ -124,45 +228,28 @@ def _analyse_tyres(result: dict, lang: str = "es") -> list:
             surf   = c.get("surface_mean") or 0
             axle   = _tr("axle_front") if pos in ("FL", "FR") else _tr("axle_rear")
 
-            # Camber diagnosis (inner vs outer gradient)
-            if inner is not None and outer is not None:
-                grad = inner - outer
-                if grad > 15:
-                    recs.append(_rec_t(
-                        "setup_cat_camber", "setup_problem_camber_inner_hot",
-                        "setup_rc_camber_insufficient", "setup_rec_camber_add",
-                        "setup_detail_camber", "setup_solves_camber",
-                        gain_lo=0.04, gain_hi=0.18, priority="alta", lang=lang,
-                        pos=pos, grad=f"{grad:.0f}", axle=axle.lower(),
-                        inner=f"{inner:.0f}", outer=f"{outer:.0f}"
-                    ))
-                elif grad < -12:
-                    recs.append(_rec_t(
-                        "setup_cat_camber", "setup_problem_camber_outer_hot",
-                        "setup_rc_camber_excess", "setup_rec_camber_reduce",
-                        "setup_detail_camber_outer", "setup_solves_camber_outer",
-                        gain_lo=0.03, gain_hi=0.15, priority="media", lang=lang,
-                        pos=pos, grad=f"{abs(grad):.0f}", axle=axle.lower(),
-                        inner=f"{inner:.0f}", outer=f"{outer:.0f}"
-                    ))
+            # Camber diagnosis (inner vs outer gradient) — shared with session mode
+            kind, grad = _camber_diagnosis(inner, outer, CAMBER_LAP_INNER_HOT, CAMBER_LAP_OUTER_HOT)
+            if kind:
+                hot_inner = kind == "excess"
+                recs.append(_camber_rec(
+                    kind, "setup_problem_camber_inner_hot" if hot_inner
+                    else "setup_problem_camber_outer_hot", grad,
+                    0.04 if hot_inner else 0.03, 0.18 if hot_inner else 0.15,
+                    "alta" if hot_inner else "media", lang,
+                    pos=pos, axle=axle.lower(),
+                    inner=f"{inner:.0f}", outer=f"{outer:.0f}"))
 
-            # Pressure diagnosis from overall status
-            if status == "sobrecalentada":
-                recs.append(_rec_t(
-                    "setup_cat_pressure", "setup_problem_overheat",
-                    "setup_rc_overheat", "setup_rec_pressure_raise",
-                    "setup_detail_overheat", "setup_solves_pressure",
-                    gain_lo=0.05, gain_hi=0.15, priority="alta", lang=lang,
-                    pos=pos, surf=f"{surf:.0f}"
-                ))
-            elif status == "fria":
-                recs.append(_rec_t(
-                    "setup_cat_pressure", "setup_problem_cold",
-                    "setup_rc_cold", "setup_rec_pressure_lower",
-                    "setup_detail_cold", "setup_solves_cold",
-                    gain_lo=0.03, gain_hi=0.12, priority="media", lang=lang,
-                    pos=pos, surf=f"{surf:.0f}"
-                ))
+            # Pressure diagnosis from overall status — shared with session mode
+            direction, centre_hot = _pressure_direction(status, inner, middle, outer)
+            if direction:
+                over = status == "sobrecalentada"
+                recs.append(_pressure_rec(
+                    direction, centre_hot, over,
+                    "setup_problem_overheat" if over else "setup_problem_cold",
+                    gain_lo=0.05 if over else 0.03, gain_hi=0.15 if over else 0.12,
+                    priority="alta" if over else "media", lang=lang,
+                    pos=pos, surf=f"{surf:.0f}"))
 
         # Front vs rear thermal balance
         front = [corners[p]["surface_mean"] for p in ("FL", "FR")
@@ -214,7 +301,7 @@ def _analyse_tyres(result: dict, lang: str = "es") -> list:
 
 # ── Brake analysis ────────────────────────────────────────────────────────────
 
-def _analyse_brakes(result: dict, lang: str = "es") -> list:
+def _analyse_brakes(result: dict, lang: str | None = None) -> list:
     brake = result.get("brake_analysis") or {}
     if not brake.get("available"):
         return []
@@ -261,7 +348,7 @@ def _analyse_brakes(result: dict, lang: str = "es") -> list:
 
 # ── Suspension analysis ───────────────────────────────────────────────────────
 
-def _analyse_suspension(result: dict, lang: str = "es") -> list:
+def _analyse_suspension(result: dict, lang: str | None = None) -> list:
     susp = result.get("suspension") or {}
     if not susp.get("available"):
         return []
@@ -326,7 +413,7 @@ def _analyse_suspension(result: dict, lang: str = "es") -> list:
 
 # ── Aerodynamic balance from slip angle ───────────────────────────────────────
 
-def _analyse_slip(result: dict, lang: str = "es") -> list:
+def _analyse_slip(result: dict, lang: str | None = None) -> list:
     slip = result.get("slip_angle") or {}
     if not slip.get("available"):
         return []
@@ -368,7 +455,7 @@ def _analyse_slip(result: dict, lang: str = "es") -> list:
 
 # ── Driver inputs / damper diagnosis ─────────────────────────────────────────
 
-def _analyse_inputs(result: dict, lang: str = "es") -> list:
+def _analyse_inputs(result: dict, lang: str | None = None) -> list:
     inp = result.get("driver_inputs") or {}
     if not inp.get("available"):
         return []
@@ -423,7 +510,7 @@ def _analyse_inputs(result: dict, lang: str = "es") -> list:
 
 # ── Corner-level analysis ─────────────────────────────────────────────────────
 
-def _analyse_corners(result: dict, lang: str = "es") -> list:
+def _analyse_corners(result: dict, lang: str | None = None) -> list:
     corners = result.get("corners") or []
     if not corners:
         return []
@@ -481,7 +568,7 @@ def _analyse_corners(result: dict, lang: str = "es") -> list:
 
 # ── Corner priority list ───────────────────────────────────────────────────────
 
-def _corner_priority(result: dict, top_n: int = 8, lang: str = "es") -> list:
+def _corner_priority(result: dict, top_n: int = 8, lang: str | None = None) -> list:
     corners = result.get("corners") or []
     ranked = sorted(
         [c for c in corners if abs(c.get("time_loss_seconds") or 0) >= 0.005],
@@ -534,7 +621,8 @@ _DOMAIN_LABELS = {
 }
 
 
-def analizar_setup(result: dict, lang: str = "es") -> dict:
+@_with_lang
+def analizar_setup(result: dict, lang: str | None = None) -> dict:
     """
     Analyse all available telemetry sections and return structured setup
     recommendations with priority ordering and estimated time gains.
@@ -608,7 +696,7 @@ def analizar_setup(result: dict, lang: str = "es") -> dict:
 
 # ── Session-level helpers ─────────────────────────────────────────────────────
 
-def _analyse_consistency_sesion(curvas_sesion: dict, lang: str = "es") -> list:
+def _analyse_consistency_sesion(curvas_sesion: dict, lang: str | None = None) -> list:
     """Flags corners where technique is inconsistent across laps (high σ)."""
     corners = curvas_sesion.get("corners") or []
     recs = []
@@ -633,16 +721,38 @@ def _analyse_consistency_sesion(curvas_sesion: dict, lang: str = "es") -> list:
     return recs
 
 
-def _analyse_degradacion_ritmo(degradacion: dict, lang: str = "es") -> list:
-    """Generates setup recommendations from degradation trend data."""
-    if not degradacion:
+# Pace-degradation thresholds, on the NET tyre rate (s/lap, fuel burn removed).
+# analizar_degradacion_stint clamps its reported slope to +/-0.15 s/lap, so the old "high" cut of
+# 0.20 on the gross slope could never fire. 0.12 s/lap is 80 % of that clamp: ~2.4 s lost over
+# a 20-lap stint, which is large for a tyre that is not being managed. The net rate can exceed
+# the clamp (slope - fuel_effect) when fuel burn masks part of the loss, hence the "alta" step at 0.15.
+DEG_HIGH_S_PER_LAP = 0.12
+DEG_HIGH_PRIORITY_S_PER_LAP = 0.15
+DEG_MODERATE_S_PER_LAP = 0.08
+DEG_HIGH_MIN_R2, DEG_MODERATE_MIN_R2 = 0.65, 0.45
+
+
+def _analyse_degradacion_ritmo(degradacion: dict, lang: str | None = None,
+                               wear_active: bool | None = None) -> list:
+    """Generates setup recommendations from degradation trend data.
+
+    Uses the net tyre degradation (``degradation_s_per_lap``, fuel effect removed; falls back to
+    ``tasa_s_per_lap`` for older results). Nothing is recommended when the trend is low-confidence
+    or built on fewer than MIN_LAPS_FOR_TREND laps, nor when the sim does not model tyre wear
+    (``wear_active=False``): the pace slope is then fuel/track/driver, not tyres.
+    """
+    from src.analytics.stint import MIN_LAPS_FOR_TREND
+    if not degradacion or wear_active is False:
+        return []
+    if degradacion.get("low_confidence") or             (degradacion.get("n_laps_used") or 0) < MIN_LAPS_FOR_TREND:
         return []
     recs = []
-    tasa = degradacion.get("tasa_s_per_lap") or 0.0
+    net = degradacion.get("degradation_s_per_lap")
+    tasa = float(net if net is not None else (degradacion.get("tasa_s_per_lap") or 0.0))
     r2   = degradacion.get("r_squared")      or 0.0
 
-    if tasa > 0.20 and r2 > 0.65:
-        priority = "alta" if tasa > 0.35 else "media"
+    if tasa > DEG_HIGH_S_PER_LAP and r2 > DEG_HIGH_MIN_R2:
+        priority = "alta" if tasa >= DEG_HIGH_PRIORITY_S_PER_LAP else "media"
         gain_lo_v = round(tasa * 0.25, 3)
         gain_hi_v = round(tasa * 0.55, 3)
         recs.append(_rec_t(
@@ -653,7 +763,7 @@ def _analyse_degradacion_ritmo(degradacion: dict, lang: str = "es") -> list:
             tasa=f"{tasa:+.4f}", r2=f"{r2:.2f}",
             gain_lo_str=f"{tasa*0.25:.2f}", gain_hi_str=f"{tasa*0.55:.2f}"
         ))
-    elif 0.08 < tasa <= 0.20 and r2 > 0.45:
+    elif DEG_MODERATE_S_PER_LAP < tasa <= DEG_HIGH_S_PER_LAP and r2 > DEG_MODERATE_MIN_R2:
         recs.append(_rec_t(
             "setup_cat_management", "setup_problem_degradation_moderate",
             "setup_rc_degradation_moderate", "setup_rec_degradation_moderate",
@@ -667,7 +777,7 @@ def _analyse_degradacion_ritmo(degradacion: dict, lang: str = "es") -> list:
 
 # ── Session-level entry point ─────────────────────────────────────────────────
 
-def _analyse_tyres_sesion(tel: dict, lang: str = "es") -> list:
+def _analyse_tyres_sesion(tel: dict, lang: str | None = None) -> list:
     """Tyre temperature analysis from session telemetry aggregates."""
     tyre = tel.get("tyre") or {}
     if not tyre:
@@ -684,50 +794,34 @@ def _analyse_tyres_sesion(tel: dict, lang: str = "es") -> list:
         axle   = _tr("axle_front") if pos in ("FL", "FR") else _tr("axle_rear")
         lado   = _tr("side_left_cap") if pos in ("FL", "RL") else _tr("side_right_cap")
 
-        if mean_t > T_MAX + 20:
-            recs.append(_rec_t(
-                "setup_cat_temp", "setup_problem_temp_overheat",
-                "setup_rc_temp_overheat", "setup_rec_temp_overheat",
-                "setup_detail_temp_overheat", "setup_solves_temp_overheat",
-                gain_lo=0.05, gain_hi=0.18, priority="alta", lang=lang,
-                pos=pos, axle=axle, side=lado, t=f"{mean_t:.0f}",
+        status = "sobrecalentada" if mean_t > T_MAX + 20 else "fria" if mean_t < T_MIN - 15 else None
+        direction, centre_hot = _pressure_direction(status)   # no tread-zone split in session means
+        if direction:
+            over = status == "sobrecalentada"
+            recs.append(_pressure_rec(
+                direction, centre_hot, over,
+                "setup_problem_temp_overheat" if over else "setup_problem_temp_cold",
+                rc="setup_rc_temp_overheat" if over else "setup_rc_temp_cold",
+                det="setup_detail_temp_overheat" if over else "setup_detail_temp_cold",
+                gain_lo=0.05 if over else 0.04, gain_hi=0.18 if over else 0.12,
+                priority="alta" if over else "media", lang=lang,
+                pos=pos, axle=axle, side=lado, surf=f"{mean_t:.0f}", t=f"{mean_t:.0f}",
                 t_min=f"{T_MIN:.0f}", t_max=f"{T_MAX:.0f}",
-                delta=f"{mean_t - T_MAX:.0f}",
-                max_t=f"{t.get('max_temp', 0):.1f}"
-            ))
-        elif mean_t < T_MIN - 15:
-            recs.append(_rec_t(
-                "setup_cat_temp", "setup_problem_temp_cold",
-                "setup_rc_temp_cold", "setup_rec_temp_cold",
-                "setup_detail_temp_cold", "setup_solves_temp_cold",
-                gain_lo=0.04, gain_hi=0.12, priority="media", lang=lang,
-                pos=pos, axle=axle, side=lado, t=f"{mean_t:.0f}",
-                t_min=f"{T_MIN:.0f}", t_max=f"{T_MAX:.0f}"
-            ))
+                delta=f"{mean_t - T_MAX:.0f}", max_t=f"{t.get('max_temp', 0):.1f}"))
 
-        # Camber diagnosis from inner/outer gradient
-        camber_grad = t.get("camber_gradient")
-        if camber_grad is not None and abs(camber_grad) > 18:
-            if camber_grad > 0:
-                recs.append(_rec_t(
-                    "setup_cat_camber_specific", "setup_problem_camber_excess",
-                    "setup_rc_camber_excess_rc", "setup_rec_camber_excess",
-                    "setup_detail_camber_excess", "setup_solves_camber_excess",
-                    gain_lo=0.03, gain_hi=0.10, priority="media", lang=lang,
-                    pos=pos, grad=f"{camber_grad:.0f}",
-                    inner=f"{t.get('inner_mean', 0):.1f}",
-                    outer=f"{t.get('outer_mean', 0):.1f}"
-                ))
-            else:
-                recs.append(_rec_t(
-                    "setup_cat_camber_specific", "setup_problem_camber_insufficient",
-                    "setup_rc_camber_insufficient_rc", "setup_rec_camber_insufficient",
-                    "setup_detail_camber_insufficient", "setup_solves_camber_insufficient",
-                    gain_lo=0.03, gain_hi=0.10, priority="media", lang=lang,
-                    pos=pos, grad=f"{abs(camber_grad):.0f}",
-                    inner=f"{t.get('inner_mean', 0):.1f}",
-                    outer=f"{t.get('outer_mean', 0):.1f}"
-                ))
+        # Camber diagnosis from inner/outer gradient — shared with lap mode
+        cg = t.get("camber_gradient")   # mean of the per-lap (inner - outer) gradients
+        if cg is None:
+            kind, grad = _camber_diagnosis(t.get("inner_mean"), t.get("outer_mean"),
+                                           CAMBER_SESSION_THRESHOLD, CAMBER_SESSION_THRESHOLD)
+        else:
+            kind, grad = _camber_diagnosis(cg, 0.0, CAMBER_SESSION_THRESHOLD, CAMBER_SESSION_THRESHOLD)
+        if kind:
+            recs.append(_camber_rec(
+                kind, "setup_problem_camber_excess" if kind == "excess"
+                else "setup_problem_camber_insufficient", grad, 0.03, 0.10, "media", lang,
+                pos=pos, inner=f"{t.get('inner_mean', 0):.1f}",
+                outer=f"{t.get('outer_mean', 0):.1f}"))
 
         # Brake temperature (if available)
         btemp = t.get("brake_temp_mean")
@@ -776,7 +870,7 @@ def _analyse_tyres_sesion(tel: dict, lang: str = "es") -> list:
     return recs
 
 
-def _analyse_frenos_sesion(tel: dict, lang: str = "es") -> list:
+def _analyse_frenos_sesion(tel: dict, lang: str | None = None) -> list:
     """Brake fade analysis from session telemetry aggregates."""
     brake = tel.get("brake") or {}
     if not brake:
@@ -812,7 +906,7 @@ def _analyse_frenos_sesion(tel: dict, lang: str = "es") -> list:
     return recs
 
 
-def _analyse_suspension_sesion(tel: dict, lang: str = "es") -> list:
+def _analyse_suspension_sesion(tel: dict, lang: str | None = None) -> list:
     """Suspension setup recommendations from session aggregates."""
     susp = tel.get("suspension") or {}
     if not susp:
@@ -871,7 +965,7 @@ def _analyse_suspension_sesion(tel: dict, lang: str = "es") -> list:
     return recs
 
 
-def _analyse_inputs_sesion(tel: dict, lang: str = "es") -> list:
+def _analyse_inputs_sesion(tel: dict, lang: str | None = None) -> list:
     """Driver inputs / damper diagnosis from session aggregates."""
     inp = tel.get("inputs") or {}
     if not inp:
@@ -921,7 +1015,7 @@ def _analyse_inputs_sesion(tel: dict, lang: str = "es") -> list:
     return recs
 
 
-def _analyse_balance_sesion(tel: dict, lang: str = "es") -> list:
+def _analyse_balance_sesion(tel: dict, lang: str | None = None) -> list:
     """Aero/mechanical balance from session LateralG + YawRate aggregates."""
     bal = tel.get("balance") or {}
     if not bal:
@@ -960,9 +1054,11 @@ def _analyse_balance_sesion(tel: dict, lang: str = "es") -> list:
     return recs
 
 
+@_with_lang
 def analizar_setup_sesion(curvas_sesion: dict, degradacion: dict,
                            telemetria_sesion: dict | None = None,
-                           lang: str = "es") -> dict:
+                           lang: str | None = None,
+                           wear_active: bool | None = None) -> dict:
     """
     Session-level setup advisor.
 
@@ -975,6 +1071,9 @@ def analizar_setup_sesion(curvas_sesion: dict, degradacion: dict,
         degradacion:       Output of analizar_degradacion_stint().
         telemetria_sesion: Output of analizar_telemetria_sesion() — optional but
                            greatly enriches the recommendations.
+        lang:              Output language; ``None`` uses the i18n context language.
+        wear_active:       False when the sim does not model tyre wear (the degradation rule
+                           is then skipped); None/True = unknown/active.
 
     Returns:
         Same structure as analizar_setup() — compatible with SetupRecommendations.
@@ -988,7 +1087,7 @@ def analizar_setup_sesion(curvas_sesion: dict, degradacion: dict,
     recs: list = []
     recs += _analyse_corners(pseudo_result, lang=lang)
     recs += _analyse_consistency_sesion(curvas_sesion, lang=lang)
-    recs += _analyse_degradacion_ritmo(degradacion or {}, lang=lang)
+    recs += _analyse_degradacion_ritmo(degradacion or {}, lang=lang, wear_active=wear_active)
     recs += _analyse_tyres_sesion(tel, lang=lang)
     recs += _analyse_frenos_sesion(tel, lang=lang)
     recs += _analyse_suspension_sesion(tel, lang=lang)
