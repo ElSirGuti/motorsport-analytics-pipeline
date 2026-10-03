@@ -1,0 +1,4 @@
+{
+  "stint_proj_short_sample": "Only {n} valid laps (confidence stays low until {min}): the projection is conservative and cannot go meaningfully below the best real lap or the recent pace; the band widens with the horizon.",
+  "sess_curve_format_named": "Corner {num} ({name}): {parts}"
+}

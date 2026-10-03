@@ -8,17 +8,38 @@
 
 | Document | Audience |
 |----------|---------|
-| [User Guide](./USER_GUIDE.md) | Pilots, engineers: how to use the app, export telemetry, read each panel, data-quality notes, troubleshooting |
-| [Quick Reference](./QUICK_REFERENCE.md) | Interpretation cheat sheet for track-side use |
+| [User Guide](./USER_GUIDE.md) | Pilots, engineers: how to use the app, session features (data quality, optimal lap, Assetto Corsa setups, library, PDF report, circuits, theme), export telemetry, read each panel, troubleshooting |
+| [Quick Reference](./QUICK_REFERENCE.md) | Interpretation cheat sheet for track-side use: optimal lap, data-quality score, setup link, formats, limits and status codes |
 
 ## Project Documentation
 
 | Document | Content |
 |----------|---------|
-| [Root README](../README.md) | Quick start, installation, API endpoints, configuration, tests, architecture |
-| [Frontend README](../frontend/README.md) | UI structure, design system, API client, build and lint |
-| [CONTRIBUTING](../CONTRIBUTING.md) | How to contribute |
+| [Root README](../README.md) | Quick start, installation, features, formats, API table, configuration, tests, architecture |
+| [Deployment](./DEPLOYMENT.md) | Local, Docker Compose and Kubernetes (Kustomize); environment contract, upload-once cache, what has and has not been verified |
+| [Tests](../tests/README.md) | Test suites, real anonymised fixtures, end-to-end and visual tests |
+| [Frontend README](../frontend/README.md) | UI structure, design system and themes, API client, i18n modules, build and lint |
+| [CONTRIBUTING](../CONTRIBUTING.md) | How to contribute: workflow, translations by module, tests, no personal data |
 | [LICENSE](../LICENSE) | MIT License |
+
+---
+
+## Feature Documentation
+
+These features have no separate scientific document; they are described in the root README (design, limits, API) and in the User Guide (how to use them).
+
+| Feature | Code | Documentation |
+|---------|------|---------------|
+| Optimal lap by microsectors | `src/analytics/optimal_lap.py`, `src/api/optimal_lap.py` | [README](../README.md#optimal-lap-by-microsectors), [User Guide](./USER_GUIDE.md#optimal-lap-by-microsectors) |
+| Assetto Corsa setups | `src/analytics/ac_setups.py`, `src/api/setups.py` | [README](../README.md#assetto-corsa-setup-integration), [User Guide](./USER_GUIDE.md#assetto-corsa-setups) |
+| Session library and comparison | `src/api/library.py`, `src/db/`, `src/analytics/session_compare.py`, `alembic/` | [README](../README.md#session-library-and-session-comparison), [User Guide](./USER_GUIDE.md#session-library-and-comparing-sessions) |
+| Data quality | `src/analytics/data_quality.py` | [README](../README.md#data-quality-panel), [User Guide](./USER_GUIDE.md#data-quality-panel) |
+| PDF report | `src/io/pdf_exporter.py`, `src/io/pdf_charts.py` | [README](../README.md#pdf-report), [User Guide](./USER_GUIDE.md#pdf-report) |
+| `.ibt` and `.ld` formats (experimental) | `src/io/ibt_loader.py`, `ld_loader.py`, `native_common.py` | [README](../README.md#telemetry-formats), [User Guide](./USER_GUIDE.md#supported-formats) |
+| Known circuits and corner names | `src/data/circuits.json`, `src/analytics/circuits.py` | [README](../README.md#known-circuits-and-corner-names), [User Guide](./USER_GUIDE.md#known-circuits-and-corner-names) |
+| Themes | `frontend/src/styles/theme-light.css`, `scripts/check_contrast.py` | [README](../README.md#themes), [Frontend README](../frontend/README.md#design-system-and-themes) |
+| Upload once and cache | `src/api/files.py`, `src/io/session_cache.py`, `scripts/profile_pipeline.py` | [README](../README.md#performance-and-upload-once), [Deployment](./DEPLOYMENT.md#upload-once-file_id-and-the-analysis-cache) |
+| Realistic projections | `src/analytics/stint.py`, `tyre_degradation.py` | [README](../README.md#realistic-projections), modules [08](./08_stint_analysis.md) and [15](./15_tyre_degradation.md) |
 
 ---
 
@@ -72,7 +93,7 @@ python scripts/docs/gen_suspension.py
 python scripts/docs/gen_slip_angle.py
 ```
 
-Each script writes output to `docs/images/{module}/`. Modules 14-17 (thermal management, tyre degradation, racing line, setup advisor) have no image generator.
+Each script writes output to `docs/images/{module}/`. Modules 14-17 (thermal management, tyre degradation, racing line, setup advisor) have no image generator. The scientific documents 01-17 describe the algorithms as originally written; where the current behaviour differs (for example the more conservative stint projections), the root README is authoritative.
 
 Run the scripts from the project root with the dependencies from `requirements.txt` installed.
 

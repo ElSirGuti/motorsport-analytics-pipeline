@@ -426,6 +426,12 @@ def enrich_stint(result: dict, venue, lap_length_m: Optional[float]) -> dict:
         annotate_corners(info, cs["corners"], "apex_distance", lap_length_m)
         by_number = {c.get("corner_number"): c.get("corner_name") for c in cs["corners"]
                      if isinstance(c, dict) and c.get("corner_name")}
+        # re-title descriptions: "Corner 4 (Tamburello): late braking ..."
+        from src.analytics.session_corner_analysis import describe_with_name
+        for c in cs["corners"]:
+            if isinstance(c, dict) and c.get("corner_name") and c.get("description_parts") is not None                     and c.get("corner_number") is not None:
+                c["description"] = describe_with_name(
+                    c["corner_number"], c["description_parts"], c["corner_name"])
     rl = result.get("racing_line_rl")
     if isinstance(rl, dict) and isinstance(rl.get("corners"), list):
         for c in rl["corners"]:

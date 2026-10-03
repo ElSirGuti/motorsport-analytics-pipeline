@@ -1,0 +1,4 @@
+{
+  "stint_proj_short_sample": "Solo {n} vueltas válidas (la confianza sigue baja hasta {min}): la proyección es conservadora y no puede bajar de forma relevante de la mejor vuelta real ni del ritmo reciente; la banda se ensancha con el horizonte.",
+  "sess_curve_format_named": "Curva {num} ({name}): {parts}"
+}

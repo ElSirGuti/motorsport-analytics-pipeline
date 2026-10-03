@@ -457,3 +457,18 @@ def test_real_native_session_analyzes_without_nan(client, path):
     # this short outing may hold no complete lap: only require a clean, finite response
     assert isinstance(j["laps"], list)
     assert all(math.isfinite(l["lap_time"]) for l in j["laps"] if l["lap_time"] is not None)
+
+
+# ── short-sample projection realism (real Imola, 5 laps) ─────────────────────
+def test_imola5_projection_floor_and_widening(stint_inputs):
+    """5 real laps (< 8): fuel effect alone must not push p50 under the best real lap
+    (floor best-0.15 s), confidence stays low, and the band widens with the horizon."""
+    _, df_laps = stint_inputs["imola_5laps"]
+    _, deg, mc = _mc(df_laps, 5)
+    best = float(df_laps["lap_time_s"].min())
+    p10, p50, p90 = (np.array(mc[q]) for q in ("p10", "p50", "p90"))
+    assert mc["confidence"] == "low" and deg["confidence"] == "low" and mc["low_confidence"]
+    assert p50.min() >= best - 0.15 - 1e-6
+    assert (p90[-1] - p10[-1]) > (p90[0] - p10[0]) + 0.5
+    sigma = mc["sigma_real_s"]
+    assert (p90 - p50)[-1] >= 0.9 * 1.2816 * sigma * math.sqrt(1 + 12 / 4) - 0.15

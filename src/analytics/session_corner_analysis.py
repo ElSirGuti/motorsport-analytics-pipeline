@@ -29,8 +29,19 @@ def _plausible(values: list, limit: float) -> list:
 
 def _describe_corner(num: int, loss: float, brake,
                      apex, throttle, std: float,
-                     lang: str = "es") -> str:
-    """brake/apex/throttle may be None when not measurable: they are then omitted."""
+                     lang: str = "es", name: str | None = None) -> str:
+    """brake/apex/throttle may be None when not measurable: they are then omitted.
+    `name` (e.g. "Tamburello") is used when the circuit is known."""
+    return describe_with_name(num, _corner_parts(brake, apex, throttle, std, lang), name, lang)
+
+
+def describe_with_name(num: int, parts: str, name: str | None, lang: str = "es") -> str:
+    if name:
+        return t("sess_curve_format_named", lang=lang, num=num, name=name, parts=parts)
+    return t("sess_curve_format", lang=lang, num=num, parts=parts)
+
+
+def _corner_parts(brake, apex, throttle, std: float, lang: str = "es") -> str:
     parts = []
     if brake is not None and brake > 8:
         parts.append(t("sess_brake_late", lang=lang, brake=f"{brake:.0f}"))
@@ -46,7 +57,7 @@ def _describe_corner(num: int, loss: float, brake,
         parts.append(t("sess_inconsistent", lang=lang, std=f"{std:.3f}"))
     if not parts:
         parts.append(t("sess_similar", lang=lang))
-    return t("sess_curve_format", lang=lang, num=num, parts=", ".join(parts))
+    return ", ".join(parts)
 
 
 def get_corner_observations(dfs: list, df_laps) -> dict:
@@ -200,6 +211,8 @@ def analizar_curvas_sesion(
             "description": _describe_corner(
                 corner_num, mean_loss, mean_brake, mean_apex, mean_throttle, std_loss, lang=lang
             ),
+            # text without the "Corner N" prefix, so the circuit module can re-title it
+            "description_parts": _corner_parts(mean_brake, mean_apex, mean_throttle, std_loss, lang),
         })
 
     total_loss = sum(max(0.0, c["time_loss_seconds"]) for c in corners_agg)

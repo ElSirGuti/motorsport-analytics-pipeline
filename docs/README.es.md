@@ -8,8 +8,8 @@
 
 | Documento | Para quién |
 |-----------|-----------|
-| [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app: cómo usarla, exportar telemetría, interpretar cada panel, notas de calidad de datos y solución de problemas. |
-| [Referencia Rápida](./REFERENCIA_RAPIDA.es.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes y flujo de análisis. |
+| [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app: cómo usarla, funciones de sesión (calidad de datos, vuelta óptima, setups de Assetto Corsa, biblioteca, informe PDF, circuitos, tema), exportar telemetría, interpretar cada panel y solución de problemas. |
+| [Referencia Rápida](./REFERENCIA_RAPIDA.es.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes, vuelta óptima, puntuación de calidad de datos, enlace con el setup, formatos, límites y códigos de estado. |
 
 ---
 
@@ -17,10 +17,31 @@
 
 | Documento | Contenido |
 |-----------|-----------|
-| [README principal](../README.es.md) | Inicio rápido, instalación, endpoints de la API, configuración, tests, arquitectura |
-| [README del frontend](../frontend/README.md) | Estructura de la UI, sistema de diseño, cliente de API, build y lint |
-| [CONTRIBUTING](../CONTRIBUTING.md) | Cómo contribuir (en inglés) |
+| [README principal](../README.es.md) | Inicio rápido, instalación, funciones, formatos, tabla de la API, configuración, tests, arquitectura |
+| [Despliegue](./DEPLOYMENT.es.md) | Local, Docker Compose y Kubernetes (Kustomize); contrato de variables, caché de subida única, qué se verificó y qué no |
+| [Tests](../tests/README.md) | Suites de tests, fixtures reales anonimizados, tests end-to-end y visuales (en inglés) |
+| [README del frontend](../frontend/README.md) | Estructura de la UI, sistema de diseño y temas, cliente de API, módulos i18n, build y lint (en inglés, con resumen en español) |
+| [CONTRIBUTING](../CONTRIBUTING.md) | Cómo contribuir: flujo, traducciones por módulo, tests, sin datos personales (en inglés, con resumen en español) |
 | [LICENSE](../LICENSE) | Licencia MIT |
+
+---
+
+## Documentación de Funciones
+
+Estas funciones no tienen un documento científico aparte; se describen en el README principal (diseño, límites, API) y en la Guía de Usuario (cómo usarlas).
+
+| Función | Código | Documentación |
+|---------|--------|---------------|
+| Vuelta óptima por microsectores | `src/analytics/optimal_lap.py`, `src/api/optimal_lap.py` | [README](../README.es.md#vuelta-óptima-por-microsectores), [Guía](./GUIA_USUARIO.es.md#vuelta-óptima-por-microsectores) |
+| Setups de Assetto Corsa | `src/analytics/ac_setups.py`, `src/api/setups.py` | [README](../README.es.md#integración-de-setups-de-assetto-corsa), [Guía](./GUIA_USUARIO.es.md#setups-de-assetto-corsa) |
+| Biblioteca y comparar sesiones | `src/api/library.py`, `src/db/`, `src/analytics/session_compare.py`, `alembic/` | [README](../README.es.md#biblioteca-de-sesiones-y-comparar-sesiones), [Guía](./GUIA_USUARIO.es.md#biblioteca-de-sesiones-y-comparar-sesiones) |
+| Calidad de datos | `src/analytics/data_quality.py` | [README](../README.es.md#panel-de-calidad-de-datos), [Guía](./GUIA_USUARIO.es.md#panel-de-calidad-de-datos) |
+| Informe PDF | `src/io/pdf_exporter.py`, `src/io/pdf_charts.py` | [README](../README.es.md#informe-pdf), [Guía](./GUIA_USUARIO.es.md#informe-pdf) |
+| Formatos `.ibt` y `.ld` (experimentales) | `src/io/ibt_loader.py`, `ld_loader.py`, `native_common.py` | [README](../README.es.md#formatos-de-telemetría), [Guía](./GUIA_USUARIO.es.md#formatos-soportados) |
+| Circuitos conocidos y nombres de curva | `src/data/circuits.json`, `src/analytics/circuits.py` | [README](../README.es.md#circuitos-conocidos-y-nombres-de-curva), [Guía](./GUIA_USUARIO.es.md#circuitos-conocidos-y-nombres-de-curva) |
+| Temas | `frontend/src/styles/theme-light.css`, `scripts/check_contrast.py` | [README](../README.es.md#temas), [README del frontend](../frontend/README.md#design-system-and-themes) |
+| Subida única y caché | `src/api/files.py`, `src/io/session_cache.py`, `scripts/profile_pipeline.py` | [README](../README.es.md#rendimiento-y-subida-única), [Despliegue](./DEPLOYMENT.es.md) |
+| Proyecciones realistas | `src/analytics/stint.py`, `tyre_degradation.py` | [README](../README.es.md#proyecciones-realistas), módulos [08](./08_stint_analysis.es.md) y [15](./15_tyre_degradation.es.md) |
 
 ---
 
@@ -74,7 +95,7 @@ python scripts/docs/gen_suspension.py
 python scripts/docs/gen_slip_angle.py
 ```
 
-Cada script escribe en `docs/images/{módulo}/`. Los módulos 14-17 (gestión térmica, degradación de neumáticos, línea de carrera, asesor de configuración) no tienen generador de imágenes.
+Cada script escribe en `docs/images/{módulo}/`. Los módulos 14-17 (gestión térmica, degradación de neumáticos, línea de carrera, asesor de configuración) no tienen generador de imágenes. Los documentos científicos 01-17 describen los algoritmos tal como se escribieron originalmente; donde el comportamiento actual difiere (por ejemplo las proyecciones de stint, más conservadoras), el README principal es la referencia vigente.
 
 Ejecuta los scripts desde la raíz del proyecto con las dependencias de `requirements.txt` instaladas.
 

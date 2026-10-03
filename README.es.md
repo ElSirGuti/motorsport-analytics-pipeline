@@ -27,6 +27,9 @@ Con Docker (backend + frontend + PostgreSQL, interfaz en http://localhost:8080):
 - [Uso de la aplicación](#uso-de-la-aplicación)
 - [Funciones principales](#funciones-principales)
 - [Formatos de telemetría](#formatos-de-telemetría)
+- [Circuitos conocidos y nombres de curva](#circuitos-conocidos-y-nombres-de-curva)
+- [Temas](#temas)
+- [Rendimiento y subida única](#rendimiento-y-subida-única)
 - [Notas de calidad de datos y comportamiento](#notas-de-calidad-de-datos-y-comportamiento)
 - [Ejemplo de resultado](#ejemplo-de-resultado)
 - [Arquitectura](#arquitectura)
@@ -113,7 +116,7 @@ La aplicación **todavía no tiene autenticación**: no la expongas a internet t
 2. Suelta los archivos de telemetría en la zona de carga. El modo se detecta por el número de archivos:
    - **1 archivo = sesión completa**, segmentada automáticamente en vueltas.
    - **2 archivos = dos vueltas sueltas** para comparar.
-3. Pulsa analizar. Una barra de progreso por pasos muestra las etapas (los archivos grandes pueden tardar unos minutos; una sesión de ~57 MB tardó unos 25 s). Al terminar, la zona de carga se pliega en una barra de archivo con las acciones **Nuevo análisis**, **Guardar en biblioteca** y **Descargar informe**.
+3. Pulsa analizar. El archivo se sube una sola vez y una barra de progreso por etapas muestra el análisis de sesión, de stint y la vuelta óptima; los resultados aparecen a medida que termina cada etapa (una sesión de ~57 MB mostró su primer resultado en unos 2 s y terminó en unos 3 s en el equipo del autor, ver [Rendimiento](#rendimiento-y-subida-única)). Al terminar, la zona de carga se pliega en una barra de archivo con las acciones **Nuevo análisis**, **Guardar en biblioteca** y **Descargar informe**.
 4. Aparece primero un **panel de calidad de datos**: puntuación, canales, vueltas y módulos de análisis, con una lista de lo que mejoraría el análisis.
 5. Navega con el riel lateral:
    - Sesión: *Resumen de sesión* (tabla de vueltas, mapa de pista, vuelta óptima), *Análisis de stint*, *Setup y estrategia*.
@@ -135,7 +138,7 @@ Recorrido completo: [Guía de Usuario](docs/GUIA_USUARIO.es.md).
 
 La longitud del microsector es configurable en la interfaz (10, 25, 50 o 100 m; la API acepta cualquier valor en `microsector_m`, por defecto 25). Límites: la cifra teórica crece al achicar el microsector (tiene más libertad para elegir lo mejor de cada vuelta); con un canal `Distance` sintetizado la alineación es menos precisa y el resultado es solo orientativo (la API añade un aviso). Necesita al menos 3 vueltas utilizables; se excluyen las vueltas de pit, atípicas y parciales. El panel muestra además la ganancia por microsector sobre el mapa de pista, las zonas donde la mejor vuelta pierde más, la ganancia por curva y las vueltas que más aportan.
 
-Ejemplo de Imola (Porsche Cayman GT4, 21 vueltas): mejor vuelta 1:57.605, óptima realista 1:54.107, óptima teórica 1:52.885.
+Ejemplo de Imola (Porsche Cayman GT4, 21 vueltas): mejor vuelta 1:57.605, óptima realista 1:54.107 (-3.498 s), óptima teórica 1:52.885 (-4.720 s).
 
 ### Integración de setups de Assetto Corsa
 
@@ -169,7 +172,7 @@ Rediseñado y bilingüe (ES/EN, sigue el idioma de la interfaz). **Descargar inf
 
 ### Proyecciones realistas
 
-Las proyecciones de stint y neumáticos (`src/analytics/stint.py`, `tyre_degradation.py`) son conservadoras. Con menos de 5 vueltas válidas o un intervalo de confianza de la pendiente muy ancho, la proyección vuelve al ritmo reciente y se marca `low_confidence: true`, con `confidence` (`low`/`medium`/`high`), `reason_code` y un `reason` traducido. Si el desgaste de neumáticos no parece activado en el simulador (tasa de desgaste cero y agarre de goma constante), la degradación se informa como `available: false`, `reason_code: "wear_inactive"` en lugar de inventar una tendencia, porque la degradación no se puede separar de la quema de combustible y la evolución de pista.
+Las proyecciones de stint y neumáticos (`src/analytics/stint.py`, `tyre_degradation.py`) son conservadoras. Con menos de 5 vueltas válidas o un intervalo de confianza de la pendiente muy ancho, la proyección vuelve al ritmo reciente y se marca `low_confidence: true`, con `confidence` (`low`/`medium`/`high`), `reason_code` (`insufficient_sample`, `wide_slope_ci`, `short_sample`) y un `reason` traducido. Con menos de 8 vueltas válidas la confianza es siempre `low` y la mediana proyectada no puede bajar de un suelo de ritmo plausible (`proj_floor_s`); la ganancia por quemar combustible se detiene cuando este se acaba (`fuel_laps_remaining`). Si el desgaste de neumáticos no parece activado en el simulador (tasa de desgaste cero y agarre de goma constante), la degradación se informa como `available: false`, `reason_code: "wear_inactive"` en lugar de inventar una tendencia, porque la degradación no se puede separar de la quema de combustible y la evolución de pista.
 
 ## Formatos de telemetría
 
@@ -184,7 +187,7 @@ El cargador (`src/io/loaders.py`) lee CSV y, de forma **experimental**, dos form
 
 > **Experimental.** Los lectores de `.ibt` y `.ld` siguen los formatos documentados públicamente y se validaron con pruebas sintéticas de ida y vuelta y con 53 archivos reales del autor (iRacing BMW M2 y Ford Mustang GT4, sus exportaciones `.ld` de MoTeC y logs `.ld` de Assetto Corsa/ACTI). Hace falta probar más simuladores, coches y loggers. La interfaz muestra una insignia Experimental. Si un resultado parece incorrecto, compáralo con la exportación CSV. Las sesiones nativas con más de 2 millones de muestras (`NATIVE_MAX_ROWS`) se rechazan.
 
-Los pasos de exportación de cada programa están en la [Guía de Usuario](docs/GUIA_USUARIO.es.md#exportar-telemetría).
+Los pasos de exportación de cada programa están en la [Guía de Usuario](docs/GUIA_USUARIO.es.md#exportar-la-telemetría).
 
 **Canales obligatorios:** `Speed`, `Brake`, `Throttle`. Si falta alguno o no tiene valores numéricos, la API responde `400` con un mensaje que lista las columnas encontradas.
 
@@ -207,6 +210,26 @@ Los pasos de exportación de cada programa están en la [Guía de Usuario](docs/
 
 La tabla completa de alias es `COLUMN_ALIASES` en `src/io/loaders.py`. Los canales opcionales ausentes no abortan el análisis: el panel afectado se declara no disponible.
 
+## Circuitos conocidos y nombres de curva
+
+`src/data/circuits.json` (19 circuitos), lógica en `src/analytics/circuits.py`. El circuito se reconoce por el `Venue` de la cabecera de telemetría (alias como `imola`, `fn_imola`, `ks_spa`) y se contrasta con la longitud de vuelta medida (tolerancia 4 %). Las respuestas incluyen un objeto `circuit` (`id`, `name`, `short_name`, `country`, `length_m`, `recognized`, `matched`, `confidence`, `named_corners`, `measured_length_m`, `length_deviation_pct`) y cada curva y apex recibe un `corner_name` (nulo si no se conoce). La interfaz muestra "Curva 4 - Tamburello" mediante el helper `frontend/src/utils/cornerLabel.js`.
+
+- **Solo Imola y Spa-Francorchamps tienen nombres de curva** (confianza `high`; las posiciones se ajustaron con vueltas reales). Los otros 17 circuitos (Monza, Red Bull Ring, Silverstone, Brands Hatch, Mugello, Nordschleife, Barcelona, Laguna Seca, Zandvoort, Vallelunga, Magione, Mónaco, Le Mans, Sepang, Oran Park GP y South, Lime Rock GP) son **solo reconocimiento** (`confidence: medium`, sin nombres de curva).
+- Si la longitud medida no encaja (probablemente otro trazado o una vuelta parcial) el circuito se marca con confianza `low` y no se asignan nombres. Un apex sin curva tabulada cerca conserva su número.
+- **Regla de honestidad:** una tabla de curvas solo se publica cuando su orden y sus posiciones se verificaron con telemetría. No añadas nombres de memoria ni desde un plano sin comprobar dónde cae cada apex en una vuelta real.
+
+Para añadir un circuito, agrega una entrada a `src/data/circuits.json` (`id`, `name`, `short_name`, `country`, `length_m`, `aliases`, `confidence`, `source`, `notes`, `corners: []`) y ejecuta `python -m pytest tests/test_circuits.py -q`; el validador `validate_database` comprueba ids, alias, orden y rangos. Añade `corners` (`order`, `name`, `apex_fraction`, estrictamente crecientes) solo con una vuelta real como evidencia y documéntalo en `source`.
+
+## Temas
+
+Claro, oscuro o según el sistema operativo (selector en la barra superior; la elección se guarda en el navegador). Archivos: `frontend/src/styles/theme-light.css`, `frontend/src/hooks/useTheme.js`; los tokens del tema oscuro están en `design-system.css`. `python scripts/check_contrast.py` comprueba el contraste WCAG de ambos: el tema claro pasa los 64 pares; el tema oscuro es anterior a la comprobación y tiene **10 pares por debajo de AA**, documentados como deuda conocida (se reportan, pero solo hacen fallar la ejecución con `--strict`).
+
+## Rendimiento y subida única
+
+La interfaz envía el archivo una vez con `POST /api/files` y luego llama a cada análisis con el `file_id` devuelto (el SHA-256 del contenido, por lo que subir dos veces el mismo archivo es idempotente). El backend guarda los frames parseados en una caché LRU en memoria (`src/io/session_cache.py`, acotada por `SESSION_CACHE_MAX_MB` y `SESSION_CACHE_TTL_MIN`); los archivos guardados viven en `UPLOAD_DIR` y se borran tras `UPLOAD_TTL_HOURS`. Si el archivo ya no está (caducó, o es otra réplica sin volumen compartido) los endpoints responden **410** y la interfaz vuelve a subirlo y reintenta. El modo clásico (enviar el archivo a cada endpoint) sigue funcionando. Los resultados son progresivos: primero aparece la tabla de la sesión y luego el análisis de stint y la vuelta óptima en paralelo.
+
+Imola (57 MB): primer resultado en unos 2,1 s y todo en unos 2,9 s, en lugar de unos 15 s y 21 s, con un pico de 724 MB de memoria (equipo del autor). Se reproduce con `python scripts/profile_pipeline.py ARCHIVO --repeat 3` (opciones `--cprofile`, `--dump`, `--compare`).
+
 ## Notas de calidad de datos y comportamiento
 
 - **La segmentación de vueltas** es única en todos los endpoints: por canal contador de vueltas (`Session Lap Count`, `Lap`, ...) o, si no existe, por reinicios de distancia. Los segmentos parciales de menos de 30 s se descartan. Si se encuentran menos de 2 vueltas, la API responde con un mensaje de error.
@@ -228,14 +251,14 @@ Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV MoTeC 
 |---|---|
 | Vueltas detectadas | 21 (las vueltas 1 y 21 son de pit) |
 | Mejor vuelta | Vuelta 11, 1:57.605 |
-| Vuelta óptima (realista / teórica) | 1:54.107 / 1:52.885 |
+| Vuelta óptima (realista / teórica) | 1:54.107 (-3.498 s) / 1:52.885 (-4.720 s) |
 | Rango de vueltas de carrera | 117.6 - 122.4 s |
 | Longitud de pista | ~4862 m |
 | Velocidad máxima | 243.9 km/h |
 | Curvas por geometría | 11 |
 | Consumo de combustible | 1.758 L/vuelta |
 | Tendencia de degradación | -0.077 s/vuelta (el coche va más rápido al consumir combustible) |
-| Tiempo de análisis completo | ~25 s |
+| Tiempo de análisis | primer resultado ~2,1 s, todo ~2,9 s (equipo del autor; antes eran ~15 s / ~21 s) |
 
 El CSV en sí no forma parte del repositorio. Las cifras de vuelta óptima se calcularon con este archivo, cuyo `Distance` se sintetizó, así que son orientativas.
 
@@ -244,10 +267,11 @@ El CSV en sí no forma parte del repositorio. Las cifras de vuelta óptima se ca
 ```
 main.py                  App FastAPI: endpoints principales, CORS, logging, límite de subida (413), mapeo de errores
 src/
-  api/                   Routers: library.py, optimal_lap.py, setups.py
+  api/                   Routers: files.py (subida única), library.py, optimal_lap.py, setups.py
+  data/                  circuits.json (circuitos conocidos y nombres de curva)
   db/                    Modelos SQLAlchemy y motor (SQLite / PostgreSQL)
   io/                    loaders.py (CSV, alias, unidades, síntesis de distancia), ibt_loader.py, ld_loader.py,
-                         native_common.py (formatos nativos experimentales), exporters.py (informe de texto),
+                         native_common.py (formatos nativos experimentales), session_cache.py (almacén de subidas + caché LRU), exporters.py (informe de texto),
                          pdf_exporter.py, pdf_charts.py (informe PDF)
   processing/            alignment.py (alineación por distancia), filters.py (filtros de señal)
   telemetry/             lap_comparator.py, metrics.py, session_analyzer.py
@@ -259,10 +283,11 @@ frontend/                React 19 + Vite + Recharts (ver frontend/README.md)
 Dockerfile, docker/      Imagen del backend y entrypoint; frontend/Dockerfile + nginx.conf para la UI
 docker-compose.yml       backend + frontend + postgres (+ docker-compose.override.example.yml)
 k8s/                     Kustomize: base/ y overlays/local, overlays/prod
-scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1,
+scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
+                         profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 up, down, logs, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (180 tests)
+tests/                   suite pytest (342 recogidos: 323 se ejecutan por defecto, 19 e2e omitidos), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML), motorsport.db (biblioteca, ignorado por git)
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -291,6 +316,7 @@ Módulos de `src/analytics/`:
 | `setup_advisor.py` | Recomendaciones de setup (comparación de vueltas y sesión) | [17](docs/17_setup_advisor.es.md) |
 | `session_corner_analysis.py` | Estadísticas de curvas en todas las vueltas de una sesión | [08](docs/08_stint_analysis.es.md) |
 | `session_telemetry_analysis.py` | Agregados de sesión de neumáticos, frenos, suspensión, inputs y balance | [08](docs/08_stint_analysis.es.md) |
+| `circuits.py` | Circuitos conocidos, nombres de curva, objeto `circuit` | este README |
 | `optimal_lap.py` | Vuelta óptima por microsectores (teórica y realista) | este README |
 | `ac_setups.py` | Búsqueda y lectura de setups de Assetto Corsa, enlace "actual -> sugerido" | este README |
 | `data_quality.py` | Puntuación de calidad de datos, canales, módulos, cómo mejorar | este README |
@@ -305,13 +331,15 @@ URL base: `http://localhost:8000`. Documentación interactiva: `/docs` (Swagger)
 | Endpoint | Método | Entrada | Devuelve |
 |---|---|---|---|
 | `/api/health` | GET | ninguna | `{status, service, version}` |
-| `/api/analyze-session` | POST | `session_file` | JSON con `laps` (tiempo, banderas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`, `data_quality`. Si no se puede segmentar ninguna vuelta, `laps` vacío y un `message`. |
-| `/api/stint/analyze` | POST | `laps`: un archivo de sesión, o 3 o más archivos de una vuelta | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `health_summary`, `data_quality` |
-| `/api/optimal-lap` | POST | `session_file`; opcionales `microsector_m` (por defecto 25), `speed_tol_kmh` (por defecto 3) | Vuelta óptima teórica y realista, ganancias, microsectores, zonas, curvas, contribuciones, avisos (ver "Vuelta óptima") |
+| `/api/files` | POST | `file`: CSV, `.ibt` o `.ld` | `{file_id, filename, size_bytes, format, venue, vehicle, driver, ttl_hours}`; `413` si supera `MAX_UPLOAD_MB`, `400` si está vacío |
+| `/api/files/{file_id}` | GET | id SHA-256 | `{file_id, filename, size_bytes}`, o `410` si el cliente debe volver a subirlo |
+| `/api/analyze-session` | POST | `session_file` o `file_id` | JSON con `laps` (tiempo, banderas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `data_quality`. Si no se puede segmentar ninguna vuelta, `laps` vacío y un `message`. |
+| `/api/stint/analyze` | POST | `laps`: un archivo de sesión, o 3 o más archivos de una vuelta; o `file_id` de una sesión | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `health_summary`, `data_quality` |
+| `/api/optimal-lap` | POST | `session_file` o `file_id`; opcionales `microsector_m` (por defecto 25), `speed_tol_kmh` (por defecto 3) | Vuelta óptima teórica y realista, ganancias, microsectores, zonas, curvas, contribuciones, avisos (ver "Vuelta óptima") |
 | `/api/compare-laps` | POST | `lap_a`, `lap_b` | Comparación básica: `summary`, comparaciones de velocidad/freno/acelerador, `time_delta_series`, `corners`, `track_map`, `metadata`, `text_report`, `setup_advisor` y los resultados de los módulos avanzados cuando estén disponibles |
-| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow`; query `resolution_m` (por defecto 5) | Pipeline avanzado: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, resultados de neumáticos/frenos/inputs/suspensión/slip, `data_quality` |
+| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (o `lap_fast_id`, `lap_slow_id`); query `resolution_m` (por defecto 5) | Pipeline avanzado: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, resultados de neumáticos/frenos/inputs/suspensión/slip, `data_quality` |
 | `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow`; query `resolution_m` | Subconjunto de geometría y time delta: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners` |
-| `/api/compare-session-laps` | POST | `session_file`, `lap_a`, `lap_b` (base 1; `0` = automático: vuelta voladora más rápida y más lenta) | Comparación completa de dos vueltas de una sesión; `metadata` incluye `distance_synthetic`; también `health_summary`, `data_quality` |
+| `/api/compare-session-laps` | POST | `session_file` o `file_id`, `lap_a`, `lap_b` (base 1; `0` = automático: vuelta voladora más rápida y más lenta) | Comparación completa de dos vueltas de una sesión; `metadata` incluye `distance_synthetic`; también `health_summary`, `data_quality` |
 | `/api/report/pdf` | POST | `session_file`, `lap_a`, `lap_b` | Adjunto `application/pdf` `report_V{a}_vs_V{b}.pdf` |
 | `/api/report/pdf-from-json` | POST | JSON: un resultado de comparación ya calculado | Adjunto `application/pdf`, sin recalcular |
 | `/api/report/session-pdf-from-json` | POST | JSON: `{session, stint, comparison, metadata}` (`session` con `laps` es obligatorio; el resto opcional) | PDF de sesión `motorsport_<circuito>_<coche>_<fecha>.pdf`, sin recalcular |
@@ -320,7 +348,7 @@ URL base: `http://localhost:8000`. Documentación interactiva: `/docs` (Swagger)
 
 | Endpoint | Método | Entrada | Devuelve |
 |---|---|---|---|
-| `/api/setups/detect` | POST | `header`: primeros bytes del archivo de telemetría (máx. 64 KB) | Coche, circuito y piloto leídos de la cabecera MoTeC |
+| `/api/setups/detect` | POST | `header`: primeros bytes del archivo de telemetría (máx. 64 KB), o `file_id` | Coche, circuito y piloto leídos de la cabecera MoTeC |
 | `/api/setups/candidates` | GET | query `vehicle`, `venue`, `lang` | Setups candidatos: `track_setups`, `generic_last`, `state` (`track_setups`, `generic_only`, `none`, `no_access`), `needs_confirmation` |
 | `/api/setups/file` | GET | query `vehicle`, `setup_id`, `venue`, `lang` | Setup leído (por identificador devuelto en `candidates`, nunca por ruta directa) |
 | `/api/setups/parse` | POST | `file`: un `.ini` de setup (máx. 256 KB); query `vehicle` | Setup subido, ya interpretado |
@@ -341,7 +369,8 @@ URL base: `http://localhost:8000`. Documentación interactiva: `/docs` (Swagger)
 
 Notas:
 
-- La interfaz llama a `/api/analyze-session` y luego a `/api/stint/analyze` para una sesión, a `/api/optimal-lap` en segundo plano, a `/api/compare-laps` más `/api/telemetry/analyze` para dos archivos, a `/api/compare-session-laps` para pares de vueltas y a los endpoints PDF para los botones de descarga.
+- Los endpoints que leen una sesión (`analyze-session`, `compare-session-laps`, `optimal-lap`, `stint/analyze`, `setups/detect`) aceptan el campo de formulario `file_id` en lugar del archivo; `telemetry/analyze` acepta `lap_fast_id` y `lap_slow_id`. Un id desconocido o caducado responde `410`, uno mal formado `422`.
+- La interfaz llama a `POST /api/files`, luego a `/api/analyze-session` y luego a `/api/stint/analyze` para una sesión, a `/api/optimal-lap` en segundo plano, a `/api/compare-laps` más `/api/telemetry/analyze` para dos archivos, a `/api/compare-session-laps` para pares de vueltas y a los endpoints PDF para los botones de descarga.
 - `/api/telemetry/analyze` añade una observación a `data/laptime_history.db`, que alimenta con el tiempo las capas históricas de P10 y XGBoost.
 - Un módulo que no puede ejecutarse devuelve `{"available": false, ...}` (a menudo con `reason`) en lugar de hacer fallar toda la petición.
 
@@ -359,6 +388,10 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 | `NATIVE_MAX_ROWS` | `2000000` | Máximo de muestras aceptadas para `.ibt` / `.ld` tras el remuestreo |
 | `DATABASE_URL` | `sqlite:///data/motorsport.db` | Base de datos de la biblioteca. PostgreSQL en contenedores: `postgresql+psycopg://user:pass@host:5432/db` |
 | `STORAGE_DIR` | `./data/storage` | Directorio opcional para archivos originales |
+| `UPLOAD_DIR` | `STORAGE_DIR/uploads` si hay `STORAGE_DIR`, si no `TEMP_DIR/uploads` | Dónde guarda `POST /api/files` las subidas (usa un volumen compartido con varias réplicas) |
+| `UPLOAD_TTL_HOURS` | `24` | Las subidas sin uso durante este tiempo se borran |
+| `SESSION_CACHE_MAX_MB` | `1024` | Memoria máxima de la caché de sesiones parseadas por proceso |
+| `SESSION_CACHE_TTL_MIN` | `60` | Minutos sin uso antes de sacar una sesión de la caché |
 | `AC_SETUPS_DIR` | automático (`<Documentos>\Assetto Corsa\setups`) | Carpeta explícita de setups de Assetto Corsa |
 | `VITE_API_URL` | `http://localhost:8000/api` | URL de la API que usa el frontend en desarrollo (la lee Vite en build/dev; los contenedores de producción usan `/api` relativo) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `motorsport` / `change-me-local-only` / `motorsport` | Solo Compose. Valores de ejemplo para una máquina local, nunca para producción |
@@ -371,7 +404,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 180 tests
+python -m pytest tests -q          # 342 recogidos; los 19 e2e se omiten salvo con E2E=1
 
 cd frontend
 npm run lint                       # ESLint
@@ -381,7 +414,9 @@ make lint                          # yamllint + scripts/validate_k8s.py + lint d
 make k8s-validate                  # validación estática de los manifiestos de Kubernetes
 ```
 
-Archivos de test en `tests/`: `test_alignment.py`, `test_loaders.py`, `test_metrics.py`, `test_session_pipeline.py`, `test_optimal_lap.py`, `test_ac_setups.py`, `test_library.py`, `test_data_quality.py`, `test_pdf_report.py`, `test_formats.py`, `test_projection_realism.py`, `test_upload_limit.py`, `test_k8s_manifests.py` (fixtures en `tests/conftest.py`). Se pueden generar vueltas sintéticas con `python scripts/generate_sample_data.py` (escribe `data/raw/lap_clean.csv` y `data/raw/lap_errors.csv`, ignorados por git).
+Tests con datos reales y de navegador: `tests/fixtures/*.csv.gz` son recortes anonimizados de exportaciones reales de Assetto Corsa (se regeneran con `scripts/make_fixtures.py`) usados por `tests/test_regression_real.py`. Los tests end-to-end y visuales (Playwright + Edge) están en `tests/e2e/` y solo corren con `E2E=1`; las líneas base visuales pueden requerir regenerarse con `E2E_UPDATE_BASELINE=1` en otra máquina. Detalles en [tests/README.md](tests/README.md).
+
+Archivos de test en `tests/`: `test_alignment.py`, `test_loaders.py`, `test_metrics.py`, `test_session_pipeline.py`, `test_optimal_lap.py`, `test_ac_setups.py`, `test_library.py`, `test_data_quality.py`, `test_pdf_report.py`, `test_formats.py`, `test_projection_realism.py`, `test_upload_limit.py`, `test_k8s_manifests.py`, `test_circuits.py`, `test_perf_cache.py`, `test_check_contrast.py`, `test_regression_real.py`, `test_visual_tool.py` (fixtures en `tests/conftest.py`). Se pueden generar vueltas sintéticas con `python scripts/generate_sample_data.py` (escribe `data/raw/lap_clean.csv` y `data/raw/lap_errors.csv`, ignorados por git).
 
 ### Añadir textos traducidos
 

@@ -23,7 +23,10 @@ def test_theme_switch_keeps_state_and_persists(analyzed):
     bg_light = pg.evaluate("getComputedStyle(document.body).backgroundColor")
     pg.get_by_role("button", name=i18n("en", "themeDark"), exact=True).click()
     assert _theme(pg) == "dark"
-    assert pg.evaluate("getComputedStyle(document.body).backgroundColor") != bg_light
+    # The background may still be mid-transition right after the click: wait for it to settle.
+    pg.wait_for_function(
+        "bg => getComputedStyle(document.body).backgroundColor !== bg", arg=bg_light, timeout=5000
+    )
 
     assert api_calls == [], f"theme change fired requests: {api_calls}"
     assert pg.locator("#section-overview").is_visible()

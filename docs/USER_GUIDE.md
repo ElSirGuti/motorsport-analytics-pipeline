@@ -4,6 +4,15 @@
 
 This guide explains, in plain language, how to use the application and what the results of each analysis mean. You do not need any math or engineering background to interpret them.
 
+## Contents
+
+- [Getting started](#getting-started)
+- [The interface at a glance](#the-interface-at-a-glance)
+- [Session features](#session-features): [data quality](#data-quality-panel), [optimal lap](#optimal-lap-by-microsectors), [Assetto Corsa setups](#assetto-corsa-setups), [library and comparing sessions](#session-library-and-comparing-sessions), [PDF report](#pdf-report), [circuits and corner names](#known-circuits-and-corner-names), [theme](#theme), [speed](#faster-analysis-upload-once)
+- [How to read each analysis](#how-to-read-each-analysis)
+- [Supported formats](#supported-formats) and [exporting telemetry](#exporting-telemetry)
+- [Data quality notes](#data-quality-notes), [known limitations](#known-limitations), [common issues](#common-issues), [recommended workflow](#recommended-workflow)
+
 ---
 
 ## Getting Started
@@ -17,29 +26,29 @@ It analyses telemetry and tells you **where you are gaining time, where you are 
 
 ### Files you need
 
-CSV files exported from **MoTeC i2** (Assetto Corsa via ACTI, iRacing). See [Exporting telemetry](#exporting-telemetry) for the steps and the channels the app understands.
+CSV files exported from **MoTeC i2** (Assetto Corsa via ACTI, iRacing), or, **experimentally**, iRacing `.ibt` and MoTeC `.ld` files directly. See [Supported formats](#supported-formats) and [Exporting telemetry](#exporting-telemetry) for the steps and the channels the app understands.
 
 ### How to start
 
 1. Install and start the backend and the frontend (see the [README](../README.md#quick-start)) and open `http://localhost:5173`.
 2. In the top bar choose the language (ES/EN) and the mode: **Engineer** (everything) or **Pilot** (technical panels hidden).
-3. Drop your CSV file(s) in the upload area. One file is treated as a full session; two files are treated as two single laps to compare.
-4. Press analyze. A progress bar shows the steps. Large files can take a few minutes (a ~57 MB session took about 25 s); keep the tab open.
-5. When it finishes, the upload area collapses into a file bar. Press **New analysis** to start over.
+3. Drop your file(s) in the upload area. One file is treated as a full session; two files are treated as two single laps to compare.
+4. Press analyze. The file is uploaded once and a progress bar shows the stages (upload, session, stint, optimal lap); each result appears as soon as its stage finishes, so you can start reading while the rest is still being computed. A ~57 MB session showed its first result in about 2 s and finished in about 3 s on the author's machine; keep the tab open for bigger files.
+5. When it finishes, the upload area collapses into a file bar with **New analysis**, **Save to library** and **Download report**.
 
 ---
 
 ## The Interface at a Glance
 
-The top bar holds the brand, the language switch and the Pilot/Engineer toggle. A **side rail** lets you jump between sections. The page is otherwise a single long view: **moving the mouse over any chart synchronises the cursor position across all the others**.
+The top bar holds the brand, the **Analysis / Library / Compare sessions** switch, the language switch, the theme selector and the Pilot/Engineer toggle. A **side rail** lets you jump between sections. The page is otherwise a single long view: **moving the mouse over any chart synchronises the cursor position across all the others**.
 
 ### Full session (1 CSV)
 
 | Section | What it shows |
 |---------|---------------|
-| **Session overview** | Lap table, best lap, health panel, track map |
+| **Session overview** | Data-quality panel, lap table, best lap, health panel, track map, optimal lap by microsectors |
 | **Stint analysis** | Lap-time evolution, degradation, fuel strategy, pit window, Monte Carlo projection, track evolution |
-| **Setup & strategy** | Corner analysis across the session, tyre degradation, thermal management, racing line and setup recommendations |
+| **Setup & strategy** | Setup used (Assetto Corsa), corner analysis across the session, tyre degradation, thermal management, racing line and setup recommendations |
 
 **Lap table:** tick **two laps (A/B)** and press **Compare** to open a full comparison of those laps, or press **Best vs Worst** to compare the fastest and the slowest flying lap automatically. Laps marked **PIT** (in/out laps) and **outlier** (time far from the median) are excluded from the degradation and projection statistics.
 
@@ -55,6 +64,68 @@ The top bar holds the brand, the language switch and the Pilot/Engineer toggle. 
 | **Strategy & setup** | Lap-time potential, anomalies, setup recommendations and the engineer report (copy as text or download as PDF) |
 
 Click a corner in the corner analysis and all charts zoom into that zone.
+
+---
+
+## Session features
+
+### Data-quality panel
+
+It appears first, above the results, and answers "what is wrong with my data and what does it cost me?". You get a **score from 0 to 100** (Good from 75, Fair from 50, Poor below) built from three parts: channels (40 %), laps (20 %) and analysis modules (40 %). Expand it to see:
+
+- **Source:** simulator, car, circuit, sample rate, duration, samples.
+- **Laps:** detected, valid, pit, outliers and partial segments that were discarded, and how laps were segmented (lap counter or distance reset).
+- **Channels:** each channel as OK, Missing, Constant, Synthesized (for example `Distance` rebuilt from speed), Partial, Gaps or Inactive (tyre wear model not running). Use "Show only issues" to hide the healthy ones.
+- **Analysis modules:** each module (geometry, time delta, G-G, slip angle, suspension, tyres, brakes, fuel/stint, thermal, setup, racing line, optimal lap) as OK, Degraded or Unavailable, with the concrete reason.
+- **How to improve:** a prioritised list (High, Medium, Low) of what to log or export differently, and which analyses each fix would unlock.
+
+### Optimal lap by microsectors
+
+Located in the session overview. The app cuts every valid lap into microsectors and combines the best ones, giving two numbers:
+
+- **Theoretical optimal:** the sum of the best time of every microsector. It is an optimistic lower bound because it ignores that the exit speed of one microsector is the entry speed of the next.
+- **Realistic optimal:** it only switches from one lap to another where the speeds match (3 km/h tolerance) and stays at least 75 m on the same lap, so the combined lap is physically possible. This is the figure to use as a target.
+
+Example (Imola, Porsche Cayman GT4, 21 laps): best lap 1:57.605, realistic optimal 1:54.107 (-3.498 s), theoretical optimal 1:52.885 (-4.720 s).
+
+Controls and reading tips:
+
+- **Microsector size** (10, 25, 50 or 100 m). The theoretical optimal grows (gets faster) as the microsector shrinks, because it has more freedom to cherry-pick; compare sizes, do not chase the smallest number.
+- Chart views: cumulative gain, gain per microsector and speed profile. The track map shows where the time is; the zones table lists where your best lap loses the most, which lap to take it from and what to look at.
+- It needs at least 3 usable laps (pit, outlier and partial laps are excluded). If the file had no `Distance` channel it was rebuilt from speed, so alignment is less precise and the result is **indicative only**; the panel shows a warning.
+
+### Assetto Corsa setups
+
+The app can link the setup you used to the setup recommendations, so each suggestion shows **Current -> Suggested** with your real values.
+
+1. It looks for `<Documents>\Assetto Corsa\setups\<car>\<track>\*.ini` (car and track come from the telemetry header). If there are several, choose the one you used.
+2. If there is none, it can offer your last saved setup (`<car>\generic\last.ini`), but **only after you confirm** it was the one used in that session.
+3. Otherwise, drop the setup `.ini` file in the area provided (always available). Your choice is remembered for that car and track.
+
+Notes: the server can only read your game folder when it runs on the same computer as the game. **In Docker it cannot**: upload the `.ini` manually, or mount the folder read-only and set `AC_SETUPS_DIR` (see `docker-compose.override.example.yml` and the [deployment guide](./DEPLOYMENT.md)). Values are shown in the game's own units (clicks); a real unit (tyre pressure in psi, front brake bias and brake power in %, fuel in litres) is shown only where it is certain, and min/max ranges only when the car's unpacked `data/setup.ini` exists. Encrypted car data is never opened. If two suggestions push the same parameter in opposite directions, the panel warns you: change one thing at a time. For safety, only `.ini`/`.sp` files up to 256 KB are read and names cannot point outside the setups folder.
+
+### Session library and comparing sessions
+
+- **Save to library** (file bar) stores the computed results in the database; tick the option to save automatically after each analysis. Saving the same file for the same circuit again updates the existing entry.
+- **Library** lists saved sessions with search, circuit/car/date filters and pagination. You can open a session **without the original file** (lap-to-lap comparison and anything that needs the raw telemetry requires analysing the CSV again), rename it or delete it.
+- **Compare sessions:** pick session A (reference) and B. Only sessions of the same circuit and car are offered; a forced comparison of different ones is possible and flagged. The result shows differences in average and median pace, consistency, fuel per lap, time lost per corner and a lap-by-lap pace chart. Negative values mean B is faster or smaller.
+- Limits: a saved session is limited to 5 MB. There is **no login yet**: anyone who can reach the server sees the whole library.
+
+### PDF report
+
+**Download report** (file bar) generates a bilingual PDF (language of the interface) from the results you already have, without recomputing: executive summary, key findings, recommended actions, data quality and limitations, pace and laps, corners in track order, setup recommendations, strategy and tyres and, if you compared two laps, car telemetry and trace comparisons. The file is named `motorsport_<circuit>_<car>_<date>.pdf`. Comparisons also have their own PDF button and a text report to copy.
+
+### Known circuits and corner names
+
+If the circuit in the file header is known, the interface shows a badge with its name and length, and corners are shown as "Corner 4 - Tamburello". **Names exist only for Imola and Spa-Francorchamps**; another 17 circuits (Monza, Silverstone, Mugello, Nordschleife, Monaco, Le Mans and others) are only recognised, and their corners keep their number. If the lap length does not match the circuit (another layout or a partial lap) the badge says "low confidence" and no names are shown. Names are never guessed: a corner table is published only when it was verified against real telemetry.
+
+### Theme
+
+Use the theme selector in the top bar: **System** (follows your operating system), **Light** or **Dark**. The choice is remembered in your browser.
+
+### Faster analysis (upload once)
+
+The file travels to the server once and is kept in memory for the next steps, so session, stint and optimal lap do not parse it again. If the server restarted or the copy expired (24 hours by default), the app uploads the file again and retries on its own; you do not need to do anything.
 
 ---
 
@@ -325,6 +396,8 @@ The **"Copy Report"** button generates text ready to paste into a WhatsApp group
 | **Nervousness** | Index measuring how many steering micro-corrections the driver makes |
 | **ΔT** | Temperature difference between the tyre surface and core |
 | **Stint** | Race period between two pit stops |
+| **Microsector** | A short slice of the lap (10-100 m) used to build the optimal lap |
+| **Optimal lap** | A lap built from the best microsectors of your laps (theoretical or realistic) |
 | **Lateral / longitudinal G** | Force felt through corners (lateral) or under braking/acceleration (longitudinal) |
 
 ---
@@ -339,9 +412,9 @@ The **"Copy Report"** button generates text ready to paste into a WhatsApp group
 
 > **Experimental status.** The `.ibt` and `.ld` readers are implemented from the publicly documented binary layouts. They were checked against synthetic files (round-trip tests) and against real files on the author's machine (53 files: 9 iRacing `.ibt` sessions of a BMW M2 at Oran Park and a Ford Mustang GT4 at Lime Rock, the 9 matching MoTeC `.ld` exports, and 35 Assetto Corsa/ACTI `.ld` logs). That is a small sample: other cars, simulators or MoTeC loggers may expose channels the reader does not know. The UI marks these files with an **Experimental** badge. If a result looks wrong, compare it with the CSV export of the same session.
 
-**iRacing `.ibt`:** iRacing writes them automatically to `Documents\iRacing	elemetry` (one file per session, named `<car>_<track> <date> <time>.ibt`) when telemetry logging is on (Ctrl+L toggles it in the sim). Drop the file in the uploader as is. Driver, car and track are read from the file. Units are converted (m/s to km/h, 0-1 pedals to %, rad to degrees, m/s2 to g, kPa to bar, m to mm); `Distance` is rebuilt from the sim's lap distance.
+**iRacing `.ibt`:** iRacing writes them automatically to `Documents\iRacing\telemetry` (one file per session, named `<car>_<track> <date> <time>.ibt`) when telemetry logging is on (Ctrl+L toggles it in the sim). Drop the file in the uploader as is. Driver, car and track are read from the file. Units are converted (m/s to km/h, 0-1 pedals to %, rad to degrees, m/s2 to g, kPa to bar, m to mm); `Distance` is rebuilt from the sim's lap distance.
 
-**MoTeC `.ld`:** open the folder where your logger or ACTI saves logs (for ACTI, `Documentscti	elem\<track>_&_<car>\`; the `.ldx` next to it is optional and ignored) and upload the `.ld`. Channels sampled at different rates are resampled to the fastest one. If `Distance` is not in the log it is synthesised from speed, as with CSV.
+**MoTeC `.ld`:** open the folder where your logger or ACTI saves logs (for ACTI, `Documents\acti\telem\<track>_&_<car>\`; the `.ldx` next to it is optional and ignored) and upload the `.ld`. Channels sampled at different rates are resampled to the fastest one. If `Distance` is not in the log it is synthesised from speed, as with CSV.
 
 Known limits: files larger than the server upload limit (`MAX_UPLOAD_MB`, 2048 by default) are rejected; sessions above 2 million samples after resampling (`NATIVE_MAX_ROWS`) are rejected with a message; a truncated `.ibt` loads the records that are complete, a truncated `.ld` is rejected. Lateral-G sign conventions follow each source and are not normalised.
 
@@ -396,6 +469,7 @@ Missing optional channels do not stop the analysis: the affected panel is shown 
 - **Constant channels:** a channel that never changes (for example brake temperatures stuck at one value) is reported as unavailable with a reason instead of producing made-up advice.
 - **Slip angle:** the sign convention of lateral G is detected from its correlation with the yaw rate and flipped when needed (Assetto Corsa logs it inverted).
 - **Invalid files:** an empty CSV, or one without `Speed`, `Brake` and `Throttle`, is rejected with a clear message.
+- **Conservative projections:** with fewer than 5 valid laps (or a very uncertain trend) the stint projection falls back to the recent pace and is marked as low confidence with the reason; below 8 laps the confidence is always low. If tyre wear does not seem to be enabled in the simulator, tyre degradation is shown as unavailable (wear inactive) instead of inventing a trend.
 
 ## Example Result
 
@@ -404,13 +478,19 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, MoTeC CSV
 - 21 laps detected (laps 1 and 21 are pit laps); best lap is lap 11 with 1:57.605; race laps between 117.6 and 122.4 s.
 - Track length about 4862 m, top speed 243.9 km/h, 11 corners found by geometry.
 - Fuel consumption 1.758 L/lap; pace trend -0.077 s/lap (the car gets faster as the fuel burns off, so this is an improvement, not tyre wear).
-- The full analysis finished in about 25 s.
+- The optimal lap was 1:54.107 realistic (-3.498 s) and 1:52.885 theoretical (-4.720 s), indicative because `Distance` was synthesised.
+- The first result appeared in about 2.1 s and the whole analysis finished in about 2.9 s on the author's machine (it took about 15 s and 21 s before the speed-up).
 
 ## Known Limitations
 
 - Corner detection from speed alone finds 7 corners at Imola against 11 from geometry (chicanes merge into one).
 - Bottoming detection is a heuristic: suspension travel at or above 90 % of the maximum travel observed in the file.
 - Depending on the simulator and the export, some channels may be missing; the panels tell you when that is the case.
+- `.ibt` and `.ld` are experimental (tested on 53 files from one author); CSV is the stable format.
+- The theoretical optimal lap grows as the microsector shrinks; with a synthesised `Distance` the optimal lap is only indicative.
+- Corner names exist only for Imola and Spa-Francorchamps.
+- Setup units are shown only where they are certain, and ranges are missing for most cars (their data files are encrypted).
+- There is no authentication: do not expose the app to the internet as is.
 
 ---
 
@@ -437,6 +517,21 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, MoTeC CSV
 **Charts do not synchronise:**
 - Move the cursor slowly; if the browser has high CPU usage there may be lag
 
+**The app uploads the file again or says the file expired (HTTP 410):**
+- The server no longer had your uploaded copy (restart, 24-hour expiry or another replica without a shared volume). The app retries automatically; if it still fails, press **New analysis** and load the file again.
+
+**Error 413 (file too large):**
+- The file is above the server limit (`MAX_UPLOAD_MB`, 2048 MB per file by default). A saved library session is limited to 5 MB.
+
+**The setup panel says the server cannot read your Assetto Corsa folder:**
+- Normal in Docker or when the server is on another computer. Upload the setup `.ini` you used, or mount the folder read-only and set `AC_SETUPS_DIR`.
+
+**An `.ibt` or `.ld` file looks wrong:**
+- These formats are experimental. Compare with the CSV export of the same session and report the case.
+
+**The optimal lap says it is indicative or unavailable:**
+- It needs at least 3 valid laps and a reliable `Distance`; without it the distance is rebuilt from speed. Check the data-quality panel.
+
 **Analysis takes too long:**
 - Session files of tens of MB can take tens of seconds or more in the backend; keep the tab open
 
@@ -445,14 +540,15 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, MoTeC CSV
 ## Recommended Workflow
 
 ```
-1. Load the file(s) and wait for the analysis (for a session, pick two laps or use Best vs Worst)
+1. Load the file(s) and read the data-quality panel (for a session, pick two laps or use Best vs Worst)
 2. Look at the TIME DELTA: where do the lines diverge?
 3. Click on the corners where you lose the most time
 4. Check the G-G: are you using all the available grip?
 5. Review the tyres: are they at optimal temperature?
 6. Check the balance (slip angle): is the setup balanced?
 7. Look at the driving style: is the car forcing a lot of corrections?
-8. Copy the engineer report to share with the team
+8. Check the optimal lap and its zones to see where your best lap still loses time
+9. Link your setup, save the session to the library and download the report to share with the team
 ```
 
 *Also available in [Español](./GUIA_USUARIO.es.md)*

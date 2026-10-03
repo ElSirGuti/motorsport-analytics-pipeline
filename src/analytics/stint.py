@@ -34,6 +34,9 @@ FUEL_S_PER_L = 0.035            # lap-time gain per litre burned (mass effect)
 MIN_FUEL_BURN_L = 0.05          # below this the fuel channel is considered not logged
 LEVEL_DRIFT_SD = 0.08           # s/lap random-walk drift of the pace level (widens the band)
 SIGMA_FLOOR_S = 0.25
+MIN_LAPS_FOR_MEDIUM_CONF = 8    # below this the projection is always confidence='low'
+SHORT_SAMPLE_PACE_GAIN_S = 0.15  # n < 8: p50 never below best real lap - this
+SHORT_SAMPLE_RECENT_FRAC_S = 0.30  # n < 8: ...nor below recent median - this
 
 
 def _find_channel(df, candidates):
@@ -347,7 +350,7 @@ def _fit_trend(valid: pd.DataFrame) -> dict:
         slope_se = min(float(np.sqrt(w) * se), SLOPE_PRIOR_SD)
 
     half = (ci[1] - ci[0]) / 2 if ci[0] is not None else float("inf")
-    if n < MIN_LAPS_FOR_TREND or half > 0.2:
+    if n < MIN_LAPS_FOR_MEDIUM_CONF or half > 0.2:
         confidence = "low"
     elif n >= 10 and half <= 0.05:
         confidence = "high"
@@ -359,6 +362,30 @@ def _fit_trend(valid: pd.DataFrame) -> dict:
         "slope_used": slope_used, "slope_se": slope_se,
         "fuel_effect": fuel_effect, "confidence": confidence, "ci_half": half,
     }
+
+
+def _fuel_laps_remaining(df_laps, valid) -> float | None:
+    """Laps of fuel left after the last lap (None if the fuel channel is not logged)."""
+    try:
+        fb = valid["fuel_burned"].dropna()
+        burn = float(fb.mean()) if len(fb) else 0.0
+        fe = df_laps["fuel_end"].dropna()
+        if burn < MIN_FUEL_BURN_L or fe.empty:
+            return None
+        return max(0.0, float(fe.iloc[-1]) / burn)
+    except Exception:
+        return None
+
+
+def _cum_trend(d, slope, fuel_part, fuel_laps_from_anchor):
+    """
+    Cumulative lap-time change after d laps from the anchor. The fuel-mass part
+    (fuel_part s/lap, normally negative) only applies while there is fuel left to burn;
+    the remaining part (tyres/track) applies for the whole horizon.
+    """
+    d = np.asarray(d, dtype=float)
+    d_fuel = d if fuel_laps_from_anchor is None else np.minimum(d, max(0.0, fuel_laps_from_anchor))
+    return (slope - fuel_part) * d + fuel_part * d_fuel
 
 
 def analizar_degradacion_stint(df_laps):
@@ -394,7 +421,17 @@ def analizar_degradacion_stint(df_laps):
     k = min(3, n) if n >= MIN_LAPS_FOR_TREND else n
     anchor_t = float(np.median(y[-k:]))
     anchor_lap = float(np.mean(laps[-k:]))
-    proj = [anchor_t + slope_used * (l - anchor_lap) for l in future_laps]
+    fuel_part = fit["fuel_effect"]
+    fuel_rem = _fuel_laps_remaining(df_laps, valid)
+    fuel_from_anchor = None if fuel_rem is None else fuel_rem + (last_lap - anchor_lap)
+    d = np.array(future_laps, dtype=float) - anchor_lap
+    trend = _cum_trend(d, slope_used, fuel_part, fuel_from_anchor)
+    # Short sample: the accumulated trend cannot take p50 below a plausible pace floor
+    proj_floor = None
+    if n < MIN_LAPS_FOR_MEDIUM_CONF:
+        proj_floor = max(float(y.min()) - SHORT_SAMPLE_PACE_GAIN_S, anchor_t - SHORT_SAMPLE_RECENT_FRAC_S)
+        trend = np.maximum(trend, proj_floor - anchor_t)
+    proj = [anchor_t + float(t) for t in trend]
     # Never leave the observed range (+ small margin)
     lo = float(y.min()) - 0.5
     hi = float(y.max()) + max(1.5, abs(slope_used) * N_FUTURE_LAPS)
@@ -404,9 +441,12 @@ def analizar_degradacion_stint(df_laps):
     if n < MIN_LAPS_FOR_TREND:
         reason_code = "insufficient_sample"
         reason = _tr("stint_proj_low_n", n=n, min=MIN_LAPS_FOR_TREND, median=round(float(np.median(y)), 3))
-    elif low_conf:
+    elif fit["ci_half"] > 0.2:
         reason_code = "wide_slope_ci"
         reason = _tr("stint_proj_wide_ci", hw=round(fit["ci_half"], 2))
+    elif low_conf:
+        reason_code = "short_sample"
+        reason = _tr("stint_proj_short_sample", n=n, min=MIN_LAPS_FOR_MEDIUM_CONF)
     else:
         reason_code, reason = None, None
 
@@ -435,6 +475,8 @@ def analizar_degradacion_stint(df_laps):
         "anchor_time_s":   round(anchor_t, 3),
         "anchor_lap":      round(anchor_lap, 2),
         "min_laps_for_trend": MIN_LAPS_FOR_TREND,
+        "fuel_laps_remaining": round(fuel_rem, 1) if fuel_rem is not None else None,
+        "proj_floor_s":    round(proj_floor, 3) if proj_floor is not None else None,
     }
 
     valid_g = valid.dropna(subset=["max_g_sum"])
@@ -546,27 +588,47 @@ def simular_tiempos_stint(df_laps, degradacion, seed=42):
     h = np.arange(1, n_future + 1)
     horizon_from_anchor = (last_lap + h) - anchor_lap
 
+    fuel_part = float(degradacion.get("fuel_effect_s_per_lap", 0.0))
+    fuel_rem = degradacion.get("fuel_laps_remaining")
+    fuel_from_anchor = None if fuel_rem is None else float(fuel_rem) + (last_lap - anchor_lap)
+    proj_floor = degradacion.get("proj_floor_s")
+
     slope_draw = np.clip(rng.normal(slope, slope_se, size=(N_SIMULATIONS, 1)),
                          -MAX_ABS_SLOPE_S_PER_LAP, MAX_ABS_SLOPE_S_PER_LAP)
+    # tyre/track part is uncertain (slope_se * horizon); fuel part is physical and stops
+    # when the fuel runs out
+    other_draw = slope_draw - fuel_part
+    d_fuel = (horizon_from_anchor if fuel_from_anchor is None
+              else np.minimum(horizon_from_anchor, max(0.0, fuel_from_anchor)))
+    trend = other_draw * horizon_from_anchor + fuel_part * d_fuel
+    if proj_floor is not None:  # short sample: cap the accumulated trend (see stint projection)
+        trend = np.maximum(trend, float(proj_floor) - anchor_t)
     level0 = rng.normal(0.0, sigma / np.sqrt(max(min(n, 3), 1)), size=(N_SIMULATIONS, 1))
-    drift = np.cumsum(rng.normal(0.0, LEVEL_DRIFT_SD, size=(N_SIMULATIONS, n_future)), axis=1)
+    # level random walk with sd >= sigma/2 per lap -> total spread >= sigma*sqrt(1 + h/4)
+    drift_sd = max(LEVEL_DRIFT_SD, 0.5 * sigma)
+    drift = np.cumsum(rng.normal(0.0, drift_sd, size=(N_SIMULATIONS, n_future)), axis=1)
     noise = np.maximum(rng.normal(0.0, sigma, size=(N_SIMULATIONS, n_future)), -sigma)
-    sims = anchor_t + level0 + slope_draw * horizon_from_anchor + drift + noise
+    sims = anchor_t + level0 + trend + drift + noise
 
     lo = float(y.min()) - 0.5
     hi = float(y.max()) + max(1.5, 3 * sigma, abs(slope) * n_future)
     sims = np.clip(sims, lo, hi)
 
     future_laps = list(range(last_lap + 1, last_lap + n_future + 1))
+    q = {k: np.percentile(sims, k, axis=0) for k in (10, 25, 50, 75, 90)}
+    if proj_floor is not None:
+        # short sample: shift each horizon up if its median fell under the pace floor
+        shift = np.maximum(0.0, float(proj_floor) - q[50])
+        q = {k: v + shift for k, v in q.items()}
     return {
         "available":    True,
         "future_laps":  future_laps,
         "sigma_real_s": round(sigma, 3),
-        "p10":  [round(float(v), 3) for v in np.percentile(sims, 10,  axis=0)],
-        "p25":  [round(float(v), 3) for v in np.percentile(sims, 25,  axis=0)],
-        "p50":  [round(float(v), 3) for v in np.percentile(sims, 50,  axis=0)],
-        "p75":  [round(float(v), 3) for v in np.percentile(sims, 75,  axis=0)],
-        "p90":  [round(float(v), 3) for v in np.percentile(sims, 90,  axis=0)],
+        "p10":  [round(float(v), 3) for v in q[10]],
+        "p25":  [round(float(v), 3) for v in q[25]],
+        "p50":  [round(float(v), 3) for v in q[50]],
+        "p75":  [round(float(v), 3) for v in q[75]],
+        "p90":  [round(float(v), 3) for v in q[90]],
         # --- new fields ---
         "confidence":     confidence,
         "low_confidence": low_conf,

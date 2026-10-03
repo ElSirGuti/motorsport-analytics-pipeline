@@ -160,3 +160,72 @@ def test_tyre_real_degradation_detected_and_consistent_with_stint():
     assert res["remaining_laps"] is not None
     assert res["top_wear_factors"] is not None
     assert all(p["p90"] - p["p10"] >= 0 for p in res["projection"])
+
+
+# ── short-sample realism (fuel cap, p50 floor, widening band) ────────────────
+
+def _fuel_df(times, burn=1.7, fuel_end_last=None):
+    n = len(times)
+    df = _laps_df(times, fuel_burned=burn)
+    start = 40.0
+    df["fuel_start"] = [start - burn * i for i in range(n)]
+    df["fuel_end"] = [start - burn * (i + 1) for i in range(n)]
+    if fuel_end_last is not None:
+        df.loc[df.index[-1], "fuel_end"] = fuel_end_last
+    return df
+
+
+def test_short_sample_p50_never_below_best_minus_small_margin_and_low_confidence():
+    rng = np.random.default_rng(5)
+    times = (119.5 + rng.normal(0, 0.4, 6)).tolist()   # 6 laps (< 8) with fuel effect -0.06 s/lap
+    df = _fuel_df(times)
+    deg = analizar_degradacion_stint(df)
+    mc = simular_tiempos_stint(df, deg)
+    best = min(times)
+    assert deg["confidence"] == "low" and mc["confidence"] == "low" and mc["low_confidence"]
+    assert min(mc["p50"]) >= best - 0.15 - 1e-6
+    assert min(deg["projected_times"]) >= best - 0.15 - 1e-6
+
+
+def test_band_widens_visibly_with_horizon():
+    rng = np.random.default_rng(6)
+    times = (100.0 + rng.normal(0, 0.5, 6)).tolist()
+    df = _laps_df(times)
+    deg = analizar_degradacion_stint(df)
+    mc = simular_tiempos_stint(df, deg)
+    sigma = mc["sigma_real_s"]
+    up = np.array(mc["p90"]) - np.array(mc["p50"])
+    for h in (1, 6, 12):   # upper half-width never below sigma*sqrt(1+h/4) (within MC noise)
+        assert up[h - 1] >= 0.9 * 1.2816 * sigma * np.sqrt(1 + h / 4) - 0.15
+    assert (mc["p90"][-1] - mc["p10"][-1]) > (mc["p90"][0] - mc["p10"][0]) + 0.5
+
+
+def test_fuel_effect_stops_when_fuel_runs_out():
+    rng = np.random.default_rng(7)
+    laps = np.arange(1, 13)
+    times = (100.0 - 0.06 * laps + rng.normal(0, 0.05, 12)).tolist()
+    plenty = _fuel_df(times)                        # 40 L start -> lots of fuel left
+    empty = _fuel_df(times, fuel_end_last=1.7 * 2)  # only 2 laps of fuel left
+    mc_p = simular_tiempos_stint(plenty, analizar_degradacion_stint(plenty))
+    deg_e = analizar_degradacion_stint(empty)
+    mc_e = simular_tiempos_stint(empty, deg_e)
+    assert deg_e["fuel_laps_remaining"] == 2.0
+    # without fuel the pace stops improving: later laps are slower than with fuel
+    assert mc_e["p50"][-1] > mc_p["p50"][-1] + 0.2
+    assert deg_e["projected_times"][-1] > deg_e["projected_times"][2] - 1e-9
+
+
+def test_corner_description_uses_name_when_known():
+    from src.analytics.circuits import enrich_stint
+    from src.analytics.session_corner_analysis import describe_with_name
+    from src.i18n import LanguageContext
+    with LanguageContext("es"):
+        assert describe_with_name(4, "frenada tardía", "Tamburello", "es") == "Curva 4 (Tamburello): frenada tardía"
+        assert describe_with_name(4, "frenada tardía", None, "es") == "Curva 4: frenada tardía"
+    with LanguageContext("en"):
+        assert describe_with_name(4, "late braking", "Tamburello", "en") == "Corner 4 (Tamburello): late braking"
+    # unknown venue: description untouched
+    res = {"curvas_sesion": {"corners": [{"corner_number": 4, "apex_distance": 500.0, "corner_name": None,
+                                          "description": "Corner 4: x", "description_parts": "x"}]}}
+    enrich_stint(res, "nowhere_land", 5000.0)
+    assert res["curvas_sesion"]["corners"][0]["description"] == "Corner 4: x"

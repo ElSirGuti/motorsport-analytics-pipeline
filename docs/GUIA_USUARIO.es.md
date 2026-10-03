@@ -4,6 +4,15 @@
 
 Esta guía explica, en lenguaje sencillo, cómo usar la aplicación y qué significan los resultados de cada análisis. No necesitas saber matemáticas ni ingeniería para interpretarlos.
 
+## Contenido
+
+- [Primeros pasos](#primeros-pasos)
+- [La interfaz de un vistazo](#la-interfaz-de-un-vistazo)
+- [Funciones de sesión](#funciones-de-sesión): [calidad de datos](#panel-de-calidad-de-datos), [vuelta óptima](#vuelta-óptima-por-microsectores), [setups de Assetto Corsa](#setups-de-assetto-corsa), [biblioteca y comparar sesiones](#biblioteca-de-sesiones-y-comparar-sesiones), [informe PDF](#informe-pdf), [circuitos y nombres de curva](#circuitos-conocidos-y-nombres-de-curva), [tema](#tema), [velocidad](#análisis-más-rápido-subida-única)
+- [Cómo leer cada análisis](#cómo-leer-cada-análisis)
+- [Formatos soportados](#formatos-soportados) y [exportar la telemetría](#exportar-la-telemetría)
+- [Notas de calidad de datos](#notas-de-calidad-de-datos), [limitaciones conocidas](#limitaciones-conocidas), [problemas comunes](#problemas-comunes), [flujo de trabajo recomendado](#flujo-de-trabajo-recomendado)
+
 ---
 
 ## Primeros Pasos
@@ -17,29 +26,29 @@ Analiza telemetría y te dice **dónde ganás tiempo, dónde lo perdés y por qu
 
 ### Archivos que necesitás
 
-Archivos CSV exportados desde **MoTeC i2** (Assetto Corsa vía ACTI, iRacing). Mirá [Exportar la telemetría](#exportar-la-telemetría) para los pasos y los canales que la app entiende.
+Archivos CSV exportados desde **MoTeC i2** (Assetto Corsa vía ACTI, iRacing) o, de forma **experimental**, archivos `.ibt` de iRacing y `.ld` de MoTeC directamente. Mirá [Formatos soportados](#formatos-soportados) y [Exportar la telemetría](#exportar-la-telemetría) para los pasos y los canales que la app entiende.
 
 ### Cómo empezar
 
 1. Instalá e iniciá el backend y el frontend (ver el [README](../README.es.md#inicio-rápido)) y abrí `http://localhost:5173`.
 2. En la barra superior elegí el idioma (ES/EN) y el modo: **Ingeniero** (todo) o **Piloto** (paneles técnicos ocultos).
-3. Soltá tu(s) archivo(s) CSV en el área de carga. Un archivo se trata como sesión completa; dos archivos se tratan como dos vueltas sueltas a comparar.
-4. Presioná analizar. Una barra de progreso muestra los pasos. Los archivos grandes pueden tardar varios minutos (una sesión de ~57 MB tardó unos 25 s); mantené la pestaña abierta.
-5. Al terminar, el área de carga se compacta en una barra de archivo. Presioná **Nuevo análisis** para empezar de nuevo.
+3. Soltá tu(s) archivo(s) en el área de carga. Un archivo se trata como sesión completa; dos archivos se tratan como dos vueltas sueltas a comparar.
+4. Presioná analizar. El archivo se sube una sola vez y una barra de progreso muestra las etapas (subida, sesión, stint, vuelta óptima); cada resultado aparece apenas termina su etapa, así que podés empezar a leer mientras se calcula el resto. Una sesión de ~57 MB mostró su primer resultado en unos 2 s y terminó en unos 3 s en el equipo del autor; con archivos más grandes mantené la pestaña abierta.
+5. Al terminar, el área de carga se compacta en una barra de archivo con **Nuevo análisis**, **Guardar en biblioteca** y **Descargar informe**.
 
 ---
 
 ## La Interfaz de un Vistazo
 
-La barra superior contiene la marca, el selector de idioma y el interruptor Piloto/Ingeniero. Un **riel lateral** permite saltar entre secciones. El resto de la página es una sola vista larga: **mover el ratón sobre cualquier gráfico sincroniza la posición del cursor en todos los demás**.
+La barra superior contiene la marca, el selector **Análisis / Biblioteca / Comparar sesiones**, el selector de idioma, el selector de tema y el interruptor Piloto/Ingeniero. Un **riel lateral** permite saltar entre secciones. El resto de la página es una sola vista larga: **mover el ratón sobre cualquier gráfico sincroniza la posición del cursor en todos los demás**.
 
 ### Sesión completa (1 CSV)
 
 | Sección | Qué muestra |
 |---------|-------------|
-| **Resumen de sesión** | Tabla de vueltas, mejor vuelta, panel de salud, mapa de pista |
+| **Resumen de sesión** | Panel de calidad de datos, tabla de vueltas, mejor vuelta, panel de salud, mapa de pista, vuelta óptima por microsectores |
 | **Análisis de stint** | Evolución del tiempo por vuelta, degradación, estrategia de combustible, ventana de pit, proyección Monte Carlo, evolución de pista |
-| **Setup y estrategia** | Análisis de curvas de toda la sesión, degradación de neumáticos, gestión térmica, trazada y recomendaciones de setup |
+| **Setup y estrategia** | Setup usado (Assetto Corsa), análisis de curvas de toda la sesión, degradación de neumáticos, gestión térmica, trazada y recomendaciones de setup |
 
 **Tabla de vueltas:** marcá **dos vueltas (A/B)** y presioná **Comparar** para abrir una comparación completa de esas vueltas, o presioná **Mejor vs Peor** para comparar automáticamente la vuelta flying más rápida con la más lenta. Las vueltas marcadas **PIT** (entrada/salida de boxes) y **atípicas** (tiempo muy lejos de la mediana) se excluyen de las estadísticas de degradación y proyección.
 
@@ -55,6 +64,68 @@ La barra superior contiene la marca, el selector de idioma y el interruptor Pilo
 | **Estrategia y setup** | Potencial de vuelta, anomalías, recomendaciones de setup y reporte de ingeniero (copiar como texto o descargar como PDF) |
 
 Hacé clic en una curva del análisis de curvas y todos los gráficos hacen zoom a esa zona.
+
+---
+
+## Funciones de sesión
+
+### Panel de calidad de datos
+
+Aparece primero, arriba de los resultados, y responde "¿qué le pasa a mis datos y cuánto me cuesta?". Da una **puntuación de 0 a 100** (Buena desde 75, Regular desde 50, Mala por debajo) formada por tres partes: canales (40 %), vueltas (20 %) y módulos de análisis (40 %). Al expandirlo ves:
+
+- **Origen:** simulador, coche, circuito, frecuencia de muestreo, duración, muestras.
+- **Vueltas:** detectadas, válidas, de pit, atípicas y segmentos parciales descartados, y cómo se segmentaron (contador de vueltas o reinicio de distancia).
+- **Canales:** cada canal como OK, Falta, Constante, Sintetizado (por ejemplo `Distance` reconstruida desde la velocidad), Parcial, Huecos o Inactivo (modelo de desgaste de neumáticos apagado). "Mostrar solo problemas" oculta los sanos.
+- **Módulos de análisis:** cada módulo (geometría, time delta, G-G, slip angle, suspensión, neumáticos, frenos, combustible/stint, térmico, setup, trazada, vuelta óptima) como OK, Degradado o No disponible, con el motivo concreto.
+- **Cómo mejorar:** una lista priorizada (Alta, Media, Baja) de qué registrar o exportar distinto y qué análisis desbloquea cada arreglo.
+
+### Vuelta óptima por microsectores
+
+Está en el resumen de sesión. La app corta cada vuelta válida en microsectores y combina los mejores, y da dos números:
+
+- **Óptima teórica:** la suma del mejor tiempo de cada microsector. Es una cota inferior optimista porque ignora que la velocidad de salida de un microsector es la de entrada del siguiente.
+- **Óptima realista:** solo cambia de una vuelta a otra donde las velocidades coinciden (tolerancia de 3 km/h) y se queda al menos 75 m en la misma vuelta, de modo que la vuelta combinada es físicamente posible. Es la cifra que conviene usar como objetivo.
+
+Ejemplo (Imola, Porsche Cayman GT4, 21 vueltas): mejor vuelta 1:57.605, óptima realista 1:54.107 (-3.498 s), óptima teórica 1:52.885 (-4.720 s).
+
+Controles y consejos de lectura:
+
+- **Tamaño del microsector** (10, 25, 50 o 100 m). La óptima teórica crece (se hace más rápida) al achicar el microsector, porque tiene más libertad para elegir lo mejor; compará tamaños y no persigas el número más pequeño.
+- Vistas del gráfico: ganancia acumulada, ganancia por microsector y perfil de velocidad. El mapa de pista muestra dónde está el tiempo; la tabla de zonas lista dónde tu mejor vuelta pierde más, de qué vuelta tomarlo y qué mirar.
+- Necesita al menos 3 vueltas utilizables (se excluyen las de pit, atípicas y parciales). Si el archivo no tenía canal `Distance`, se reconstruyó desde la velocidad, el alineado es menos preciso y el resultado es **solo orientativo**; el panel muestra un aviso.
+
+### Setups de Assetto Corsa
+
+La app puede enlazar el setup que usaste con las recomendaciones de setup, de modo que cada sugerencia muestre **Actual -> Sugerido** con tus valores reales.
+
+1. Busca `<Documentos>\Assetto Corsa\setups\<coche>\<pista>\*.ini` (coche y pista salen de la cabecera de la telemetría). Si hay varios, elegís el que usaste.
+2. Si no hay ninguno, puede ofrecerte tu último setup guardado (`<coche>\generic\last.ini`), pero **solo después de que confirmes** que fue el usado en esa sesión.
+3. Si no, soltá el archivo `.ini` del setup en el área indicada (siempre disponible). Tu elección se recuerda para ese coche y pista.
+
+Notas: el servidor solo puede leer la carpeta del juego si corre en el mismo equipo que el juego. **En Docker no puede**: subí el `.ini` manualmente, o montá la carpeta de solo lectura y definí `AC_SETUPS_DIR` (ver `docker-compose.override.example.yml` y la [guía de despliegue](./DEPLOYMENT.es.md)). Los valores se muestran en las unidades propias del juego (clics); una unidad real (presión de neumáticos en psi, reparto de frenada delantero y potencia de frenos en %, combustible en litros) se muestra solo donde es segura, y los rangos mín/máx solo cuando existe el `data/setup.ini` desempaquetado del coche. Los datos cifrados del coche nunca se abren. Si dos sugerencias empujan el mismo parámetro en sentidos opuestos, el panel te avisa: cambiá una cosa por vez. Por seguridad, solo se leen archivos `.ini`/`.sp` de hasta 256 KB y los nombres no pueden apuntar fuera de la carpeta de setups.
+
+### Biblioteca de sesiones y comparar sesiones
+
+- **Guardar en biblioteca** (barra de archivo) almacena los resultados calculados en la base de datos; marcá la opción para guardar automáticamente tras cada análisis. Guardar de nuevo el mismo archivo del mismo circuito actualiza la entrada existente.
+- **Biblioteca** lista las sesiones guardadas con búsqueda, filtros de circuito/coche/fecha y paginación. Podés abrir una sesión **sin el archivo original** (la comparación vuelta a vuelta y todo lo que necesita la telemetría cruda requiere analizar el CSV otra vez), renombrarla o borrarla.
+- **Comparar sesiones:** elegí la sesión A (referencia) y la B. Solo se ofrecen sesiones del mismo circuito y coche; se puede forzar la comparación de distintas y queda señalada. El resultado muestra diferencias de ritmo medio y mediano, consistencia, combustible por vuelta, tiempo perdido por curva y un gráfico de ritmo vuelta a vuelta. Los valores negativos significan que B es más rápida o menor.
+- Límites: una sesión guardada está limitada a 5 MB. **Todavía no hay inicio de sesión**: cualquiera que llegue al servidor ve toda la biblioteca.
+
+### Informe PDF
+
+**Descargar informe** (barra de archivo) genera un PDF bilingüe (idioma de la interfaz) a partir de los resultados que ya tenés, sin recalcular: resumen ejecutivo, hallazgos clave, acciones recomendadas, calidad de datos y limitaciones, ritmo y vueltas, curvas en orden de pista, recomendaciones de setup, estrategia y neumáticos y, si comparaste dos vueltas, telemetría del coche y comparación de trazas. El archivo se llama `motorsport_<circuito>_<coche>_<fecha>.pdf`. Las comparaciones tienen además su propio botón de PDF y un reporte de texto para copiar.
+
+### Circuitos conocidos y nombres de curva
+
+Si el circuito de la cabecera del archivo es conocido, la interfaz muestra una insignia con su nombre y longitud, y las curvas se muestran como "Curva 4 - Tamburello". **Solo Imola y Spa-Francorchamps tienen nombres**; otros 17 circuitos (Monza, Silverstone, Mugello, Nordschleife, Mónaco, Le Mans y más) solo se reconocen y sus curvas conservan el número. Si la longitud de la vuelta no coincide con el circuito (otro trazado o vuelta parcial) la insignia dice "confianza baja" y no se muestran nombres. Los nombres nunca se adivinan: una tabla de curvas se publica solo cuando se verificó con telemetría real.
+
+### Tema
+
+Usá el selector de tema de la barra superior: **Sistema** (sigue tu sistema operativo), **Claro** u **Oscuro**. La elección se recuerda en tu navegador.
+
+### Análisis más rápido (subida única)
+
+El archivo viaja una sola vez al servidor y se mantiene en memoria para los pasos siguientes, así que sesión, stint y vuelta óptima no lo vuelven a procesar. Si el servidor se reinició o la copia caducó (24 horas por defecto), la app vuelve a subir el archivo y reintenta sola; no tenés que hacer nada.
 
 ---
 
@@ -325,6 +396,8 @@ El botón **"Copiar Reporte"** genera un texto listo para pegar en un grupo de W
 | **Nerviosismo** | Índice que mide cuántas micro-correcciones de volante hace el piloto |
 | **ΔT** | Diferencia de temperatura entre la superficie y el núcleo del neumático |
 | **Stint** | Período de carrera entre dos paradas en boxes |
+| **Microsector** | Un tramo corto de la vuelta (10-100 m) con el que se arma la vuelta óptima |
+| **Vuelta óptima** | Una vuelta armada con los mejores microsectores de tus vueltas (teórica o realista) |
 | **G lateral / longitudinal** | Fuerza sentida en curvas (lateral) o bajo freno/aceleración (longitudinal) |
 
 ---
@@ -339,9 +412,9 @@ El botón **"Copiar Reporte"** genera un texto listo para pegar en un grupo de W
 
 > **Estado experimental.** Los lectores de `.ibt` y `.ld` están implementados a partir de los formatos binarios documentados públicamente. Se verificaron con archivos sintéticos (tests de ida y vuelta) y con archivos reales de la máquina del autor (53 archivos: 9 sesiones `.ibt` de iRacing con un BMW M2 en Oran Park y un Ford Mustang GT4 en Lime Rock, los 9 `.ld` de MoTeC equivalentes y 35 logs `.ld` de Assetto Corsa/ACTI). Es una muestra pequeña: otros coches, simuladores o loggers MoTeC pueden tener canales que el lector no conoce. La interfaz marca estos archivos con una insignia **Experimental**. Si un resultado parece incorrecto, compáralo con el CSV exportado de la misma sesión.
 
-**iRacing `.ibt`:** iRacing los escribe automáticamente en `Documents\iRacing	elemetry` (un archivo por sesión, con nombre `<coche>_<pista> <fecha> <hora>.ibt`) cuando el registro de telemetría está activo (Ctrl+L lo alterna en el simulador). Súbelo tal cual. Piloto, coche y pista se leen del propio archivo. Las unidades se convierten (m/s a km/h, pedales 0-1 a %, rad a grados, m/s2 a g, kPa a bar, m a mm); `Distance` se reconstruye con la distancia de vuelta del simulador.
+**iRacing `.ibt`:** iRacing los escribe automáticamente en `Documents\iRacing\telemetry` (un archivo por sesión, con nombre `<coche>_<pista> <fecha> <hora>.ibt`) cuando el registro de telemetría está activo (Ctrl+L lo alterna en el simulador). Súbelo tal cual. Piloto, coche y pista se leen del propio archivo. Las unidades se convierten (m/s a km/h, pedales 0-1 a %, rad a grados, m/s2 a g, kPa a bar, m a mm); `Distance` se reconstruye con la distancia de vuelta del simulador.
 
-**MoTeC `.ld`:** abre la carpeta donde tu logger o ACTI guarda los logs (en ACTI, `Documentscti	elem\<pista>_&_<coche>\`; el `.ldx` contiguo es opcional y se ignora) y sube el `.ld`. Los canales con distinta frecuencia se remuestrean a la más alta. Si el log no trae `Distance`, se sintetiza desde la velocidad, igual que con CSV.
+**MoTeC `.ld`:** abre la carpeta donde tu logger o ACTI guarda los logs (en ACTI, `Documents\acti\telem\<pista>_&_<coche>\`; el `.ldx` contiguo es opcional y se ignora) y sube el `.ld`. Los canales con distinta frecuencia se remuestrean a la más alta. Si el log no trae `Distance`, se sintetiza desde la velocidad, igual que con CSV.
 
 Límites conocidos: se rechazan los archivos mayores que el límite de subida del servidor (`MAX_UPLOAD_MB`, 2048 por defecto); las sesiones de más de 2 millones de muestras tras remuestrear (`NATIVE_MAX_ROWS`) se rechazan con un mensaje; un `.ibt` truncado carga los registros completos y un `.ld` truncado se rechaza. El signo de la G lateral sigue la convención de cada origen y no se normaliza.
 
@@ -396,6 +469,7 @@ La ausencia de canales opcionales no detiene el análisis: el panel afectado se 
 - **Canales constantes:** un canal que nunca cambia (por ejemplo, temperaturas de freno fijas en un valor) se informa como no disponible con un motivo, en lugar de generar consejos inventados.
 - **Slip angle:** la convención de signo de la G lateral se detecta por su correlación con la velocidad de guiñada y se invierte si hace falta (Assetto Corsa la registra invertida).
 - **Archivos inválidos:** un CSV vacío, o sin `Speed`, `Brake` y `Throttle`, se rechaza con un mensaje claro.
+- **Proyecciones conservadoras:** con menos de 5 vueltas válidas (o una tendencia muy incierta) la proyección de stint vuelve al ritmo reciente y se marca con baja confianza y el motivo; con menos de 8 vueltas la confianza es siempre baja. Si el desgaste de neumáticos no parece activado en el simulador, la degradación se muestra como no disponible (desgaste inactivo) en lugar de inventar una tendencia.
 
 ## Ejemplo de Resultado
 
@@ -404,13 +478,19 @@ Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV de MoT
 - 21 vueltas detectadas (las vueltas 1 y 21 son de pit); la mejor es la vuelta 11 con 1:57.605; las vueltas de carrera están entre 117.6 y 122.4 s.
 - Longitud de pista de unos 4862 m, velocidad máxima 243.9 km/h, 11 curvas encontradas por geometría.
 - Consumo de combustible 1.758 L/vuelta; tendencia de ritmo -0.077 s/vuelta (el coche mejora a medida que consume combustible, por lo que es una mejora y no desgaste de neumáticos).
-- El análisis completo terminó en unos 25 s.
+- La vuelta óptima fue 1:54.107 realista (-3.498 s) y 1:52.885 teórica (-4.720 s), orientativa porque `Distance` se sintetizó.
+- El primer resultado apareció en unos 2,1 s y el análisis completo terminó en unos 2,9 s en el equipo del autor (antes tardaba unos 15 s y 21 s).
 
 ## Limitaciones Conocidas
 
 - La detección de curvas solo por velocidad encuentra 7 curvas en Imola frente a 11 por geometría (las chicanes se fusionan en una).
 - La detección de bottoming es heurística: recorrido de suspensión igual o superior al 90 % del recorrido máximo observado en el archivo.
 - Según el simulador y la exportación, algunos canales pueden faltar; los paneles te avisan cuando ocurre.
+- `.ibt` y `.ld` son experimentales (probados con 53 archivos de un solo autor); CSV es el formato estable.
+- La óptima teórica crece al achicar el microsector; con `Distance` sintetizada la vuelta óptima es solo orientativa.
+- Los nombres de curva existen solo para Imola y Spa-Francorchamps.
+- Las unidades de setup se muestran solo donde son seguras y faltan rangos en la mayoría de los coches (sus archivos de datos están cifrados).
+- No hay autenticación: no expongas la app a internet tal cual.
 
 ---
 
@@ -437,6 +517,21 @@ Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV de MoT
 **Los gráficos no se sincronizan:**
 - Mové el cursor lentamente; si el navegador tiene alto consumo de CPU, puede haber lag
 
+**La app vuelve a subir el archivo o dice que expiró (HTTP 410):**
+- El servidor ya no tenía tu copia subida (reinicio, caducidad de 24 horas u otra réplica sin volumen compartido). La app reintenta sola; si sigue fallando, presioná **Nuevo análisis** y cargá el archivo de nuevo.
+
+**Error 413 (archivo demasiado grande):**
+- El archivo supera el límite del servidor (`MAX_UPLOAD_MB`, 2048 MB por archivo por defecto). Una sesión guardada en la biblioteca está limitada a 5 MB.
+
+**El panel de setup dice que el servidor no puede leer tu carpeta de Assetto Corsa:**
+- Es normal en Docker o cuando el servidor está en otro equipo. Subí el `.ini` del setup que usaste, o montá la carpeta de solo lectura y definí `AC_SETUPS_DIR`.
+
+**Un archivo `.ibt` o `.ld` se ve mal:**
+- Estos formatos son experimentales. Compará con la exportación CSV de la misma sesión y reportá el caso.
+
+**La vuelta óptima dice que es orientativa o no disponible:**
+- Necesita al menos 3 vueltas válidas y un `Distance` confiable; sin él la distancia se reconstruye desde la velocidad. Mirá el panel de calidad de datos.
+
 **El análisis tarda mucho:**
 - Los archivos de sesión de decenas de MB pueden tardar decenas de segundos o más en el backend; mantené la pestaña abierta
 
@@ -445,12 +540,13 @@ Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV de MoT
 ## Flujo de Trabajo Recomendado
 
 ```
-1. Cargá el/los archivo(s) y esperá el análisis (en una sesión, elegí dos vueltas o usá Mejor vs Peor)
+1. Cargá el/los archivo(s) y leé el panel de calidad de datos (en una sesión, elegí dos vueltas o usá Mejor vs Peor)
 2. Mirá el TIME DELTA: ¿dónde se separan las líneas?
 3. Hacé click en las curvas donde perdés más tiempo
 4. Verificá el G-G: ¿estás usando todo el agarre disponible?
 5. Revisá los neumáticos: ¿están en temperatura óptima?
 6. Controlá el balance (slip angle): ¿el setup está equilibrado?
 7. Mirá el estilo de pilotaje: ¿el coche obliga a corregir mucho?
-8. Copiá el reporte de ingeniero para compartir con el equipo
+8. Mirá la vuelta óptima y sus zonas para ver dónde tu mejor vuelta todavía pierde tiempo
+9. Enlazá tu setup, guardá la sesión en la biblioteca y descargá el informe para compartir con el equipo
 ```

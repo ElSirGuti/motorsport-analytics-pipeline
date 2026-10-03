@@ -2,7 +2,7 @@
 
 [Ver en Español](./REFERENCIA_RAPIDA.es.md)
 
-Cheat sheet for quick reference during or after a session.
+Cheat sheet for quick reference during or after a session. Full explanations: [User Guide](./USER_GUIDE.md).
 
 ---
 
@@ -132,6 +132,62 @@ Cheat sheet for quick reference during or after a session.
 
 ---
 
+## Optimal Lap by Microsectors
+
+| Figure | Meaning | Use it as |
+|--------|---------|-----------|
+| **Best lap** | Your fastest valid lap | Reference |
+| **Realistic optimal** | Best microsectors stitched together only where speeds match (3 km/h) and with at least 75 m on the same lap | Target |
+| **Theoretical optimal** | Sum of the best time of every microsector (ignores speed continuity) | Optimistic lower bound |
+
+- Microsector 10 / 25 / 50 / 100 m: the theoretical figure gets faster as the microsector shrinks. Compare, do not chase.
+- Needs 3 or more valid laps. With a synthesised `Distance` the result is indicative only (warning shown).
+- Zones table: where the best lap loses most, which lap to take it from, what to look at.
+- Imola example: best 1:57.605, realistic 1:54.107 (-3.498 s), theoretical 1:52.885 (-4.720 s).
+
+---
+
+## Data-Quality Score
+
+| Score | Level | What to do |
+|-------|-------|-----------|
+| 75-100 | Good | Trust the results |
+| 50-74 | Fair | Read "How to improve"; some panels are degraded |
+| 0-49 | Poor | Fix the export first (missing or constant channels, too few laps) |
+
+Weights: channels 40 %, laps 20 %, analysis modules 40 %. Channel states: OK, Missing, Constant, Synthesized, Partial, Gaps, Inactive. Module states: OK, Degraded, Unavailable.
+
+---
+
+## Setup Link (Assetto Corsa)
+
+| Step | Where it looks |
+|------|----------------|
+| 1 | `<Documents>\Assetto Corsa\setups\<car>\<track>\*.ini` (or the folder in `AC_SETUPS_DIR`) |
+| 2 | `<car>\generic\last.ini`, only after you confirm it was used |
+| 3 | Manual upload of the `.ini` (always works; the only option in Docker unless the folder is mounted read-only) |
+
+Recommendations then show **Current -> Suggested**. Units appear only where they are certain (psi, % brake bias and power, litres); otherwise raw game clicks. Conflicting suggestions: change one thing at a time.
+
+---
+
+## Formats, Limits and Status Codes
+
+| Item | Value |
+|------|-------|
+| CSV (MoTeC / ACTI, iRacing) | Stable |
+| `.ibt` iRacing, `.ld` MoTeC | **Experimental** (validated with 53 files of one author) |
+| Minimum channels | Speed, Brake, Throttle |
+| Upload limit | `MAX_UPLOAD_MB` per file (2048 by default), HTTP 413 above it |
+| Saved library session | 5 MB maximum (HTTP 413) |
+| Setup file | `.ini`/`.sp`, 256 KB maximum |
+| HTTP 410 | The server lost the uploaded copy: the app uploads again and retries |
+| Stint / optimal lap | 3 or more valid laps |
+| Projection confidence | Always low below 8 valid laps; fallback to recent pace below 5 |
+| Corner names | Imola and Spa-Francorchamps only; 17 more circuits are recognised without names |
+
+---
+
 ## Quick Diagnosis Guide
 
 ### "I am slow under braking"
@@ -173,7 +229,9 @@ If any of these channels is not present in your MoTeC CSV, that module is report
 ## Analysis Session Flow
 
 ```
-Load the CSV(s): 1 file = session, 2 files = lap comparison
+Load the file(s): 1 file = session, 2 files = lap comparison
+    ↓
+Read the data-quality score first
     ↓
 How much time am I losing and where? → Time Delta + Corners
     ↓
@@ -187,7 +245,9 @@ Is driving style the problem? → Driver Inputs
     ↓
 Is the mechanical setup the problem? → Suspension + Slip Angle
     ↓
-Copy the report → share with the team
+Optimal lap → which zones still cost time?
+    ↓
+Link the setup, save to the library, download the PDF report → share with the team
 ```
 
 *Also available in [Español](./REFERENCIA_RAPIDA.es.md)*

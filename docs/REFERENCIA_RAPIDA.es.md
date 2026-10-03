@@ -2,7 +2,7 @@
 
 [Read in English](./QUICK_REFERENCE.md)
 
-Cheat sheet para consulta rápida durante o después de una sesión.
+Cheat sheet para consulta rápida durante o después de una sesión. Explicaciones completas: [Guía de Usuario](./GUIA_USUARIO.es.md).
 
 ---
 
@@ -132,6 +132,62 @@ Cheat sheet para consulta rápida durante o después de una sesión.
 
 ---
 
+## Vuelta Óptima por Microsectores
+
+| Cifra | Significado | Usala como |
+|-------|-------------|-----------|
+| **Mejor vuelta** | Tu vuelta válida más rápida | Referencia |
+| **Óptima realista** | Mejores microsectores unidos solo donde las velocidades coinciden (3 km/h) y con al menos 75 m en la misma vuelta | Objetivo |
+| **Óptima teórica** | Suma del mejor tiempo de cada microsector (ignora la continuidad de velocidad) | Cota inferior optimista |
+
+- Microsector de 10 / 25 / 50 / 100 m: la cifra teórica se hace más rápida al achicar el microsector. Compará, no la persigas.
+- Necesita 3 o más vueltas válidas. Con `Distance` sintetizada el resultado es solo orientativo (se muestra un aviso).
+- Tabla de zonas: dónde pierde más la mejor vuelta, de qué vuelta tomarlo y qué mirar.
+- Ejemplo Imola: mejor 1:57.605, realista 1:54.107 (-3.498 s), teórica 1:52.885 (-4.720 s).
+
+---
+
+## Puntuación de Calidad de Datos
+
+| Puntuación | Nivel | Qué hacer |
+|------------|-------|-----------|
+| 75-100 | Buena | Confiá en los resultados |
+| 50-74 | Regular | Leé "Cómo mejorar"; algunos paneles están degradados |
+| 0-49 | Mala | Arreglá primero la exportación (canales ausentes o constantes, pocas vueltas) |
+
+Pesos: canales 40 %, vueltas 20 %, módulos de análisis 40 %. Estados de canal: OK, Falta, Constante, Sintetizado, Parcial, Huecos, Inactivo. Estados de módulo: OK, Degradado, No disponible.
+
+---
+
+## Enlace con el Setup (Assetto Corsa)
+
+| Paso | Dónde busca |
+|------|-------------|
+| 1 | `<Documentos>\Assetto Corsa\setups\<coche>\<pista>\*.ini` (o la carpeta de `AC_SETUPS_DIR`) |
+| 2 | `<coche>\generic\last.ini`, solo después de que confirmes que se usó |
+| 3 | Subida manual del `.ini` (siempre funciona; la única opción en Docker salvo que montes la carpeta de solo lectura) |
+
+Las recomendaciones muestran entonces **Actual -> Sugerido**. Las unidades aparecen solo donde son seguras (psi, % de reparto y potencia de frenos, litros); si no, clics crudos del juego. Sugerencias en conflicto: cambiá una cosa por vez.
+
+---
+
+## Formatos, Límites y Códigos de Estado
+
+| Elemento | Valor |
+|----------|-------|
+| CSV (MoTeC / ACTI, iRacing) | Estable |
+| `.ibt` iRacing, `.ld` MoTeC | **Experimental** (validado con 53 archivos de un solo autor) |
+| Canales mínimos | Speed, Brake, Throttle |
+| Límite de subida | `MAX_UPLOAD_MB` por archivo (2048 por defecto), HTTP 413 si lo supera |
+| Sesión guardada en la biblioteca | 5 MB máximo (HTTP 413) |
+| Archivo de setup | `.ini`/`.sp`, 256 KB máximo |
+| HTTP 410 | El servidor perdió la copia subida: la app sube de nuevo y reintenta |
+| Stint / vuelta óptima | 3 o más vueltas válidas |
+| Confianza de la proyección | Siempre baja con menos de 8 vueltas válidas; vuelve al ritmo reciente con menos de 5 |
+| Nombres de curva | Solo Imola y Spa-Francorchamps; otros 17 circuitos se reconocen sin nombres |
+
+---
+
 ## Guía de Diagnóstico Rápido
 
 ### "Soy lento en frenadas"
@@ -173,7 +229,9 @@ Si alguno de estos canales no está en tu CSV de MoTeC, ese módulo se informa c
 ## Flujo de Sesión de Análisis
 
 ```
-Cargá el/los CSV: 1 archivo = sesión, 2 archivos = comparación de vueltas
+Cargá el/los archivo(s): 1 archivo = sesión, 2 archivos = comparación de vueltas
+    ↓
+Leé primero la puntuación de calidad de datos
     ↓
 ¿Cuánto tiempo pierdo y dónde? → Time Delta + Curvas
     ↓
@@ -187,5 +245,7 @@ Cargá el/los CSV: 1 archivo = sesión, 2 archivos = comparación de vueltas
     ↓
 ¿El setup mecánico es el problema? → Suspensión + Slip Angle
     ↓
-Copiá el reporte → compartí con el equipo
+Vuelta óptima → ¿qué zonas todavía cuestan tiempo?
+    ↓
+Enlazá el setup, guardá en la biblioteca, descargá el informe PDF → compartí con el equipo
 ```
