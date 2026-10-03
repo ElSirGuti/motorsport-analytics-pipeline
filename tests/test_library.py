@@ -256,3 +256,16 @@ def test_sniff_pretty_names(client):
     assert r.status_code == 200
     assert r.json() == {"venue": "Imola", "vehicle": "Porsche Cayman GT4 Clubsport", "driver": "Ana Perez",
                         "raw": {"driver": "Ana Perez", "vehicle": "ks_porsche_cayman_gt4_clubsport", "venue": "fn_imola"}}
+
+
+def test_sqlite_engine_creates_missing_parent_dir(tmp_path):
+    """Un clon limpio no tiene data/: make_engine debe crear la carpeta del archivo SQLite."""
+    from src.db.session import make_engine
+
+    db = tmp_path / "nueva" / "carpeta" / "m.db"
+    assert not db.parent.exists()
+    engine = make_engine(f"sqlite:///{db.as_posix()}")
+    with engine.connect():
+        pass
+    assert db.parent.is_dir()
+    engine.dispose()

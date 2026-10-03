@@ -66,6 +66,9 @@ def make_engine(url: Optional[str] = None) -> Engine:
         kwargs["connect_args"] = {"check_same_thread": False}
         if parsed.database in (None, "", ":memory:"):
             kwargs["poolclass"] = StaticPool  # una unica conexion: la BD en memoria persiste
+        else:
+            # SQLite crea el archivo pero NO la carpeta: en un clon limpio data/ puede no existir.
+            os.makedirs(os.path.dirname(os.path.abspath(parsed.database)), exist_ok=True)
     return create_engine(url, **kwargs)
 
 

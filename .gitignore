@@ -48,3 +48,6 @@ docker-compose.override.yml
 
 # e2e visual diffs (generated on failure)
 tests/e2e/_artifacts/
+
+# Historial local de vueltas (lo crea y actualiza la app; no versionar)
+data/laptime_history.db
