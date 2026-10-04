@@ -1,0 +1,231 @@
+{
+ "circuit_id": "imola",
+ "source": {
+  "game": "Assetto Corsa",
+  "file": "ai/fast_lane.ai",
+  "track_id": "imola",
+  "layout": null,
+  "format_version": 7
+ },
+ "extracted": "2026-10-04",
+ "length_official_m": 4909.0,
+ "length_line_m": 4864.3,
+ "closed": true,
+ "direction": "anticlockwise",
+ "method": {
+  "resample_m": 2.0,
+  "smooth_window_m": 62.0,
+  "min_curvature": 0.0025,
+  "complex_gap_m": 120.0,
+  "chicane_gap_m": 200.0,
+  "severity_radius_m": [
+   60.0,
+   150.0,
+   400.0
+  ]
+ },
+ "corners": [
+  {
+   "index": 1,
+   "start_fraction": 0.12911,
+   "apex_fraction": 0.14268,
+   "end_fraction": 0.20189,
+   "apex_m": 694.0,
+   "min_radius_m": 69.3,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.14268,
+     "distance_m": 694.0,
+     "radius_m": 69.3,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.15625,
+     "distance_m": 760.0,
+     "radius_m": 87.8,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.17928,
+     "distance_m": 872.0,
+     "radius_m": 142.1,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "start_fraction": 0.25535,
+   "apex_fraction": 0.28824,
+   "end_fraction": 0.30592,
+   "apex_m": 1402.1,
+   "min_radius_m": 74.9,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.27138,
+     "distance_m": 1320.1,
+     "radius_m": 146.0,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.28824,
+     "distance_m": 1402.1,
+     "radius_m": 74.9,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "start_fraction": 0.3347,
+   "apex_fraction": 0.3491,
+   "end_fraction": 0.3639,
+   "apex_m": 1698.1,
+   "min_radius_m": 40.5,
+   "direction": "left",
+   "severity": "slow",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.3491,
+     "distance_m": 1698.1,
+     "radius_m": 40.5,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "start_fraction": 0.45888,
+   "apex_fraction": 0.4815,
+   "end_fraction": 0.52796,
+   "apex_m": 2342.1,
+   "min_radius_m": 85.7,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.4815,
+     "distance_m": 2342.1,
+     "radius_m": 85.7,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "start_fraction": 0.54235,
+   "apex_fraction": 0.57977,
+   "end_fraction": 0.60855,
+   "apex_m": 2820.2,
+   "min_radius_m": 50.5,
+   "direction": "right",
+   "severity": "slow",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.56086,
+     "distance_m": 2728.1,
+     "radius_m": 148.9,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.57977,
+     "distance_m": 2820.2,
+     "radius_m": 50.5,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.59663,
+     "distance_m": 2902.2,
+     "radius_m": 211.7,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "start_fraction": 0.67352,
+   "apex_fraction": 0.6912,
+   "end_fraction": 0.70189,
+   "apex_m": 3362.2,
+   "min_radius_m": 49.1,
+   "direction": "left",
+   "severity": "slow",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.68174,
+     "distance_m": 3316.2,
+     "radius_m": 66.4,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.6912,
+     "distance_m": 3362.2,
+     "radius_m": 49.1,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 7,
+   "start_fraction": 0.78618,
+   "apex_fraction": 0.84334,
+   "end_fraction": 0.8565,
+   "apex_m": 4102.2,
+   "min_radius_m": 50.5,
+   "direction": "left",
+   "severity": "slow",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.8088,
+     "distance_m": 3934.2,
+     "radius_m": 354.2,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.84334,
+     "distance_m": 4102.2,
+     "radius_m": 50.5,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 8,
+   "start_fraction": 0.8565,
+   "apex_fraction": 0.86883,
+   "end_fraction": 0.88528,
+   "apex_m": 4226.2,
+   "min_radius_m": 64.9,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.86883,
+     "distance_m": 4226.2,
+     "radius_m": 64.9,
+     "direction": "left"
+    }
+   ]
+  }
+ ]
+}

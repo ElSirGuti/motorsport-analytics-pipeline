@@ -25,6 +25,8 @@ from typing import Iterable, Optional
 logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).resolve().parents[1] / "data" / "circuits.json"
+GEOMETRY_DIR = Path(__file__).resolve().parents[1] / "data" / "track_geometry"
+GEOMETRY_WARN_M = 250.0   # a tabulated corner farther than this from any geometric corner is suspicious
 
 LENGTH_TOLERANCE = 0.04        # relative tolerance between measured and nominal lap length
 APEX_TOLERANCE_FRACTION = 0.025  # of the lap length ...
@@ -44,6 +46,59 @@ def normalize_venue(value) -> str:
     s = unicodedata.normalize("NFKD", str(value)).encode("ascii", "ignore").decode("ascii")
     s = re.sub(r"[^a-z0-9]+", "_", s.lower()).strip("_")
     return s
+
+
+def get_track_geometry(circuit_id: Optional[str]) -> Optional[dict]:
+    """
+    Geometric corners of a circuit (src/data/track_geometry/<id>.json, derived from the Assetto
+    Corsa racing line by scripts/ac_track_reference.py) or None when there is no file.
+
+    Positions are fractions of the lap, independent of the car. The result is cached; do not
+    mutate it.
+    """
+    if not circuit_id or not isinstance(circuit_id, str) or not re.fullmatch(r"[a-z0-9_]+", circuit_id):
+        return None
+    return _load_geometry(circuit_id)
+
+
+@lru_cache(maxsize=64)
+def _load_geometry(circuit_id: str) -> Optional[dict]:
+    path = GEOMETRY_DIR / f"{circuit_id}.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("circuits: cannot read %s: %s", path, exc)
+        return None
+    return data if isinstance(data, dict) and isinstance(data.get("corners"), list) else None
+
+
+def _warn_geometry(circuit: dict) -> None:
+    """Soft check (log only, never an error): tabulated corners far from every geometric corner."""
+    cid = circuit.get("id")
+    corners = circuit.get("corners")
+    if not corners or not isinstance(cid, str):
+        return
+    geo = get_track_geometry(cid)
+    if not geo:
+        return
+    try:
+        length = float(circuit["length_m"])
+        fracs = []
+        for g in geo["corners"]:
+            fracs.append(float(g["apex_fraction"]))
+            fracs += [float(a["fraction"]) for a in g.get("sub_apexes") or []]
+        if not fracs:
+            return
+        for k in corners:
+            f = float(k["apex_fraction"])
+            d = min(min(abs(f - x), 1.0 - abs(f - x)) for x in fracs) * length
+            if d > GEOMETRY_WARN_M:
+                logger.warning("circuits: %s corner %r is %.0f m from the nearest geometric corner",
+                               cid, k.get("name"), d)
+    except (KeyError, TypeError, ValueError):
+        return
 
 
 def validate_database(data) -> list:
@@ -124,6 +179,7 @@ def validate_database(data) -> list:
                 errors.append(f"{ktag}: order must be a strictly increasing integer")
             else:
                 last_o = o
+        _warn_geometry(c)
     return errors
 
 

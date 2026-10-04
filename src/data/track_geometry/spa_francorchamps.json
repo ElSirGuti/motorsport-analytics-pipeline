@@ -1,0 +1,305 @@
+{
+ "circuit_id": "spa_francorchamps",
+ "source": {
+  "game": "Assetto Corsa",
+  "file": "ai/fast_lane.ai",
+  "track_id": "spa",
+  "layout": null,
+  "format_version": 7
+ },
+ "extracted": "2026-10-04",
+ "length_official_m": 7004.0,
+ "length_line_m": 6946.2,
+ "closed": true,
+ "direction": "clockwise",
+ "method": {
+  "resample_m": 2.0,
+  "smooth_window_m": 62.0,
+  "min_curvature": 0.0025,
+  "complex_gap_m": 120.0,
+  "chicane_gap_m": 200.0,
+  "severity_radius_m": [
+   60.0,
+   150.0,
+   400.0
+  ]
+ },
+ "corners": [
+  {
+   "index": 1,
+   "start_fraction": 0.05039,
+   "apex_fraction": 0.05528,
+   "end_fraction": 0.06421,
+   "apex_m": 384.0,
+   "min_radius_m": 26.7,
+   "direction": "right",
+   "severity": "slow",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.05528,
+     "distance_m": 384.0,
+     "radius_m": 26.7,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "start_fraction": 0.14742,
+   "apex_fraction": 0.16355,
+   "end_fraction": 0.19464,
+   "apex_m": 1136.0,
+   "min_radius_m": 163.9,
+   "direction": "right",
+   "severity": "fast",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.15117,
+     "distance_m": 1050.0,
+     "radius_m": 350.6,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.16355,
+     "distance_m": 1136.0,
+     "radius_m": 163.9,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.18601,
+     "distance_m": 1292.0,
+     "radius_m": 214.5,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "start_fraction": 0.3389,
+   "apex_fraction": 0.3484,
+   "end_fraction": 0.39188,
+   "apex_m": 2420.1,
+   "min_radius_m": 63.3,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.3484,
+     "distance_m": 2420.1,
+     "radius_m": 63.3,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.3579,
+     "distance_m": 2486.1,
+     "radius_m": 64.6,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.37604,
+     "distance_m": 2612.1,
+     "radius_m": 78.4,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "start_fraction": 0.4247,
+   "apex_fraction": 0.4391,
+   "end_fraction": 0.45695,
+   "apex_m": 3050.1,
+   "min_radius_m": 50.2,
+   "direction": "right",
+   "severity": "slow",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.4391,
+     "distance_m": 3050.1,
+     "radius_m": 50.2,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "start_fraction": 0.46185,
+   "apex_fraction": 0.46876,
+   "end_fraction": 0.48344,
+   "apex_m": 3256.1,
+   "min_radius_m": 70.5,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.46876,
+     "distance_m": 3256.1,
+     "radius_m": 70.5,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "start_fraction": 0.5347,
+   "apex_fraction": 0.55428,
+   "end_fraction": 0.59977,
+   "apex_m": 3850.1,
+   "min_radius_m": 122.4,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.55428,
+     "distance_m": 3850.1,
+     "radius_m": 122.4,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 7,
+   "start_fraction": 0.63346,
+   "apex_fraction": 0.64843,
+   "end_fraction": 0.68327,
+   "apex_m": 4504.1,
+   "min_radius_m": 83.6,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.64843,
+     "distance_m": 4504.1,
+     "radius_m": 83.6,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.66312,
+     "distance_m": 4606.1,
+     "radius_m": 84.6,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 8,
+   "start_fraction": 0.69853,
+   "apex_fraction": 0.70919,
+   "end_fraction": 0.72041,
+   "apex_m": 4926.1,
+   "min_radius_m": 61.8,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.70919,
+     "distance_m": 4926.1,
+     "radius_m": 61.8,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 9,
+   "start_fraction": 0.72589,
+   "apex_fraction": 0.74806,
+   "end_fraction": 0.77455,
+   "apex_m": 5196.1,
+   "min_radius_m": 133.3,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.74806,
+     "distance_m": 5196.1,
+     "radius_m": 133.3,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 10,
+   "start_fraction": 0.78952,
+   "apex_fraction": 0.79614,
+   "end_fraction": 0.80046,
+   "apex_m": 5530.1,
+   "min_radius_m": 380.4,
+   "direction": "right",
+   "severity": "fast",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.79614,
+     "distance_m": 5530.1,
+     "radius_m": 380.4,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 11,
+   "start_fraction": 0.87043,
+   "apex_fraction": 0.88425,
+   "end_fraction": 0.90527,
+   "apex_m": 6142.1,
+   "min_radius_m": 203.1,
+   "direction": "left",
+   "severity": "fast",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.88425,
+     "distance_m": 6142.1,
+     "radius_m": 203.1,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 12,
+   "start_fraction": 0.96026,
+   "apex_fraction": 0.97293,
+   "end_fraction": 0.98042,
+   "apex_m": 6758.2,
+   "min_radius_m": 25.5,
+   "direction": "left",
+   "severity": "slow",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.96631,
+     "distance_m": 6712.2,
+     "radius_m": 29.7,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.97293,
+     "distance_m": 6758.2,
+     "radius_m": 25.5,
+     "direction": "left"
+    }
+   ]
+  }
+ ]
+}

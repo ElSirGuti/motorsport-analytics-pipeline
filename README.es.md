@@ -368,6 +368,7 @@ La tabla completa de alias es `COLUMN_ALIASES` en `src/io/loaders.py`. Los canal
 - **Hay nombres de curva para Imola, Spa-Francorchamps, Monaco, Silverstone GP y Le Mans (`high`: ajustados con varias vueltas/logs reales) y para Mugello y Brands Hatch (`medium`: una vuelta, tablas parciales)**. El resto (Monza, Red Bull Ring, Nordschleife, Barcelona, Laguna Seca, Zandvoort, Vallelunga, Magione, Sepang, Oran Park GP y South, Lime Rock GP) son **solo reconocimiento** (sin nombres de curva, `confidence: medium`). Un circuito puede ajustar la tolerancia con `apex_tolerance_m`.
 - Si la longitud medida no encaja (probablemente otro trazado o una vuelta parcial) el circuito se marca con confianza `low` y no se asignan nombres. Un apex sin curva tabulada cerca conserva su número.
 - **Regla de honestidad:** una tabla de curvas solo se publica cuando su orden y sus posiciones se verificaron con telemetría. No añadas nombres de memoria ni desde un plano sin comprobar dónde cae cada apex en una vuelta real.
+- **Referencia geométrica (independiente del coche).** `src/data/track_geometry/<circuit_id>.json` guarda, para los 16 circuitos de Assetto Corsa de la base de datos, dónde hay curvas según la geometría de la línea de la IA del juego (`ai/fast_lane.ai`): fracción de vuelta, radio mínimo, dirección, clase (lenta < 60 m, media 60-150 m, rápida 150-400 m; una curva rápida puede ser a fondo para un coche con mucho apoyo) y agrupación de chicanes/curvas compuestas. Se lee con `circuits.get_track_geometry(circuit_id)` (None si no existe) y `validate_database` avisa en el log si una curva tabulada queda a más de 250 m de toda curva geométrica. Los archivos viajan en el repositorio porque Docker/Kubernetes no ven el juego; para regenerarlos o inspeccionarlos (solo lectura sobre la carpeta del juego, localizada con `AC_CONTENT_DIR`/`AC_INSTALL_DIR` o las rutas habituales de Steam): `python scripts/ac_track_reference.py imola --compare` y `python scripts/ac_track_reference.py --export-all`.
 
 **Añadir un circuito o los nombres de sus curvas** (todo en `src/data/circuits.json`):
 
@@ -452,7 +453,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (448 recogidos: 425 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (500 recogidos: 477 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -570,7 +571,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 448 recogidos: 425 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 500 recogidos: 477 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

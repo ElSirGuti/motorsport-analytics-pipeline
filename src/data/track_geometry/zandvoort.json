@@ -1,0 +1,257 @@
+{
+ "circuit_id": "zandvoort",
+ "source": {
+  "game": "Assetto Corsa",
+  "file": "ai/fast_lane.ai",
+  "track_id": "zandvoort2020",
+  "layout": "2020",
+  "format_version": 7
+ },
+ "extracted": "2026-10-04",
+ "length_official_m": 4259.0,
+ "length_line_m": 4201.7,
+ "closed": true,
+ "direction": "clockwise",
+ "method": {
+  "resample_m": 2.0,
+  "smooth_window_m": 62.0,
+  "min_curvature": 0.0025,
+  "complex_gap_m": 120.0,
+  "chicane_gap_m": 200.0,
+  "severity_radius_m": [
+   60.0,
+   150.0,
+   400.0
+  ]
+ },
+ "corners": [
+  {
+   "index": 1,
+   "start_fraction": 0.05712,
+   "apex_fraction": 0.18515,
+   "end_fraction": 0.20466,
+   "apex_m": 777.9,
+   "min_radius_m": 29.4,
+   "direction": "left",
+   "severity": "slow",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.07806,
+     "distance_m": 328.0,
+     "radius_m": 41.6,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.11471,
+     "distance_m": 482.0,
+     "radius_m": 193.4,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.1485,
+     "distance_m": 624.0,
+     "radius_m": 80.3,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.18515,
+     "distance_m": 777.9,
+     "radius_m": 29.4,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "start_fraction": 0.21656,
+   "apex_fraction": 0.23703,
+   "end_fraction": 0.25274,
+   "apex_m": 995.9,
+   "min_radius_m": 242.4,
+   "direction": "right",
+   "severity": "fast",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.23703,
+     "distance_m": 995.9,
+     "radius_m": 242.4,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "start_fraction": 0.26178,
+   "apex_fraction": 0.28939,
+   "end_fraction": 0.3446,
+   "apex_m": 1215.9,
+   "min_radius_m": 195.4,
+   "direction": "left",
+   "severity": "fast",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.28939,
+     "distance_m": 1215.9,
+     "radius_m": 195.4,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.31176,
+     "distance_m": 1309.9,
+     "radius_m": 238.2,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "start_fraction": 0.35412,
+   "apex_fraction": 0.39029,
+   "end_fraction": 0.50024,
+   "apex_m": 1639.9,
+   "min_radius_m": 98.0,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.39029,
+     "distance_m": 1639.9,
+     "radius_m": 98.0,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.43551,
+     "distance_m": 1829.9,
+     "radius_m": 321.6,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.45835,
+     "distance_m": 1925.9,
+     "radius_m": 98.3,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "start_fraction": 0.50024,
+   "apex_fraction": 0.51928,
+   "end_fraction": 0.54688,
+   "apex_m": 2181.8,
+   "min_radius_m": 49.6,
+   "direction": "right",
+   "severity": "slow",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.51928,
+     "distance_m": 2181.8,
+     "radius_m": 49.6,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "start_fraction": 0.55212,
+   "apex_fraction": 0.57116,
+   "end_fraction": 0.60733,
+   "apex_m": 2399.8,
+   "min_radius_m": 47.7,
+   "direction": "left",
+   "severity": "slow",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.57116,
+     "distance_m": 2399.8,
+     "radius_m": 47.7,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 7,
+   "start_fraction": 0.70585,
+   "apex_fraction": 0.73489,
+   "end_fraction": 0.75488,
+   "apex_m": 3087.8,
+   "min_radius_m": 35.0,
+   "direction": "left",
+   "severity": "slow",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.71633,
+     "distance_m": 3009.8,
+     "radius_m": 48.9,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.73489,
+     "distance_m": 3087.8,
+     "radius_m": 35.0,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 8,
+   "start_fraction": 0.79486,
+   "apex_fraction": 0.81247,
+   "end_fraction": 0.83817,
+   "apex_m": 3413.8,
+   "min_radius_m": 70.5,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.81247,
+     "distance_m": 3413.8,
+     "radius_m": 70.5,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 9,
+   "start_fraction": 0.83817,
+   "apex_fraction": 0.86054,
+   "end_fraction": 0.91433,
+   "apex_m": 3615.7,
+   "min_radius_m": 122.3,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "compound",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.86054,
+     "distance_m": 3615.7,
+     "radius_m": 122.3,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.88149,
+     "distance_m": 3703.7,
+     "radius_m": 127.9,
+     "direction": "right"
+    }
+   ]
+  }
+ ]
+}

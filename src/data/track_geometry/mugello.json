@@ -1,0 +1,259 @@
+{
+ "circuit_id": "mugello",
+ "source": {
+  "game": "Assetto Corsa",
+  "file": "ai/fast_lane.ai",
+  "track_id": "mugello",
+  "layout": null,
+  "format_version": 7
+ },
+ "extracted": "2026-10-04",
+ "length_official_m": 5245.0,
+ "length_line_m": 5197.5,
+ "closed": true,
+ "direction": "clockwise",
+ "method": {
+  "resample_m": 2.0,
+  "smooth_window_m": 62.0,
+  "min_curvature": 0.0025,
+  "complex_gap_m": 120.0,
+  "chicane_gap_m": 200.0,
+  "severity_radius_m": [
+   60.0,
+   150.0,
+   400.0
+  ]
+ },
+ "corners": [
+  {
+   "index": 1,
+   "start_fraction": 0.12159,
+   "apex_fraction": 0.14082,
+   "end_fraction": 0.16468,
+   "apex_m": 731.9,
+   "min_radius_m": 52.4,
+   "direction": "right",
+   "severity": "slow",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.14082,
+     "distance_m": 731.9,
+     "radius_m": 52.4,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "start_fraction": 0.17237,
+   "apex_fraction": 0.18469,
+   "end_fraction": 0.22855,
+   "apex_m": 959.9,
+   "min_radius_m": 64.1,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.18469,
+     "distance_m": 959.9,
+     "radius_m": 64.1,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.20585,
+     "distance_m": 1069.9,
+     "radius_m": 80.7,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "start_fraction": 0.27664,
+   "apex_fraction": 0.2878,
+   "end_fraction": 0.32397,
+   "apex_m": 1495.8,
+   "min_radius_m": 74.0,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.2878,
+     "distance_m": 1495.8,
+     "radius_m": 74.0,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.30319,
+     "distance_m": 1575.8,
+     "radius_m": 92.3,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "start_fraction": 0.36168,
+   "apex_fraction": 0.37553,
+   "end_fraction": 0.43055,
+   "apex_m": 1951.8,
+   "min_radius_m": 97.1,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.37553,
+     "distance_m": 1951.8,
+     "radius_m": 97.1,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.40785,
+     "distance_m": 2119.8,
+     "radius_m": 117.1,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "start_fraction": 0.43594,
+   "apex_fraction": 0.46595,
+   "end_fraction": 0.49288,
+   "apex_m": 2421.8,
+   "min_radius_m": 109.1,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.46595,
+     "distance_m": 2421.8,
+     "radius_m": 109.1,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "start_fraction": 0.49288,
+   "apex_fraction": 0.50943,
+   "end_fraction": 0.53713,
+   "apex_m": 2647.7,
+   "min_radius_m": 120.2,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.50943,
+     "distance_m": 2647.7,
+     "radius_m": 120.2,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 7,
+   "start_fraction": 0.57022,
+   "apex_fraction": 0.58523,
+   "end_fraction": 0.62332,
+   "apex_m": 3041.7,
+   "min_radius_m": 66.1,
+   "direction": "right",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.58523,
+     "distance_m": 3041.7,
+     "radius_m": 66.1,
+     "direction": "right"
+    },
+    {
+     "fraction": 0.60985,
+     "distance_m": 3169.7,
+     "radius_m": 85.1,
+     "direction": "left"
+    }
+   ]
+  },
+  {
+   "index": 8,
+   "start_fraction": 0.6691,
+   "apex_fraction": 0.69565,
+   "end_fraction": 0.72566,
+   "apex_m": 3615.6,
+   "min_radius_m": 52.5,
+   "direction": "right",
+   "severity": "slow",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.69565,
+     "distance_m": 3615.6,
+     "radius_m": 52.5,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 9,
+   "start_fraction": 0.72913,
+   "apex_fraction": 0.7399,
+   "end_fraction": 0.78068,
+   "apex_m": 3845.6,
+   "min_radius_m": 132.8,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "chicane",
+   "complex": true,
+   "sub_apexes": [
+    {
+     "fraction": 0.7399,
+     "distance_m": 3845.6,
+     "radius_m": 132.8,
+     "direction": "left"
+    },
+    {
+     "fraction": 0.76414,
+     "distance_m": 3971.6,
+     "radius_m": 160.9,
+     "direction": "right"
+    }
+   ]
+  },
+  {
+   "index": 10,
+   "start_fraction": 0.83494,
+   "apex_fraction": 0.86225,
+   "end_fraction": 0.89881,
+   "apex_m": 4481.5,
+   "min_radius_m": 69.2,
+   "direction": "left",
+   "severity": "medium",
+   "kind": "single",
+   "complex": false,
+   "sub_apexes": [
+    {
+     "fraction": 0.86225,
+     "distance_m": 4481.5,
+     "radius_m": 69.2,
+     "direction": "left"
+    }
+   ]
+  }
+ ]
+}

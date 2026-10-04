@@ -368,6 +368,7 @@ The complete alias table is `COLUMN_ALIASES` in `src/io/loaders.py`. Missing opt
 - **Corner names exist for Imola, Spa-Francorchamps, Monaco, Silverstone GP and Le Mans (`high`: fitted against several real laps/logs) and for Mugello and Brands Hatch (`medium`: one lap, partial tables)**. The rest (Monza, Red Bull Ring, Nordschleife, Barcelona, Laguna Seca, Zandvoort, Vallelunga, Magione, Sepang, Oran Park GP and South, Lime Rock GP) are **recognition only** (no corner names, `confidence: medium`). A circuit may tighten matching with `apex_tolerance_m`.
 - If the measured length does not fit (probably another layout or a partial lap) the circuit is flagged `low` confidence and no names are assigned. An apex without a tabulated corner nearby keeps its number.
 - **Honesty rule:** a corner table is published only when its order and its positions were verified against telemetry. Never add names from memory or from a layout map without checking where each apex falls on a real lap.
+- **Geometric reference (car independent).** `src/data/track_geometry/<circuit_id>.json` holds, for the 16 Assetto Corsa circuits of the database, where the bends are according to the geometry of the game's AI racing line (`ai/fast_lane.ai`): lap fraction, minimum radius, direction, class (slow < 60 m, medium 60-150 m, fast 150-400 m; a fast bend may still be flat out for a car with a lot of downforce) and chicane/compound grouping. It is read with `circuits.get_track_geometry(circuit_id)` (None when absent) and `validate_database` logs a warning if a tabulated corner is more than 250 m from every geometric corner. The files travel in the repo because Docker/Kubernetes do not see the game; to regenerate or inspect them (read-only on the game folder, found through `AC_CONTENT_DIR`/`AC_INSTALL_DIR` or the usual Steam paths): `python scripts/ac_track_reference.py imola --compare` and `python scripts/ac_track_reference.py --export-all`.
 
 **Adding a circuit or its corner names** (all in `src/data/circuits.json`):
 
@@ -451,7 +452,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (448 collected: 425 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (500 collected: 477 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -569,7 +570,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 448 collected: 425 run, 23 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 500 collected: 477 run, 23 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

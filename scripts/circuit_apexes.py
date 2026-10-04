@@ -101,6 +101,7 @@ def main() -> int:
                     help="tolerancia de agrupación, como fracción de vuelta (por defecto 0.012 = ~60 m en 5 km)")
     ap.add_argument("--json", action="store_true", help="imprime también el bloque 'corners' para circuits.json")
     a = ap.parse_args()
+    sys.stdout.reconfigure(encoding="utf-8")  # la salida lleva tildes: en Windows seria cp1252
 
     df = load_telemetry_data(a.file)
     try:
