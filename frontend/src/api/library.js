@@ -1,7 +1,8 @@
 // Cliente HTTP de la biblioteca de sesiones (/api/library).
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL
+  || (import.meta.env.PROD ? '/api' : 'http://localhost:8000/api');
 const client = axios.create({ baseURL: `${API_URL}/library`, timeout: 60000 });
 
 /** Error con `code`: 'network' (sin respuesta) o 'http'; `message` ya viene traducido por el backend. */
