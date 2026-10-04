@@ -8,8 +8,8 @@
 
 | Documento | Para quién |
 |-----------|-----------|
-| [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app: cómo usarla, funciones de sesión (calidad de datos, vuelta óptima, setups de Assetto Corsa, biblioteca, informe PDF, circuitos, tema), exportar telemetría, interpretar cada panel y solución de problemas. |
-| [Referencia Rápida](./REFERENCIA_RAPIDA.es.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes, vuelta óptima, puntuación de calidad de datos, enlace con el setup, formatos, límites y códigos de estado. |
+| [Guía de Usuario](./GUIA_USUARIO.es.md) | Pilotos, ingenieros y cualquier persona que use la app: cómo usarla, funciones de sesión (calidad de datos, vuelta óptima, setups de Assetto Corsa, biblioteca, informe PDF, circuitos, tema, comparar dos archivos de una vuelta), exportar telemetría, interpretar cada panel y solución de problemas. |
+| [Referencia Rápida](./REFERENCIA_RAPIDA.es.md) | Cheat sheet para consulta rápida durante sesión: tablas de estados, diagnósticos frecuentes, vuelta óptima, modo comparar con dos archivos, puntuación de calidad de datos, enlace con el setup, formatos, límites y códigos de estado. |
 
 ---
 
@@ -18,8 +18,8 @@
 | Documento | Contenido |
 |-----------|-----------|
 | [README principal](../README.es.md) | Inicio rápido, instalación, funciones, formatos, tabla de la API, configuración, tests, arquitectura |
-| [Despliegue](./DEPLOYMENT.es.md) | Local, Docker Compose y Kubernetes (Kustomize); contrato de variables, caché de subida única, qué se verificó y qué no |
-| [Tests](../tests/README.md) | Suites de tests, fixtures reales anonimizados, tests end-to-end y visuales (en inglés) |
+| [Despliegue](./DEPLOYMENT.es.md) | Local, Docker Compose y Kubernetes (Kustomize); contrato de variables (todas), instalación de Docker/kind en Windows, caché de subida única, qué se verificó en Docker Compose y kind y qué no, solución de problemas del primer despliegue |
+| [Tests](../tests/README.md) | Suites de tests (445 recogidos; 422 se ejecutan por defecto, 23 e2e requieren `E2E=1`), fixtures reales anonimizados, tests del modo comparar dos archivos, tests end-to-end y visuales (en inglés) |
 | [README del frontend](../frontend/README.md) | Estructura de la UI, sistema de diseño y temas, cliente de API, módulos i18n, build y lint (en inglés, con resumen en español) |
 | [CONTRIBUTING](../CONTRIBUTING.md) | Cómo contribuir: flujo, traducciones por módulo, tests, sin datos personales (en inglés, con resumen en español) |
 | [LICENSE](../LICENSE) | Licencia MIT |
@@ -40,7 +40,7 @@ Estas funciones no tienen un documento científico aparte; se describen en el RE
 | Formatos `.ibt` y `.ld` (experimentales) | `src/io/ibt_loader.py`, `ld_loader.py`, `native_common.py` | [README](../README.es.md#formatos-de-telemetría), [Guía](./GUIA_USUARIO.es.md#formatos-soportados) |
 | Circuitos conocidos y nombres de curva | `src/data/circuits.json`, `src/analytics/circuits.py` | [README](../README.es.md#circuitos-conocidos-y-nombres-de-curva), [Guía](./GUIA_USUARIO.es.md#circuitos-conocidos-y-nombres-de-curva) |
 | Temas | `frontend/src/styles/theme-light.css`, `scripts/check_contrast.py` | [README](../README.es.md#temas), [README del frontend](../frontend/README.md#design-system-and-themes) |
-| Subida única y caché | `src/api/files.py`, `src/io/session_cache.py`, `scripts/profile_pipeline.py` | [README](../README.es.md#rendimiento-y-subida-única), [Despliegue](./DEPLOYMENT.es.md) |
+| Subida única y caché | `src/api/files.py`, `src/io/session_cache.py`, `scripts/profile_pipeline.py` | [README](../README.es.md#rendimiento-y-subida-única), [Despliegue](./DEPLOYMENT.es.md#subir-una-vez-file_id-y-la-caché-de-análisis) |
 | Proyecciones realistas | `src/analytics/stint.py`, `tyre_degradation.py` | [README](../README.es.md#proyecciones-realistas), módulos [08](./08_stint_analysis.es.md) y [15](./15_tyre_degradation.es.md) |
 
 ---

@@ -6,12 +6,11 @@ Este documento cubre tres formas de ejecutar la aplicación: directamente en tu 
 Compose (backend + frontend + PostgreSQL) y en Kubernetes (manifiestos Kustomize, estructura
 pensada para kind/minikube/Docker Desktop y un overlay de producción).
 
-> **Nota de honestidad.** Las imágenes, el archivo Compose y los manifiestos de Kubernetes se
-> escribieron y validaron solo de forma estática (sintaxis YAML, esquemas de Kubernetes,
-> comprobaciones cruzadas, `bash -n`, parser de PowerShell) en una máquina **sin Docker ni
-> Kubernetes**. Todavía no se han construido ni aplicado. Consulta
-> [Verificación realizada y pendiente](#verificación-realizada-y-pendiente) para la lista exacta y los comandos que debes
-> ejecutar en tu equipo.
+> **Estado de verificación.** Docker Compose (PostgreSQL 16 + backend + frontend) y Kubernetes en
+> kind (overlay `local`) se **construyeron y ejecutaron** en la máquina del autor (Windows 11, Docker
+> Desktop, kind). El overlay de producción, la aplicación real de HPA/PDB/NetworkPolicy, cert-manager/TLS,
+> ExternalSecrets y el rendimiento con varias réplicas **no** se han probado. Consulta
+> [Verificación realizada y pendiente](#verificación-realizada-y-pendiente) para la lista exacta.
 
 ## Arquitectura
 
@@ -59,12 +58,24 @@ CORS. En desarrollo el frontend sigue llamando directamente a `http://localhost:
 | `DATABASE_URL` | backend (biblioteca/BD) | `sqlite:///data/motorsport.db` | `postgresql+psycopg://user:pass@postgres:5432/motorsport` |
 | `STORAGE_DIR` | backend | `./data/storage` | `/app/data/storage` (volumen / PVC) |
 | `AC_SETUPS_DIR` | backend | carpeta de setups de Assetto Corsa | normalmente sin definir; bind-mount opcional de solo lectura |
+| `LAPTIME_HISTORY_DB` | backend | `<STORAGE_DIR>/laptime_history.db` si hay `STORAGE_DIR`, si no `./data/laptime_history.db` | sin definir: el SQLite del historial de vueltas vive en el volumen `storage`. Defínela solo para ponerlo en otro sitio (la carpeta se crea si falta y debe ser escribible) |
 | `UVICORN_WORKERS` | entrypoint del contenedor | n/a | `1` |
 | `RUN_MIGRATIONS` | entrypoint del contenedor | n/a | `1` en compose ejecuta `alembic upgrade head` al arrancar |
 | `UPLOAD_DIR` | backend | `<STORAGE_DIR>/uploads` si hay `STORAGE_DIR`, si no `<TEMP_DIR>/uploads` | sin definir (usa el volumen / PVC `storage`) |
 | `UPLOAD_TTL_HOURS` | backend | `24` | las subidas sin uso durante este tiempo se borran |
 | `SESSION_CACHE_MAX_MB` | backend | `1024` | por proceso; mantenlo por debajo del límite de memoria del pod menos un análisis |
 | `SESSION_CACHE_TTL_MIN` | backend | `60` | minutos de inactividad antes de sacar una sesión de memoria |
+| `API_HOST` / `API_PORT` / `API_RELOAD` | `python main.py` | `0.0.0.0` / `8000` / `false` | no se usan (el entrypoint arranca uvicorn en 8000); `API_RELOAD=true` solo para desarrollo |
+| `VITE_API_URL` | build del frontend / Vite | `http://localhost:8000/api` | el build de producción usa la ruta relativa `/api` si no está definida |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | `motorsport` / `change-me-local-only` / `motorsport` | la contraseña es **obligatoria** (compose se niega a arrancar sin ella); los valores de ejemplo son solo para uso local |
+| `FRONTEND_PORT` | compose | `8080` | puerto del host donde se publica la UI |
+| `BACKEND_DEV_PORT` | compose (perfil `dev`) | `8010` | puerto del host de `backend-dev` (ligado a 127.0.0.1) |
+| `NATIVE_MAX_ROWS` | backend | `2000000` | tope de filas al importar `.ibt` / `.ld` (no está en `.env.example`) |
+| `BACKEND_URL` / `PROXY_TIMEOUT` | nginx del frontend | n/a | `http://backend:8000` / `900s` (ConfigMap en Kubernetes); `BACKEND_URL` no debe llevar ruta |
+
+En Docker Compose, `DATABASE_URL` y `STORAGE_DIR` los fija `docker-compose.yml` (PostgreSQL y
+`/app/data/storage`), así que los valores de `.env` para esas dos se ignoran. `.env.example` es la referencia
+de todas las demás variables.
 
 `MAX_UPLOAD_MB` se aplica de verdad: el backend rechaza con HTTP 413 (mensaje traducido, archivo
 parcial borrado) cualquier subida que supere el límite mientras la copia a disco, y también los
@@ -87,7 +98,8 @@ Opcional: con `VITE_API_URL=/api npm run dev` Vite hace proxy de `/api` a `VITE_
 
 ## 2. Docker Compose
 
-Requisitos: Docker Engine / Docker Desktop con Compose v2.
+Requisitos: Docker Engine / Docker Desktop con Compose v2 (en Windows, consulta
+[Windows: instalar las herramientas y repetir la verificación](#windows-instalar-las-herramientas-y-repetir-la-verificación)).
 
 ```bash
 cp .env.example .env          # edita POSTGRES_PASSWORD; los valores de ejemplo NO son para producción
@@ -95,6 +107,10 @@ docker compose up --build -d
 docker compose ps             # espera a que backend esté "healthy"
 # UI: http://localhost:8080   (FRONTEND_PORT en .env)
 ```
+
+El primer `docker build` del backend tarda más de 10 minutos (stack científico); los siguientes aprovechan la
+caché de capas. En PowerShell de Windows usa `curl.exe` (no `curl`, que es un alias) para probar
+`http://localhost:8080/api/health`.
 
 Atajos: `make up | down | logs | test | lint` (Linux/macOS/WSL) o
 `.\scripts\dev.ps1 up | down | logs | test | lint` (PowerShell).
@@ -150,7 +166,10 @@ make kind-up                       # o: bash scripts/kind-up.sh   |   .\scripts\
 El script crea el clúster (`scripts/kind-cluster.yaml`, puerto del host 8088 -> ingress 80),
 instala ingress-nginx, construye `motorsport-backend:dev` y `motorsport-frontend:dev`, las carga con
 `kind load docker-image`, aplica `k8s/overlays/local` y espera los rollouts. Después abre
-<http://localhost:8088>.
+<http://localhost:8088>. El initContainer `migrate` puede fallar una o dos veces con
+`failed to resolve host postgres` mientras arranca PostgreSQL, y después pasa (ver Solución de problemas). El
+namespace aplica Pod Security `restricted`, así que un pod de depuración sin `securityContext` se rechaza: es lo
+esperado.
 
 Equivalente manual:
 
@@ -242,13 +261,34 @@ NO está listo para producción (hay que decirlo claro):
 <a id="que-se-ha-verificado"></a>
 ## Verificación realizada y pendiente
 
-Sé preciso con lo que aquí significa "verificado": **todavía no se ha construido ni ejecutado nada
-dentro de Docker o Kubernetes** (la máquina de desarrollo no tiene ninguno). Lo hecho el 2026-10-03 es
-una verificación estática real con las herramientas oficiales standalone (descargadas de sus releases de
-GitHub a una carpeta temporal, sin daemon y sin instalar nada en el repositorio), más una simulación del
-arranque del backend y del proxy nginx en el equipo anfitrión.
+Probado en la máquina del autor: Windows 11 Home, Intel i5-11400, Python 3.11.5, Node 21, Docker Desktop
+4.93 (Docker 29.8.1, Compose v5.5.1), kind v0.33.0.
 
-### Realizado
+### Verificado de extremo a extremo (Docker Compose y kind)
+
+- **Docker Compose.** `docker compose up` levanta PostgreSQL 16, backend y frontend, todos sanos. La UI responde en
+  <http://localhost:8080> y `/api/health` devuelve 200. El backend corre como uid 10001 con sistema de archivos de
+  solo lectura (`touch /app/x` falla). Las migraciones de Alembic se aplicaron sobre un PostgreSQL real: tablas
+  `alembic_version` y `library_sessions`, revisión `0001`.
+- **Kubernetes en kind.** `scripts\kind-up.ps1` crea el clúster `motorsport`, instala ingress-nginx (controller
+  v1.11.2), carga las imágenes y aplica `k8s/overlays/local`. La UI responde en <http://localhost:8088>; los pods
+  `backend`, `frontend` y `postgres-0` están Running. El namespace aplica Pod Security `restricted`.
+- **Rendimiento** (Imola, CSV de 57 MB): primer resultado en unos 2 s y análisis completo en unos 3 s
+  (Compose 3,1 s, kind 2,6 s).
+
+### Aún NO verificado
+
+- El overlay de producción (`k8s/overlays/prod`): renderizado y validado contra esquemas, nunca aplicado.
+- HPA, PodDisruptionBudgets y NetworkPolicies como objetos aplicados (el CNI por defecto de kind no aplica
+  NetworkPolicies).
+- cert-manager / TLS y ExternalSecrets.
+- Rendimiento y comportamiento con varias réplicas del backend (volumen RWX, caída a HTTP 410).
+
+### Validación estática (realizada)
+
+También se validó de forma estática con las herramientas oficiales standalone: `docker compose config`,
+`kustomize build` (local: 16 objetos, prod: 18), `kubeconform` 1.30 estricto, `hadolint`, `shellcheck`,
+`yamllint`, `checkov`, `nginx -t` y una simulación del entrypoint. Detalle:
 
 | Herramienta (versión) | Qué se ejecutó | Resultado |
 |---|---|---|
@@ -286,28 +326,11 @@ la API dejaría de funcionar. Usa `BACKEND_URL` sin ruta.
 - `Makefile`: `kind-up` ejecutaba `sh scripts/kind-up.sh`, pero el script es bash (`set -o pipefail`);
   ahora ejecuta `bash`.
 
-### NO verificado (requiere Docker, kind o PostgreSQL)
+### Windows: instalar las herramientas y repetir la verificación
 
-- Construir cualquiera de las imágenes (`pip install` del stack científico en Linux, `apt`, `npm ci`), el
-  tamaño de la imagen, y que el usuario no root (uid 10001) pueda ejecutar todo con el sistema raíz de
-  solo lectura y los montajes `tmpfs` / volumen (la simulación anterior corrió con tu usuario de Windows).
-- El propio entrypoint oficial de `nginxinc/nginx-unprivileged` (que cargue los `*.envsh` antes del paso
-  de plantillas y corra como uid 101 sobre un sistema de solo lectura): reproducido por razonamiento y
-  por la emulación anterior, no ejecutando la imagen.
-- Healthchecks de Docker, `depends_on: service_healthy`, las redes de compose (`backend-net` interna),
-  `docker compose up`.
-- PostgreSQL: el backend solo se ejercitó con SQLite. `psycopg` no está instalado en la máquina de
-  desarrollo y la migración `0001` inspecciona la conexión viva, por lo que tampoco funciona
-  `alembic upgrade head --sql` (SQL offline para revisión). La ruta Postgres (`postgresql+psycopg://`,
-  columna JSONB) no está verificada.
-- Todo lo que necesita un clúster: `kubectl apply`, dry run del lado servidor, admisión Pod Security
-  `restricted`, probes, enlace de PVC, el HPA (necesita metrics-server), `ingress-nginx` y la URL con
-  `INGRESS_NGINX_VERSION` fijada, y la aplicación de NetworkPolicy (el CNI por defecto de kind no la aplica).
-- Los flujos completos de `scripts/kind-up.ps1` y `scripts/kind-up.sh`.
-
-### Lo que solo puede hacer el propietario (Windows)
-
-1. Instalar Docker Desktop (backend WSL 2), kind y kubectl, por ejemplo desde PowerShell:
+1. Activa la virtualización (VT-x / SVM) en la BIOS/UEFI, instala WSL 2 (`wsl --install`, luego reinicia) y
+   comprueba que `wsl --status` diga `Default Version: 2`.
+2. Instala Docker Desktop, kind y kubectl desde PowerShell (Docker Desktop ya incluye kubectl):
 
    ```powershell
    winget install -e --id Docker.DockerDesktop
@@ -319,12 +342,12 @@ la API dejaría de funcionar. Usa `BACKEND_URL` sin ruta.
 
    Reinicia o cierra sesión si Docker Desktop lo pide, arráncalo y comprueba `docker version`,
    `kind version` y `kubectl version --client`.
-2. Desde la raíz del repositorio, en este orden (detente en el primer fallo y guarda la salida):
+3. Desde la raíz del repositorio, en este orden (detente en el primer fallo y guarda la salida):
 
    ```powershell
    Copy-Item .env.example .env            # luego edita POSTGRES_PASSWORD
    docker compose config -q               # sintaxis y variables
-   docker build -t motorsport-backend:dev .
+   docker build -t motorsport-backend:dev .        # primer build: más de 10 minutos
    docker build -t motorsport-frontend:dev ./frontend
    docker run --rm motorsport-backend:dev python -c "import xgboost, reportlab, matplotlib, psycopg"
    docker compose up --build -d
@@ -335,7 +358,7 @@ la API dejaría de funcionar. Usa `BACKEND_URL` sin ruta.
    docker compose down
    ```
 
-3. Kubernetes con kind (los puertos 8088/8443 deben estar libres):
+4. Kubernetes con kind (los puertos 8088/8443 deben estar libres):
 
    ```powershell
    .\scripts\kind-up.ps1                   # o: make kind-up
@@ -346,21 +369,30 @@ la API dejaría de funcionar. Usa `BACKEND_URL` sin ruta.
    make kind-down                          # o: kind delete cluster --name motorsport
    ```
 
-4. Escaneo extra opcional: `trivy config .` y `trivy image motorsport-backend:dev`.
-5. Para repetir las comprobaciones estáticas de esta sección sin Docker, descarga los mismos binarios
-   standalone (`docker-compose`, `kustomize`, `kubeconform`, `hadolint`, `shellcheck` desde sus releases
-   de GitHub) y ejecuta `kustomize build k8s/overlays/local | kubeconform -strict -kubernetes-version 1.30.0 -summary`,
+5. Escaneo extra opcional: `trivy config .` y `trivy image motorsport-backend:dev`.
+6. Para repetir las comprobaciones estáticas sin Docker, descarga los mismos binarios standalone
+   (`docker-compose`, `kustomize`, `kubeconform`, `hadolint`, `shellcheck` desde sus releases de GitHub) y
+   ejecuta `kustomize build k8s/overlays/local | kubeconform -strict -kubernetes-version 1.30.0 -summary`,
    `docker-compose config -q`, `hadolint Dockerfile frontend/Dockerfile`, `python scripts/validate_k8s.py`
    y `python -m pytest tests/test_container_build_context.py tests/test_k8s_manifests.py`.
 
-Si algún paso falla, envía el comando que falla y su salida: es justo la información que las
-comprobaciones estáticas anteriores no pudieron producir.
+Si un paso falla, guarda el comando y su salida; la sección de solución de problemas recoge las incidencias
+reales del primer despliegue.
 
 ## Solución de problemas
 
 | Síntoma | Causa / solución |
 |---|---|
-| Error por `POSTGRES_PASSWORD` en `docker compose up` | No creaste `.env` (`cp .env.example .env`). |
+| `required variable POSTGRES_PASSWORD is missing a value` en `docker compose up` | No creaste `.env` (`cp .env.example .env` y pon la contraseña). |
+| Docker Desktop: "Virtualization support not detected" | Activa VT-x/SVM en la BIOS/UEFI, ejecuta `wsl --install` y reinicia. |
+| El `docker build` del backend tarda más de 10 minutos o falla con `TimeoutError: The read operation timed out` (pip) | El primer build descarga todo el stack científico; el timeout es un error de red transitorio. Repite el build (se reutilizan las capas en caché). |
+| En kind, el initContainer `migrate` falla 1-2 veces con `failed to resolve host postgres` | Es normal: arranca en paralelo con PostgreSQL y luego pasa. Mira `kubectl -n motorsport get pods`; investiga solo si sigue fallando. |
+| `Essential channel Speed has no valid numeric values` dentro del contenedor | Se instaló pandas 3. `requirements.txt` ahora fija `pandas<3` y `numpy<2`: reconstruye la imagen. |
+| `/api/telemetry/analyze` devuelve 500 `unable to open database file` | La base del historial de vueltas (`laptime_history.db`) no tenía una carpeta escribible. Ahora se guarda en `STORAGE_DIR` o en la ruta de `LAPTIME_HISTORY_DB`; asegúrate de que esa carpeta sea escribible (el volumen de almacenamiento lo es). |
+| Consola del navegador: `violates Content-Security-Policy ... script-src 'self'` | La CSP bloquea un script en línea. El script de tema debe ser un archivo externo (`frontend/public/theme-init.js`; ya corregido). |
+| La UI en producción llama a `http://localhost:8000` | Un cliente de API no usa la ruta relativa `/api`. Corregido en `library.js` y `setups.js`; todos los clientes deben caer en `/api` en producción. |
+| PowerShell: `curl` da una salida rara o un error | `curl` es un alias de `Invoke-WebRequest`; usa `curl.exe`. |
+| Se rechaza un pod de depuración en el namespace `motorsport` | Pod Security `restricted` exige un `securityContext` (no root, sin escalada de privilegios, capabilities eliminadas); es lo correcto. |
 | La subida falla con 413 | Archivo mayor que `MAX_UPLOAD_MB` (backend) o que el límite de body (nginx/Ingress). Súbelos todos a la vez. |
 | El análisis devuelve 504 / conexión reiniciada | Un timeout de proxy es menor que el análisis: revisa `PROXY_TIMEOUT`, `proxy-read-timeout` del Ingress y el idle timeout del balanceador. |
 | Pod del backend `OOMKilled` | Límite de memoria menor que lo que necesita el CSV; súbelo o baja `UVICORN_WORKERS`. |

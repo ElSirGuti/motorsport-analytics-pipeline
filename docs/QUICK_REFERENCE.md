@@ -184,7 +184,34 @@ Recommendations then show **Current -> Suggested**. Units appear only where they
 | HTTP 410 | The server lost the uploaded copy: the app uploads again and retries |
 | Stint / optimal lap | 3 or more valid laps |
 | Projection confidence | Always low below 8 valid laps; fallback to recent pace below 5 |
-| Corner names | Imola and Spa-Francorchamps only; 17 more circuits are recognised without names |
+| Circuits | 19 recognised; 7 with corner names (Imola, Spa, Silverstone GP, Le Mans, Monaco = high confidence; Mugello, Brands Hatch GP = medium) |
+| Two-file compare | 2 files with one lap each: first = reference, second = compared; warns if the cars differ |
+| Tests | `python -m pytest tests -q`: 445 collected, 422 run, 23 e2e skipped without `E2E=1` |
+
+---
+
+## Two-File Compare Mode
+
+Drop two files with one lap each (reference lap first). The app calls `/api/compare-laps` and `/api/telemetry/analyze` and merges both results and their metadata.
+
+| Case (Red Bull Ring) | Result |
+|----------------------|--------|
+| Porsche Cayman GT4 fast lap vs slow lap (same car) | +3.25 s, no vehicle warning |
+| Same fast lap vs Maserati GT MC GT4 lap | +1.44 s, **different-vehicles warning** (the gap includes the car difference) |
+
+---
+
+## Containers: Quick Fixes
+
+| Symptom | Fix |
+|---------|-----|
+| `required variable POSTGRES_PASSWORD is missing a value` | `cp .env.example .env` and set the password |
+| Docker Desktop: "Virtualization support not detected" | Enable VT-x/SVM in BIOS/UEFI, `wsl --install`, reboot |
+| First backend build over 10 minutes / pip `read operation timed out` | Normal on the first build; run it again |
+| kind: `migrate` fails 1-2 times (`failed to resolve host postgres`) | Normal; check `kubectl -n motorsport get pods` |
+| PowerShell `curl` misbehaves | Use `curl.exe` |
+
+Full list: [Deployment](./DEPLOYMENT.md#troubleshooting).
 
 ---
 
@@ -229,7 +256,7 @@ If any of these channels is not present in your MoTeC CSV, that module is report
 ## Analysis Session Flow
 
 ```
-Load the file(s): 1 file = session, 2 files = lap comparison
+Load the file(s): 1 file = session, 2 files = lap comparison (one lap each)
     ↓
 Read the data-quality score first
     ↓

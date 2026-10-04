@@ -1,4 +1,4 @@
-﻿/* Apply the saved theme before first paint (no flash). Keep in sync with src/hooks/useTheme.js */
+/* Apply the saved theme before first paint (no flash). Keep in sync with src/hooks/useTheme.js */
       (function () {
         var pref = 'system';
         try { var v = localStorage.getItem('ma-theme'); if (v === 'light' || v === 'dark') pref = v; } catch {

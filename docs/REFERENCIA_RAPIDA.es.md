@@ -184,7 +184,34 @@ Las recomendaciones muestran entonces **Actual -> Sugerido**. Las unidades apare
 | HTTP 410 | El servidor perdió la copia subida: la app sube de nuevo y reintenta |
 | Stint / vuelta óptima | 3 o más vueltas válidas |
 | Confianza de la proyección | Siempre baja con menos de 8 vueltas válidas; vuelve al ritmo reciente con menos de 5 |
-| Nombres de curva | Solo Imola y Spa-Francorchamps; otros 17 circuitos se reconocen sin nombres |
+| Circuitos | 19 reconocidos; 7 con nombres de curva (Imola, Spa, Silverstone GP, Le Mans, Mónaco = confianza alta; Mugello, Brands Hatch GP = media) |
+| Comparar dos archivos | 2 archivos con una vuelta cada uno: el primero es la referencia y el segundo el comparado; avisa si los coches son distintos |
+| Tests | `python -m pytest tests -q`: 445 recogidos, 422 se ejecutan, 23 e2e omitidos sin `E2E=1` |
+
+---
+
+## Modo Comparar con Dos Archivos
+
+Soltá dos archivos con una vuelta cada uno (primero la vuelta de referencia). La app llama a `/api/compare-laps` y `/api/telemetry/analyze` y fusiona ambos resultados y sus metadatos.
+
+| Caso (Red Bull Ring) | Resultado |
+|----------------------|-----------|
+| Porsche Cayman GT4 vuelta rápida vs vuelta lenta (mismo coche) | +3,25 s, sin aviso de vehículos |
+| La misma vuelta rápida vs vuelta de un Maserati GT MC GT4 | +1,44 s, **aviso de vehículos distintos** (la diferencia incluye la del coche) |
+
+---
+
+## Contenedores: Arreglos Rápidos
+
+| Síntoma | Solución |
+|---------|----------|
+| `required variable POSTGRES_PASSWORD is missing a value` | `cp .env.example .env` y pon la contraseña |
+| Docker Desktop: "Virtualization support not detected" | Activa VT-x/SVM en BIOS/UEFI, `wsl --install`, reinicia |
+| Primer build del backend de más de 10 minutos / pip `read operation timed out` | Normal en el primer build; repítelo |
+| kind: `migrate` falla 1-2 veces (`failed to resolve host postgres`) | Normal; mira `kubectl -n motorsport get pods` |
+| `curl` de PowerShell se comporta raro | Usa `curl.exe` |
+
+Lista completa: [Despliegue](./DEPLOYMENT.es.md#solución-de-problemas).
 
 ---
 
@@ -229,7 +256,7 @@ Si alguno de estos canales no está en tu CSV de MoTeC, ese módulo se informa c
 ## Flujo de Sesión de Análisis
 
 ```
-Cargá el/los archivo(s): 1 archivo = sesión, 2 archivos = comparación de vueltas
+Cargá el/los archivo(s): 1 archivo = sesión, 2 archivos = comparación de vueltas (una vuelta cada uno)
     ↓
 Leé primero la puntuación de calidad de datos
     ↓

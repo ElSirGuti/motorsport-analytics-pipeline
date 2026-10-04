@@ -65,6 +65,14 @@ La barra superior contiene la marca, el selector **Análisis / Biblioteca / Comp
 
 Hacé clic en una curva del análisis de curvas y todos los gráficos hacen zoom a esa zona.
 
+### Comparar dos archivos de una vuelta
+
+Soltá **dos archivos con una vuelta cada uno** (por ejemplo una vuelta rápida y una lenta exportadas por separado) para compararlos directamente. La app ejecuta la comparación básica (`/api/compare-laps`) y la avanzada (`/api/telemetry/analyze`) y fusiona ambos resultados, incluidos los metadatos (piloto, coche, circuito) de cada archivo.
+
+- El primer archivo es la vuelta de referencia y el segundo la vuelta que se compara contra ella (cargá primero la vuelta rápida).
+- Si los dos archivos son de **coches distintos**, aparece un aviso (con los nombres de ambos coches) porque la comparación mezcla diferencias de coche y de piloto. Con el mismo coche no hay aviso.
+- Ejemplo real, Red Bull Ring, Porsche Cayman GT4: vuelta rápida contra vuelta lenta = **+3,25 s**. La misma vuelta rápida contra una vuelta de un Maserati GT MC GT4 = **+1,44 s**, con el aviso de vehículos distintos.
+
 ---
 
 ## Funciones de sesión
@@ -117,11 +125,11 @@ Notas: el servidor solo puede leer la carpeta del juego si corre en el mismo equ
 
 ### Circuitos conocidos y nombres de curva
 
-Si el circuito de la cabecera del archivo es conocido, la interfaz muestra una insignia con su nombre y longitud, y las curvas se muestran como "Curva 4 - Tamburello". **Solo Imola y Spa-Francorchamps tienen nombres**; otros 17 circuitos (Monza, Silverstone, Mugello, Nordschleife, Mónaco, Le Mans y más) solo se reconocen y sus curvas conservan el número. Si la longitud de la vuelta no coincide con el circuito (otro trazado o vuelta parcial) la insignia dice "confianza baja" y no se muestran nombres. Los nombres nunca se adivinan: una tabla de curvas se publica solo cuando se verificó con telemetría real.
+Si el circuito de la cabecera del archivo es conocido, la interfaz muestra una insignia con su nombre y longitud, y las curvas se muestran como "Curva 4 - Tamburello". **Se reconocen 19 circuitos y 7 tienen nombres de curva**: Imola, Spa-Francorchamps, Silverstone GP, Le Mans y Mónaco (confianza alta) y Mugello y Brands Hatch GP (confianza media). Los otros 12 (Monza, Red Bull Ring, Nordschleife y más) solo se reconocen y sus curvas conservan el número. Si la longitud de la vuelta no coincide con el circuito (otro trazado o vuelta parcial) la insignia dice "confianza baja" y no se muestran nombres. Los nombres nunca se adivinan: una tabla de curvas se publica solo cuando se verificó con telemetría real.
 
 ### Tema
 
-Usá el selector de tema de la barra superior: **Sistema** (sigue tu sistema operativo), **Claro** u **Oscuro**. La elección se recuerda en tu navegador.
+Usá el selector de tema de la barra superior: **Sistema** (sigue tu sistema operativo), **Claro** u **Oscuro**. La elección se recuerda en tu navegador. Los colores de texto y gráficos se verificaron por contraste en ambos temas (64 pares de colores por tema, sin fallos).
 
 ### Análisis más rápido (subida única)
 
@@ -488,7 +496,7 @@ Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV de MoT
 - Según el simulador y la exportación, algunos canales pueden faltar; los paneles te avisan cuando ocurre.
 - `.ibt` y `.ld` son experimentales (probados con 53 archivos de un solo autor); CSV es el formato estable.
 - La óptima teórica crece al achicar el microsector; con `Distance` sintetizada la vuelta óptima es solo orientativa.
-- Los nombres de curva existen solo para Imola y Spa-Francorchamps.
+- Los nombres de curva existen para 7 de los 19 circuitos reconocidos (Imola, Spa, Silverstone GP, Le Mans, Mónaco, Mugello, Brands Hatch GP).
 - Las unidades de setup se muestran solo donde son seguras y faltan rangos en la mayoría de los coches (sus archivos de datos están cifrados).
 - No hay autenticación: no expongas la app a internet tal cual.
 
@@ -520,6 +528,9 @@ Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV de MoT
 **La app vuelve a subir el archivo o dice que expiró (HTTP 410):**
 - El servidor ya no tenía tu copia subida (reinicio, caducidad de 24 horas u otra réplica sin volumen compartido). La app reintenta sola; si sigue fallando, presioná **Nuevo análisis** y cargá el archivo de nuevo.
 
+**Un aviso dice que los dos archivos son de vehículos distintos:**
+- Cargaste vueltas de coches diferentes en el modo de dos archivos. Los números se calculan igual, pero la diferencia incluye la del coche; cargá dos vueltas del mismo coche para comparar solo al piloto.
+
 **Error 413 (archivo demasiado grande):**
 - El archivo supera el límite del servidor (`MAX_UPLOAD_MB`, 2048 MB por archivo por defecto). Una sesión guardada en la biblioteca está limitada a 5 MB.
 
@@ -531,6 +542,9 @@ Validado con un Porsche Cayman GT4 Clubsport en Imola (Assetto Corsa, CSV de MoT
 
 **La vuelta óptima dice que es orientativa o no disponible:**
 - Necesita al menos 3 vueltas válidas y un `Distance` confiable; sin él la distancia se reconstruye desde la velocidad. Mirá el panel de calidad de datos.
+
+**La app corre en Docker o Kubernetes y algo no arranca o no analiza:**
+- Mirá la tabla de solución de problemas de [Despliegue](./DEPLOYMENT.es.md#solución-de-problemas) (`POSTGRES_PASSWORD`, primer build lento, versión de pandas, carpeta de la base del historial, `curl.exe` en PowerShell).
 
 **El análisis tarda mucho:**
 - Los archivos de sesión de decenas de MB pueden tardar decenas de segundos o más en el backend; mantené la pestaña abierta

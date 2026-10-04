@@ -6,11 +6,11 @@ This document covers three ways to run the app: directly on your machine, with D
 (backend + frontend + PostgreSQL), and on Kubernetes (Kustomize manifests, tested layout for
 kind/minikube/Docker Desktop, production-shaped overlay).
 
-> **Honesty note.** The container images, the Compose file and the Kubernetes manifests were
-> written and statically validated (YAML syntax, Kubernetes schemas, cross-reference checks,
-> `bash -n`, PowerShell parser) on a machine **without Docker or Kubernetes**. They have not been
-> built or applied yet. See [Verification done and pending](#verification-done-and-pending) for the exact list
-> and the commands to run on your own machine.
+> **Verification status.** Docker Compose (PostgreSQL 16 + backend + frontend) and Kubernetes on
+> kind (overlay `local`) were **built and run** on the author's machine (Windows 11, Docker Desktop,
+> kind). The production overlay, HPA/PDB/NetworkPolicy enforcement, cert-manager/TLS, ExternalSecrets
+> and multi-replica performance were **not** exercised. See
+> [Verification done and pending](#verification-done-and-pending) for the exact list.
 
 ## Architecture
 
@@ -58,12 +58,24 @@ CORS is involved. In development the frontend still calls `http://localhost:8000
 | `DATABASE_URL` | backend (library/DB features) | `sqlite:///data/motorsport.db` | `postgresql+psycopg://user:pass@postgres:5432/motorsport` |
 | `STORAGE_DIR` | backend | `./data/storage` | `/app/data/storage` (volume / PVC) |
 | `AC_SETUPS_DIR` | backend | Assetto Corsa setups folder | usually unset; optional read-only bind mount |
+| `LAPTIME_HISTORY_DB` | backend | `<STORAGE_DIR>/laptime_history.db` if `STORAGE_DIR` is set, else `./data/laptime_history.db` | unset: the lap-history SQLite file lives in the `storage` volume. Set it only to put it elsewhere (the folder is created on demand and must be writable) |
 | `UVICORN_WORKERS` | container entrypoint | n/a | `1` |
 | `RUN_MIGRATIONS` | container entrypoint | n/a | `1` in compose runs `alembic upgrade head` on start |
 | `UPLOAD_DIR` | backend | `<STORAGE_DIR>/uploads` if `STORAGE_DIR` is set, else `<TEMP_DIR>/uploads` | unset (uses the `storage` volume / PVC) |
 | `UPLOAD_TTL_HOURS` | backend | `24` | uploads unused for this long are deleted |
 | `SESSION_CACHE_MAX_MB` | backend | `1024` | per process; keep below the pod memory limit minus one analysis |
 | `SESSION_CACHE_TTL_MIN` | backend | `60` | idle time before a parsed session leaves memory |
+| `API_HOST` / `API_PORT` / `API_RELOAD` | `python main.py` | `0.0.0.0` / `8000` / `false` | not used (the entrypoint starts uvicorn on 8000); `API_RELOAD=true` only for development |
+| `VITE_API_URL` | frontend build / Vite | `http://localhost:8000/api` | the production build uses the relative `/api` when it is unset |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | `motorsport` / `change-me-local-only` / `motorsport` | the password is **required** (compose refuses to start without it); example values are for local use only |
+| `FRONTEND_PORT` | compose | `8080` | host port where the UI is published |
+| `BACKEND_DEV_PORT` | compose (`dev` profile) | `8010` | host port of `backend-dev` (bound to 127.0.0.1) |
+| `NATIVE_MAX_ROWS` | backend | `2000000` | row cap for `.ibt` / `.ld` imports (not in `.env.example`) |
+| `BACKEND_URL` / `PROXY_TIMEOUT` | frontend nginx | n/a | `http://backend:8000` / `900s` (ConfigMap in Kubernetes); `BACKEND_URL` must have no path |
+
+In Docker Compose, `DATABASE_URL` and `STORAGE_DIR` are fixed by `docker-compose.yml` (PostgreSQL and
+`/app/data/storage`), so values in `.env` for those two are ignored. `.env.example` is the reference for every
+other variable.
 
 `MAX_UPLOAD_MB` is enforced for real: the backend rejects an upload larger than the limit with
 HTTP 413 (translated message, partial file deleted) while streaming it to disk, and rejects
@@ -87,7 +99,8 @@ production.
 
 ## 2. Docker Compose
 
-Requirements: Docker Engine / Docker Desktop with Compose v2.
+Requirements: Docker Engine / Docker Desktop with Compose v2 (on Windows, see
+[Windows: install the tools and repeat the verification](#windows-install-the-tools-and-repeat-the-verification)).
 
 ```bash
 cp .env.example .env          # edit POSTGRES_PASSWORD; values in the example are NOT for production
@@ -95,6 +108,10 @@ docker compose up --build -d
 docker compose ps             # wait until backend is "healthy"
 # UI: http://localhost:8080   (FRONTEND_PORT in .env)
 ```
+
+The first `docker build` of the backend takes more than 10 minutes (scientific stack); later builds use the
+layer cache. In Windows PowerShell use `curl.exe` (not `curl`, which is an alias) to test
+`http://localhost:8080/api/health`.
 
 Shortcuts: `make up | down | logs | test | lint` (Linux/macOS/WSL) or
 `.\scripts\dev.ps1 up | down | logs | test | lint` (PowerShell).
@@ -150,7 +167,9 @@ make kind-up                       # or: bash scripts/kind-up.sh   |   .\scripts
 The script creates the cluster (`scripts/kind-cluster.yaml`, host port 8088 -> ingress 80),
 installs ingress-nginx, builds `motorsport-backend:dev` and `motorsport-frontend:dev`, loads
 them with `kind load docker-image`, applies `k8s/overlays/local` and waits for the rollouts.
-Then open <http://localhost:8088>.
+Then open <http://localhost:8088>. The `migrate` initContainer may fail once or twice with
+`failed to resolve host postgres` while PostgreSQL starts, and then succeeds (see Troubleshooting). The namespace
+enforces Pod Security `restricted`, so a debug pod without a `securityContext` is rejected: that is intended.
 
 Manual equivalent:
 
@@ -239,13 +258,34 @@ NOT production-ready (be upfront about this):
 <a id="what-has-been-verified"></a>
 ## Verification done and pending
 
-Be precise about what "verified" means here: **nothing has been built or run inside Docker or
-Kubernetes yet** (the machine used for development has neither). What was done on 2026-10-03 is a
-real static verification with the official standalone tools (downloaded from their GitHub releases
-to a temporary folder, no daemon, nothing installed in the repo), plus a simulation of the backend
-start-up and of the nginx proxy on the host.
+Tested on the author's machine: Windows 11 Home, Intel i5-11400, Python 3.11.5, Node 21, Docker Desktop
+4.93 (Docker 29.8.1, Compose v5.5.1), kind v0.33.0.
 
-### Done
+### Verified end to end (Docker Compose and kind)
+
+- **Docker Compose.** `docker compose up` starts PostgreSQL 16, backend and frontend, all healthy. The UI answers on
+  <http://localhost:8080> and `/api/health` returns 200. The backend runs as uid 10001 with a read-only filesystem
+  (`touch /app/x` fails). Alembic migrations were applied on a real PostgreSQL: tables `alembic_version` and
+  `library_sessions`, revision `0001`.
+- **Kubernetes on kind.** `scripts\kind-up.ps1` creates the cluster `motorsport`, installs ingress-nginx (controller
+  v1.11.2), loads the images and applies `k8s/overlays/local`. The UI answers on <http://localhost:8088>; the
+  `backend`, `frontend` and `postgres-0` pods are Running. The namespace enforces Pod Security `restricted`.
+- **Performance** (Imola, 57 MB CSV): first result in about 2 s and the complete analysis in about 3 s
+  (Compose 3.1 s, kind 2.6 s).
+
+### Still NOT verified
+
+- The production overlay (`k8s/overlays/prod`): rendered and schema-validated, never applied.
+- HPA, PodDisruptionBudgets and NetworkPolicies as enforced objects (kind's default CNI does not enforce
+  NetworkPolicies).
+- cert-manager / TLS and ExternalSecrets.
+- Performance and behaviour with several backend replicas (RWX volume, HTTP 410 fallback).
+
+### Static validation (done)
+
+Also validated statically with the official standalone tools: `docker compose config`, `kustomize build`
+(local: 16 objects, prod: 18), `kubeconform` 1.30 strict, `hadolint`, `shellcheck`, `yamllint`, `checkov`,
+`nginx -t`, and a simulation of the entrypoint. Details:
 
 | Tool (version) | What was run | Result |
 |---|---|---|
@@ -284,28 +324,11 @@ the API would break. Use `BACKEND_URL` without a path.
 - `Makefile`: `kind-up` ran `sh scripts/kind-up.sh`, but the script is bash (`set -o pipefail`);
   it now runs `bash`.
 
-### NOT verified (needs Docker, kind or PostgreSQL)
+### Windows: install the tools and repeat the verification
 
-- Building either image (`pip install` of the scientific stack on Linux, `apt`, `npm ci`), the image
-  size, and that the non-root user (uid 10001) can run everything with a read-only root filesystem and
-  the `tmpfs` / volume mounts (the simulation above ran as your Windows user).
-- The official `nginxinc/nginx-unprivileged` entrypoint itself (that it sources `*.envsh` before the
-  template step and runs as uid 101 on a read-only filesystem): reproduced by reasoning and by the
-  emulation above, not by running the image.
-- Docker healthchecks, `depends_on: service_healthy`, the compose networks (`backend-net` internal),
-  `docker compose up`.
-- PostgreSQL: the backend was only exercised with SQLite. `psycopg` is not installed on the
-  development machine, and migration `0001` inspects the live connection, so
-  `alembic upgrade head --sql` (offline SQL for review) is not supported either. The Postgres path
-  (`postgresql+psycopg://`, JSONB column) is unverified.
-- Everything that needs a cluster: `kubectl apply`, server-side dry run, Pod Security `restricted`
-  admission, probes, PVC binding, the HPA (needs metrics-server), `ingress-nginx` and the pinned
-  `INGRESS_NGINX_VERSION` URL, NetworkPolicy enforcement (kind's default CNI does not enforce it).
-- The `scripts/kind-up.ps1` and `scripts/kind-up.sh` flows end to end.
-
-### What only the owner can do (Windows)
-
-1. Install Docker Desktop (WSL 2 backend), kind and kubectl, for example from PowerShell:
+1. Enable virtualization (VT-x / SVM) in the BIOS/UEFI, install WSL 2 (`wsl --install`, then reboot) and check that
+   `wsl --status` says `Default Version: 2`.
+2. Install Docker Desktop, kind and kubectl from PowerShell (Docker Desktop already includes kubectl):
 
    ```powershell
    winget install -e --id Docker.DockerDesktop
@@ -317,12 +340,12 @@ the API would break. Use `BACKEND_URL` without a path.
 
    Reboot or log out if Docker Desktop asks for it, start it, and check `docker version`,
    `kind version` and `kubectl version --client`.
-2. From the repository root, in this order (stop at the first failure and keep the output):
+3. From the repository root, in this order (stop at the first failure and keep the output):
 
    ```powershell
    Copy-Item .env.example .env            # then edit POSTGRES_PASSWORD
    docker compose config -q               # syntax and variables
-   docker build -t motorsport-backend:dev .
+   docker build -t motorsport-backend:dev .        # first build: more than 10 minutes
    docker build -t motorsport-frontend:dev ./frontend
    docker run --rm motorsport-backend:dev python -c "import xgboost, reportlab, matplotlib, psycopg"
    docker compose up --build -d
@@ -333,7 +356,7 @@ the API would break. Use `BACKEND_URL` without a path.
    docker compose down
    ```
 
-3. Kubernetes with kind (ports 8088/8443 must be free):
+4. Kubernetes with kind (ports 8088/8443 must be free):
 
    ```powershell
    .\scripts\kind-up.ps1                   # or: make kind-up
@@ -344,21 +367,30 @@ the API would break. Use `BACKEND_URL` without a path.
    make kind-down                          # or: kind delete cluster --name motorsport
    ```
 
-4. Optional extra scanning: `trivy config .` and `trivy image motorsport-backend:dev`.
-5. To repeat the static checks of this section without Docker, download the same standalone
-   binaries (`docker-compose`, `kustomize`, `kubeconform`, `hadolint`, `shellcheck` from their GitHub
-   releases) and run `kustomize build k8s/overlays/local | kubeconform -strict -kubernetes-version 1.30.0 -summary`,
+5. Optional extra scanning: `trivy config .` and `trivy image motorsport-backend:dev`.
+6. To repeat the static checks without Docker, download the same standalone binaries (`docker-compose`,
+   `kustomize`, `kubeconform`, `hadolint`, `shellcheck` from their GitHub releases) and run
+   `kustomize build k8s/overlays/local | kubeconform -strict -kubernetes-version 1.30.0 -summary`,
    `docker-compose config -q`, `hadolint Dockerfile frontend/Dockerfile`, `python scripts/validate_k8s.py`
    and `python -m pytest tests/test_container_build_context.py tests/test_k8s_manifests.py`.
 
-If any step fails, send the failing command and its output: that is exactly the information the
-static checks above could not produce.
+If a step fails, keep the failing command and its output; Troubleshooting below lists the real incidents of the
+first deployment.
 
 ## Troubleshooting
 
 | Symptom | Cause / fix |
 |---|---|
-| `POSTGRES_PASSWORD` error on `docker compose up` | You did not create `.env` (`cp .env.example .env`). |
+| `required variable POSTGRES_PASSWORD is missing a value` on `docker compose up` | You did not create `.env` (`cp .env.example .env`, then set the password). |
+| Docker Desktop: "Virtualization support not detected" | Enable VT-x/SVM in the BIOS/UEFI, run `wsl --install`, reboot. |
+| `docker build` of the backend takes more than 10 minutes, or fails with `TimeoutError: The read operation timed out` (pip) | The first build downloads the whole scientific stack; the timeout is a transient network error. Run the build again (cached layers are reused). |
+| In kind, the `migrate` initContainer fails 1-2 times with `failed to resolve host postgres` | Normal: it starts in parallel with PostgreSQL and then succeeds. Watch `kubectl -n motorsport get pods`; investigate only if it keeps failing. |
+| `Essential channel Speed has no valid numeric values` inside the container | pandas 3 was installed. `requirements.txt` now pins `pandas<3` and `numpy<2`: rebuild the image. |
+| `/api/telemetry/analyze` returns 500 `unable to open database file` | The lap-history database (`laptime_history.db`) had no writable folder. It is now stored in `STORAGE_DIR` or in the path given by `LAPTIME_HISTORY_DB`; make sure that folder is writable (the storage volume is). |
+| Browser console: `violates Content-Security-Policy ... script-src 'self'` | An inline script is blocked by the CSP. The theme script must be an external file (`frontend/public/theme-init.js`; already fixed). |
+| The UI in production calls `http://localhost:8000` | An API client does not use the relative `/api`. Fixed in `library.js` and `setups.js`; every client must fall back to `/api` in production. |
+| PowerShell: `curl` gives odd output or an error | `curl` is an alias of `Invoke-WebRequest`; use `curl.exe`. |
+| A debug pod is rejected in the `motorsport` namespace | Pod Security `restricted` requires a `securityContext` (non-root, no privilege escalation, dropped capabilities); this is correct. |
 | Upload fails with 413 | File above `MAX_UPLOAD_MB` (backend) or body limit (nginx/Ingress). Raise all of them together. |
 | Analysis returns 504 / connection reset | A proxy timeout is shorter than the analysis: check `PROXY_TIMEOUT`, Ingress `proxy-read-timeout`, load balancer idle timeout. |
 | Backend pod `OOMKilled` | Memory limit smaller than the CSV needs; raise limits, lower `UVICORN_WORKERS`. |

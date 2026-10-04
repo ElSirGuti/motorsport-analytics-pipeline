@@ -13,7 +13,9 @@ windows, 3-point extrapolation, LateralG sign conventions...
 | `rbr_slow.csv.gz` | `vuelta_lenta.csv` (same car and track) | ONE slow lap (~3.2 s slower), all rows | ~60 KB |
 | `rbr_other_car.csv.gz` | `vuelta_rapida_mc.csv` (Maserati GT MC GT4, same track) | ONE fast lap with a **different car** | ~70 KB |
 
-The three `rbr_*` files cover the **two-file compare mode** (`/api/compare-laps` + `/api/telemetry/analyze`) used by `tests/test_compare_two_laps.py` and the e2e tests. Regenerate with `--lap-fast`, `--lap-slow` and `--lap-other-car` (see `scripts/make_fixtures.py`).
+The three `rbr_*` files cover the **two-file compare mode** (`/api/compare-laps` + `/api/telemetry/analyze`) used by `tests/test_compare_two_laps.py` and the e2e tests. Expected result with these fixtures: fast vs slow (same car) = about +3.25 s; fast vs the Maserati lap = about +1.44 s with a different-vehicles warning. Regenerate with `--lap-fast`, `--lap-slow` and `--lap-other-car` (see `scripts/make_fixtures.py`).
+
+The `rbr_*` files have one lap each (about 60-70 KB) and the driver is anonymised.
 
 ## What is kept
 
@@ -39,7 +41,11 @@ The source CSVs are not in the repository:
 ```bash
 python scripts/make_fixtures.py \
     --imola path/to/cayman_gt4_imola_assetto_corsa.csv \
-    --spa   path/to/porsche_gt4_spa.csv
+    --spa   path/to/porsche_gt4_spa.csv \
+    --lap-fast path/to/vuelta_rapida.csv \
+    --lap-slow path/to/vuelta_lenta.csv \
+    --lap-other-car path/to/vuelta_rapida_mc.csv
+# every input is optional (only the ones you pass are regenerated)
 # options: --out DIR  --step N (decimation, default 2)  --no-anonymize
 ```
 

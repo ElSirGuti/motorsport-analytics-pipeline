@@ -8,16 +8,16 @@
 
 | Document | Audience |
 |----------|---------|
-| [User Guide](./USER_GUIDE.md) | Pilots, engineers: how to use the app, session features (data quality, optimal lap, Assetto Corsa setups, library, PDF report, circuits, theme), export telemetry, read each panel, troubleshooting |
-| [Quick Reference](./QUICK_REFERENCE.md) | Interpretation cheat sheet for track-side use: optimal lap, data-quality score, setup link, formats, limits and status codes |
+| [User Guide](./USER_GUIDE.md) | Pilots, engineers: how to use the app, session features (data quality, optimal lap, Assetto Corsa setups, library, PDF report, circuits, theme, comparing two single-lap files), export telemetry, read each panel, troubleshooting |
+| [Quick Reference](./QUICK_REFERENCE.md) | Interpretation cheat sheet for track-side use: optimal lap, two-file compare mode, data-quality score, setup link, formats, limits and status codes |
 
 ## Project Documentation
 
 | Document | Content |
 |----------|---------|
 | [Root README](../README.md) | Quick start, installation, features, formats, API table, configuration, tests, architecture |
-| [Deployment](./DEPLOYMENT.md) | Local, Docker Compose and Kubernetes (Kustomize); environment contract, upload-once cache, what has and has not been verified |
-| [Tests](../tests/README.md) | Test suites, real anonymised fixtures, end-to-end and visual tests |
+| [Deployment](./DEPLOYMENT.md) | Local, Docker Compose and Kubernetes (Kustomize); environment contract (all variables), Windows install of Docker/kind, upload-once cache, what was verified on Docker Compose and kind and what was not, troubleshooting of the first deployment |
+| [Tests](../tests/README.md) | Test suites (445 collected; 422 run by default, 23 e2e need `E2E=1`), real anonymised fixtures, two-file compare tests, end-to-end and visual tests |
 | [Frontend README](../frontend/README.md) | UI structure, design system and themes, API client, i18n modules, build and lint |
 | [CONTRIBUTING](../CONTRIBUTING.md) | How to contribute: workflow, translations by module, tests, no personal data |
 | [LICENSE](../LICENSE) | MIT License |

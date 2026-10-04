@@ -17,12 +17,17 @@ cd frontend && npm install && npm run dev
 # 3. Open http://localhost:5173 and drop a CSV, .ibt or .ld file (see "Using the app")
 ```
 
-With Docker (backend + frontend + PostgreSQL, UI on http://localhost:8080): `cp .env.example .env && docker compose up --build -d`. Docker and Kubernetes files were **not run** on the author's machine (no Docker available there); see [Deployment](#deployment) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+With Docker (backend + frontend + PostgreSQL, UI on http://localhost:8080): `cp .env.example .env && docker compose up --build -d` (Windows PowerShell: `Copy-Item .env.example .env`). Docker Compose and Kubernetes (kind) were built and run on the author's Windows 11 machine; see [Installation](#installation), [Deployment](#deployment) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for what was and was not verified.
 
 ## Table of contents
 
 - [What it is](#what-it-is)
 - [Installation](#installation)
+  - [Prerequisites](#prerequisites)
+  - [Route A: local, without Docker](#route-a-local-without-docker)
+  - [Route B: Docker Compose](#route-b-docker-compose)
+  - [Route C: Kubernetes with kind](#route-c-kubernetes-with-kind)
+- [Installation troubleshooting](#installation-troubleshooting)
 - [Deployment](#deployment)
 - [Using the app](#using-the-app)
 - [Main features](#main-features)
@@ -53,36 +58,183 @@ The UI has two views: **Engineer** (everything) and **Pilot** (technical panels 
 
 ## Installation
 
-### Prerequisites
-
-| Tool | Version |
-|---|---|
-| Python | 3.10+ (the Docker image uses 3.11) |
-| Node.js | 18+ (the Docker image uses 20) |
-| Git | any |
-| Docker | optional (Compose v2), only for containers |
-
-### Local
+Pick one of three routes. All of them start with:
 
 ```bash
 git clone https://github.com/ElSirGuti/motorsport-analytics-pipeline.git
 cd motorsport-analytics-pipeline
-
-python -m venv .venv
-source .venv/bin/activate          # Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt    # add -r requirements-dev.txt for tests
-
-cd frontend && npm install && cd ..
 ```
 
-Run the two processes in separate terminals:
+### Prerequisites
+
+| Tool | Route | Version |
+|---|---|---|
+| Git | all | any |
+| Python | A | 3.10 or newer (tested by the author with 3.11.5; the Docker image uses 3.11) |
+| Node.js + npm | A | 18 or newer (tested with Node 21; the Docker image uses 20) |
+| Docker with Compose v2 | B, C | Docker Desktop on Windows/macOS or Docker Engine on Linux (tested with Docker 29.8 and Compose v5.5) |
+| kind and kubectl | C | kind 0.33 was tested; Docker Desktop already ships `kubectl` |
+
+Dependencies are pinned to the tested line in `requirements.txt` (`pandas>=2.2.0,<3`, `numpy>=1.26.0,<2`). Do not upgrade to pandas 3: it breaks reading MoTeC CSV files with a decimal comma (see [troubleshooting](#installation-troubleshooting)).
+
+### Route A: local, without Docker
+
+The fastest way to try the app. Needs Python and Node only.
+
+Windows (PowerShell):
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1          # if scripts are blocked: Set-ExecutionPolicy -Scope Process Bypass
+pip install -r requirements.txt     # add -r requirements-dev.txt to run the tests
+cd frontend; npm install; cd ..
+```
+
+macOS / Linux (bash):
 
 ```bash
-uvicorn main:app --reload --port 8000     # API on http://localhost:8000 (docs at /docs)
-cd frontend && npm run dev                # UI on http://localhost:5173
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt     # add -r requirements-dev.txt to run the tests
+(cd frontend && npm install)
 ```
 
-You can also run `python main.py`, which reads `API_HOST`, `API_PORT` and `API_RELOAD` from the environment. Local runs use a SQLite file (`data/motorsport.db`) for the library; no database setup is needed.
+Run two processes, one per terminal (activate the virtual environment in the first one):
+
+```bash
+# Terminal 1, project root: API on http://localhost:8000 (Swagger at /docs)
+uvicorn main:app --reload --port 8000
+
+# Terminal 2: UI on http://localhost:5173
+cd frontend
+npm run dev
+```
+
+Open http://localhost:5173. You can also run `python main.py`, which reads `API_HOST`, `API_PORT` and `API_RELOAD` from the environment. Without a `.env` file everything works with the defaults; the frontend calls `http://localhost:8000/api` (`VITE_API_URL`).
+
+What is created automatically (nothing to set up):
+
+- `data/motorsport.db`: SQLite database of the session library, created on the first library request.
+- `data/laptime_history.db`: SQLite history of laps used by the ML layers. It is **not versioned**; it is created on the first `POST /api/telemetry/analyze` (override the path with `LAPTIME_HISTORY_DB`).
+- `tmp/`: temporary and uploaded files (`TEMP_DIR`, `UPLOAD_DIR`).
+
+Expected time: `pip install` takes a few minutes (it downloads xgboost, scipy, scikit-learn and matplotlib) and `npm install` about a minute.
+
+### Route B: Docker Compose
+
+Starts PostgreSQL 16, the backend and the frontend (nginx). The UI is served on http://localhost:8080; backend and database are only on the internal Docker network.
+
+**1. Prerequisites on Windows (Docker Desktop needs virtualization).**
+
+1. Enable virtualization in the BIOS/UEFI (Intel VT-x, or AMD-V / SVM on AMD). You can check it in Task Manager, Performance, CPU, "Virtualization: Enabled".
+2. Install WSL 2 from an administrator PowerShell and reboot: `wsl --install`. Afterwards `wsl --status` must show `Default Version: 2`.
+3. Install Docker Desktop: `winget install -e --id Docker.DockerDesktop` (or download it from docker.com), then open it once and wait until it says it is running.
+4. Check from a new terminal: `docker version` (client and server) and `docker compose version`.
+
+On macOS install Docker Desktop; on Linux install Docker Engine and the Compose plugin. Nothing else is needed.
+
+**2. Create `.env`.** `docker compose up` **fails without it** (`required variable POSTGRES_PASSWORD is missing a value`). `.env` is git-ignored.
+
+```powershell
+# Windows PowerShell
+Copy-Item .env.example .env
+```
+
+```bash
+# macOS / Linux
+cp .env.example .env
+```
+
+Open `.env` and set `POSTGRES_PASSWORD`. The example value is for a local machine only.
+
+**3. Build and start.**
+
+```bash
+docker compose up --build -d      # or: make up (macOS/Linux, creates .env if missing)
+```
+
+The first build of the backend image takes **more than 10 minutes** (pip downloads xgboost, scipy, scikit-learn and matplotlib); later builds use the cache and take seconds. A network cut during the build shows `TimeoutError: The read operation timed out`: simply run the build again.
+
+**4. Verify.**
+
+```bash
+docker compose ps                          # postgres, backend and frontend "healthy"
+curl -f http://localhost:8080/api/health   # Windows PowerShell: curl.exe -f http://localhost:8080/api/health
+docker compose exec backend id             # uid=10001: the backend does not run as root
+```
+
+Open http://localhost:8080. The backend filesystem is read-only; it only writes to the `storage` volume and a `tmpfs`. On start it runs `alembic upgrade head` against PostgreSQL (table `library_sessions`, revision `0001`).
+
+**5. Stop.**
+
+```bash
+docker compose down        # stops and removes the containers, keeps the data (volumes)
+docker compose down -v     # also deletes the volumes: the PostgreSQL library and stored files are lost
+```
+
+Optional dev profile (backend with hot reload on http://127.0.0.1:8010, run Vite locally): `docker compose --profile dev up postgres backend-dev`.
+
+### Route C: Kubernetes with kind
+
+Creates a local cluster named `motorsport` with ingress-nginx and the Kustomize overlay `k8s/overlays/local`. Needs Docker running (see route B, step 1) plus kind and kubectl.
+
+**1. Install kind and kubectl.**
+
+```powershell
+# Windows (winget); Docker Desktop already includes kubectl, so the second line is optional
+winget install -e --id Kubernetes.kind
+winget install -e --id Kubernetes.kubectl
+```
+
+```bash
+# macOS (Homebrew); on Linux use the binaries from kind.sigs.k8s.io and kubernetes.io
+brew install kind kubectl
+```
+
+Open a new terminal afterwards and check `kind version` and `kubectl version --client`.
+
+**2. Create the cluster and deploy.** It creates the cluster, installs ingress-nginx, builds both images, loads them into kind and applies the overlay:
+
+```powershell
+# Windows PowerShell
+scripts\kind-up.ps1               # if blocked: powershell -ExecutionPolicy Bypass -File scripts\kind-up.ps1
+```
+
+```bash
+# macOS / Linux (also Git Bash on Windows with make installed)
+make kind-up                      # or: bash scripts/kind-up.sh
+```
+
+The script reuses an existing cluster with the same name. It takes more than 10 minutes the first time because of the image build (same as Docker Compose).
+
+**3. Verify.**
+
+```bash
+kubectl -n motorsport get pods              # backend, frontend and postgres-0 in Running
+curl http://localhost:8088/api/health       # Windows PowerShell: curl.exe http://localhost:8088/api/health
+```
+
+Open http://localhost:8088. The backend runs an `initContainer` named `migrate` (`alembic upgrade head`); if PostgreSQL is not ready yet it can fail once and Kubernetes retries it by itself, so a pod in `Init:Error` or `Init:CrashLoopBackOff` for a short while is normal.
+
+**4. Delete.**
+
+```bash
+kind delete cluster --name motorsport       # or: make kind-down
+```
+
+After changing code, run the script again (it rebuilds, reloads the images and applies the overlay); if the pods keep the old image, run `kubectl -n motorsport rollout restart deploy/backend deploy/frontend`.
+
+## Installation troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| Docker Desktop: `Virtualization support not detected` | Enable Intel VT-x or AMD-V (SVM) in the BIOS/UEFI, run `wsl --install` in an administrator PowerShell, reboot, then open Docker Desktop. Check with `wsl --status` (Default Version: 2) and `docker version`. |
+| `required variable POSTGRES_PASSWORD is missing a value` | `.env` does not exist. Copy `.env.example` to `.env` (`Copy-Item .env.example .env` on PowerShell, `cp .env.example .env` on bash) and set `POSTGRES_PASSWORD`. |
+| `TimeoutError: The read operation timed out` during `docker build` | pip lost the connection while downloading the scientific packages. Run the build again; completed layers are cached. |
+| `Essential channel Speed has no valid numeric values` with a MoTeC CSV | pandas 3 is installed. Reinstall the pinned versions: `pip install -r requirements.txt` (`pandas>=2.2.0,<3`, `numpy>=1.26.0,<2`). |
+| `unable to open database file` | The folder of the SQLite file is not writable (typically a read-only container filesystem or a volume without permissions). Point `STORAGE_DIR` (and, for the lap history, `LAPTIME_HISTORY_DB`) to a writable directory or volume. |
+| Blank page in the Vite dev server | Stale Vite cache. Stop `npm run dev`, start it again (if needed delete `frontend/node_modules/.vite`) and hard-reload the browser. |
+| `port is already allocated` / address already in use | Another program uses the port. Defaults: 8000 (API) and 5173 (Vite) in route A, 8080 (`FRONTEND_PORT`) in route B, 8088 and 8443 in route C. Close the other program or change the port (`FRONTEND_PORT` in `.env`, `--port` for uvicorn). |
 
 ## Deployment
 
@@ -95,18 +247,17 @@ Full guide, including architecture, environment contract, troubleshooting and se
 | Kubernetes (kind) | `make kind-up` (or `scripts/kind-up.sh`, `scripts/kind-up.ps1`) | Local cluster with Kustomize overlay `k8s/overlays/local`, UI on `http://localhost:8088` |
 | Kubernetes (other) | `kubectl apply -k k8s/overlays/local` or `k8s/overlays/prod` | See the deployment guide |
 
-Edit `POSTGRES_PASSWORD` in `.env` before running; the example values are for a local machine only. Compose runs `alembic upgrade head` on start.
+Step-by-step instructions for each method are in [Installation](#installation). `.env` must exist (copy `.env.example`) and `POSTGRES_PASSWORD` must be set; the example values are for a local machine only. Compose runs `alembic upgrade head` on start.
 
-**What was and was not verified.** The Dockerfiles, `docker-compose.yml` and the Kubernetes manifests were written and checked statically (YAML, Kubernetes schemas via `scripts/validate_k8s.py` and `kubernetes-validate`, `yamllint`, `bash -n`, PowerShell parser) on a machine without Docker or Kubernetes. They have **not been built or applied yet**. Commands to verify them on your machine are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#what-has-been-verified); the short version:
+**What was and was not verified.** Verified on the author's machine (Windows 11, Docker Desktop with Docker 29.8.1 and Compose v5.5.1, kind v0.33.0):
 
-```bash
-docker compose config -q
-docker build -t motorsport-backend:dev . && docker build -t motorsport-frontend:dev ./frontend
-docker compose up --build -d && curl -f http://localhost:8080/api/health
-make kind-up && kubectl -n motorsport get pods
-```
+- Docker Compose: `docker compose up --build -d` starts PostgreSQL 16, backend and frontend healthy; the UI answers on `http://localhost:8080` and `/api/health` returns OK; the backend runs as uid 10001 with a read-only filesystem; the Alembic migrations reach a real PostgreSQL (table `library_sessions`, revision `0001`).
+- Kubernetes: `scripts\kind-up.ps1` creates the `motorsport` cluster, installs ingress-nginx, loads the images and applies `k8s/overlays/local`; the three pods (backend, frontend, `postgres-0`) reach Running and the UI answers on `http://localhost:8088`.
+- Static checks (YAML, Kubernetes schemas with `scripts/validate_k8s.py` and `kubeconform`, `yamllint`, `hadolint`, `shellcheck`).
 
-The application has **no authentication yet**: do not expose it to the internet as is.
+**Not verified:** the HorizontalPodAutoscaler, PodDisruptionBudgets and NetworkPolicies are not exercised in kind (its default network plugin does not enforce policies, and the local overlay removes the HPA and PDBs); the `k8s/overlays/prod` overlay has been rendered and validated but never applied to a cluster; macOS and Linux were not tried; there is **no authentication**, so do not expose the application to the internet as is.
+
+The Compose and kind commands to reproduce the checks are in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#what-has-been-verified).
 
 **Assetto Corsa setups inside Docker.** A container cannot see your `Documents\Assetto Corsa\setups` folder. Either upload the setup `.ini` manually in the UI, or bind-mount the folder read-only and set `AC_SETUPS_DIR` (see `docker-compose.override.example.yml`).
 
@@ -115,7 +266,7 @@ The application has **no authentication yet**: do not expose it to the internet 
 1. Open the UI (`http://localhost:5173` in dev, `http://localhost:8080` with Docker) and choose the language (ES/EN) and the mode (Pilot/Engineer) in the top bar. The **Analysis / Library / Compare sessions** switch selects the view.
 2. Drop telemetry files in the upload area. The mode is detected from the number of files:
    - **1 file = full session**, segmented into laps automatically.
-   - **2 files = two single laps** to compare.
+   - **2 files = two single laps** to compare (the UI calls `/api/compare-laps` and `/api/telemetry/analyze`; it warns if the two files come from different cars).
 3. Click analyze. The file is uploaded once and a stage progress bar shows session, stint and optimal-lap analysis; results appear as each stage finishes (a ~57 MB session showed its first result in about 2 s and finished in about 3 s on the author's machine, see [Performance](#performance-and-upload-once)). Once the analysis is done, the upload area collapses into a file bar with **New analysis**, **Save to library** and **Download report** actions.
 4. A **data-quality panel** appears first: score, channels, laps and analysis modules, with a list of what would improve the analysis.
 5. Navigate with the side rail:
@@ -222,7 +373,7 @@ To add a circuit, append an entry to `src/data/circuits.json` (`id`, `name`, `sh
 
 ## Themes
 
-Light, dark or follow the operating system (selector in the top bar; the choice is stored in the browser). Files: `frontend/src/styles/theme-light.css`, `frontend/src/hooks/useTheme.js`; the dark tokens are in `design-system.css`. `python scripts/check_contrast.py` checks the WCAG contrast of both: the light theme passes all 64 pairs; the dark theme predates the check and has **10 pairs below AA**, documented as known debt (reported, but it only fails the run with `--strict`).
+Light, dark or follow the operating system (selector in the top bar; the choice is stored in the browser). Files: `frontend/src/styles/theme-light.css`, `frontend/src/hooks/useTheme.js`; the dark tokens are in `design-system.css`. `python scripts/check_contrast.py` checks the WCAG contrast of both: both themes currently pass all 64 pairs (0 failing).
 
 ## Performance and upload once
 
@@ -285,9 +436,9 @@ docker-compose.yml       backend + frontend + postgres (+ docker-compose.overrid
 k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
-Makefile                 up, down, logs, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (342 collected: 323 run by default, 19 e2e skipped), fixtures/, e2e/
-data/                    laptime_history.db (ML history), motorsport.db (library, git-ignored)
+Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
+tests/                   pytest suite (445 collected: 422 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
+data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
 
@@ -323,7 +474,7 @@ docs/                    User guides, deployment guide and scientific documentat
 
 ## API
 
-Base URL: `http://localhost:8000`. Interactive documentation: `/docs` (Swagger). POST endpoints that receive files take `multipart/form-data`; the others take JSON. Add `?lang=es` or `?lang=en` (otherwise `Accept-Language` is used) to choose the language of messages and reports. Errors: `400` for unreadable or invalid files, `404` for unknown library sessions, `413` for uploads above `MAX_UPLOAD_MB` (or library payloads above 5 MB), `422` for invalid selections (lap out of range, same lap twice, fewer than 3 laps for stint), `500` for internal errors; the body is `{"detail": "..."}`.
+There are 26 endpoints (13 analysis and reports, 5 setups, 8 library), listed below. Base URL: `http://localhost:8000` (with Docker or kind, the same paths under `/api` on the UI origin: `http://localhost:8080` or `http://localhost:8088`). Interactive documentation: `/docs` (Swagger). POST endpoints that receive files take `multipart/form-data`; the others take JSON. Add `?lang=es` or `?lang=en` (otherwise `Accept-Language` is used) to choose the language of messages and reports. Errors: `400` for unreadable or invalid files, `404` for unknown library sessions, `413` for uploads above `MAX_UPLOAD_MB` (or library payloads above 5 MB), `422` for invalid selections (lap out of range, same lap twice, fewer than 3 laps for stint), `500` for internal errors; the body is `{"detail": "..."}`.
 
 ### Analysis and reports
 
@@ -370,7 +521,7 @@ Notes:
 
 - Endpoints that read a session (`analyze-session`, `compare-session-laps`, `optimal-lap`, `stint/analyze`, `setups/detect`) accept the form field `file_id` instead of the file; `telemetry/analyze` accepts `lap_fast_id` and `lap_slow_id`. Unknown or expired ids answer `410`, malformed ones `422`.
 - The UI calls `POST /api/files`, then `/api/analyze-session` then `/api/stint/analyze` for a session, `/api/optimal-lap` in the background, `/api/compare-laps` plus `/api/telemetry/analyze` for two files, `/api/compare-session-laps` for lap pairs, and the PDF endpoints for the download buttons.
-- `/api/telemetry/analyze` appends an observation to `data/laptime_history.db`, which feeds the historical P10 and XGBoost layers over time.
+- `/api/telemetry/analyze` appends an observation to the lap history (`LAPTIME_HISTORY_DB`; default `STORAGE_DIR/laptime_history.db` if `STORAGE_DIR` is set, else `./data/laptime_history.db`; the file is not versioned and is created on the first call), which feeds the historical P10 and XGBoost layers over time.
 - A module that cannot run returns `{"available": false, ...}` (often with `reason`) instead of failing the whole request.
 
 ## Configuration
@@ -387,6 +538,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 | `NATIVE_MAX_ROWS` | `2000000` | Maximum samples accepted for `.ibt` / `.ld` after resampling |
 | `DATABASE_URL` | `sqlite:///data/motorsport.db` | Library database. PostgreSQL in containers: `postgresql+psycopg://user:pass@host:5432/db` |
 | `STORAGE_DIR` | `./data/storage` | Optional directory for original files |
+| `LAPTIME_HISTORY_DB` | `STORAGE_DIR/laptime_history.db` if `STORAGE_DIR` is set, else `./data/laptime_history.db` | SQLite lap history for the ML layers (not versioned; created on the first `/api/telemetry/analyze`) |
 | `UPLOAD_DIR` | `STORAGE_DIR/uploads` if `STORAGE_DIR` is set, else `TEMP_DIR/uploads` | Where `POST /api/files` stores uploads (use a shared volume with several replicas) |
 | `UPLOAD_TTL_HOURS` | `24` | Stored uploads unused for this long are deleted |
 | `SESSION_CACHE_MAX_MB` | `1024` | Maximum memory of the parsed-session cache per process |
@@ -403,7 +555,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 342 collected; 19 e2e tests are skipped unless E2E=1
+python -m pytest tests -q          # 445 collected: 422 run, 23 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint
@@ -413,7 +565,7 @@ make lint                          # yamllint + scripts/validate_k8s.py + fronte
 make k8s-validate                  # static check of the Kubernetes manifests
 ```
 
-Real-data regression and browser tests: `tests/fixtures/*.csv.gz` are anonymised cut-outs of real Assetto Corsa exports (rebuilt with `scripts/make_fixtures.py`), used by `tests/test_regression_real.py`. End-to-end and visual tests (Playwright + Edge) live in `tests/e2e/` and run only with `E2E=1`; visual baselines may need regenerating with `E2E_UPDATE_BASELINE=1` on another machine. Details in [tests/README.md](tests/README.md).
+Real-data regression and browser tests: `tests/fixtures/*.csv.gz` are anonymised cut-outs of real Assetto Corsa exports (rebuilt with `scripts/make_fixtures.py`, options `--imola`, `--spa`, `--lap-fast`, `--lap-slow`, `--lap-other-car`), used by `tests/test_regression_real.py`. End-to-end and visual tests (Playwright + Edge) live in `tests/e2e/` and run only with `E2E=1`; visual baselines may need regenerating with `E2E_UPDATE_BASELINE=1` on another machine. Details in [tests/README.md](tests/README.md).
 
 Test files in `tests/`: `test_alignment.py`, `test_loaders.py`, `test_metrics.py`, `test_session_pipeline.py`, `test_optimal_lap.py`, `test_ac_setups.py`, `test_library.py`, `test_data_quality.py`, `test_pdf_report.py`, `test_formats.py`, `test_projection_realism.py`, `test_upload_limit.py`, `test_k8s_manifests.py`, `test_circuits.py`, `test_perf_cache.py`, `test_check_contrast.py`, `test_regression_real.py`, `test_visual_tool.py` (fixtures in `tests/conftest.py`). Synthetic sample laps can be generated with `python scripts/generate_sample_data.py` (writes `data/raw/lap_clean.csv` and `data/raw/lap_errors.csv`, which are git-ignored).
 
@@ -444,7 +596,8 @@ Always add both languages; keep keys unique across modules. See [CONTRIBUTING.md
 - The theoretical optimal lap grows as the microsector shrinks, and with a synthesised `Distance` the optimal lap is only indicative.
 - Setup units are shown only where they are certain; encrypted car data (`data.acd`) is never opened, so ranges are missing for most cars.
 - **No authentication or authorization.** The library is shared by anyone who can reach the API (the `owner_id` column is reserved for the future). Do not expose the app to the internet as is.
-- Docker, Compose and Kubernetes files have only been validated statically (see [Deployment](#deployment)).
+- Docker Compose and the kind overlay were run on one Windows machine; the HPA, PodDisruptionBudgets and NetworkPolicies are not exercised in kind and the `prod` overlay has never been applied (see [Deployment](#deployment)).
+- The first build of the backend image takes more than 10 minutes and needs a stable network (pip downloads the scientific stack).
 - Library payloads are limited to 5 MB; very large uploads need memory and time (the limit is per file, `MAX_UPLOAD_MB`).
 
 ## Contributing

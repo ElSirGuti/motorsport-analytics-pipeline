@@ -94,11 +94,35 @@ def test_nginx_template_variables_are_provided_by_the_entrypoint():
     assert used <= provided, used - provided
 
 
-@pytest.mark.skipif(shutil.which("sh") is None, reason="needs a POSIX sh")
+def _find_sh() -> str | None:
+    """A POSIX ``sh``: on PATH, or (Windows) the one that ships with Git for Windows.
+
+    Git for Windows installs ``sh.exe`` under ``usr\\bin`` but usually does not add it to PATH, so
+    ``shutil.which("sh")`` alone made these tests skip on a perfectly capable Windows machine.
+    """
+    found = shutil.which("sh")
+    if found:
+        return found
+    for candidate in (
+        r"C:\Program Files\Git\usr\bin\sh.exe",
+        r"C:\Program Files\Git\bin\sh.exe",
+        r"C:\Program Files (x86)\Git\usr\bin\sh.exe",
+    ):
+        if Path(candidate).exists():
+            return candidate
+    return None
+
+
+SH = _find_sh()
+
+
+@pytest.mark.skipif(SH is None, reason="needs a POSIX sh")
 @pytest.mark.parametrize("mb,expected", [("2048", "4097m"), ("100", "201m"), ("1", "3m")])
 def test_upload_limit_envsh(mb, expected):
+    import os
+
     script = ROOT / "frontend" / "docker" / "15-upload-limit.envsh"
-    out = subprocess.run(["sh", "-c", f'. "{script.as_posix()}" >/dev/null; printf %s "$NGINX_MAX_BODY"'],
-                         env={"MAX_UPLOAD_MB": mb, "PATH": __import__("os").environ.get("PATH", "")},
+    out = subprocess.run([SH, "-c", f'. "{script.as_posix()}" >/dev/null; printf %s "$NGINX_MAX_BODY"'],
+                         env={"MAX_UPLOAD_MB": mb, "PATH": os.environ.get("PATH", "")},
                          capture_output=True, text=True, timeout=20)
     assert out.stdout == expected, out.stderr

@@ -17,7 +17,7 @@ React 19 + Vite single-page app for the Motorsport Analytics API. It renders the
 
 ## Requirements and commands
 
-Node.js 18+ (the Docker image uses Node 20) and the backend running on port 8000 (see the [root README](../README.md)).
+Node.js 18+ (the Docker image uses Node 20; the author develops with Node 21) and the backend running on port 8000 (see the [root README](../README.md)).
 
 ```bash
 npm install        # install dependencies
@@ -33,7 +33,8 @@ There is no unit-test suite for the frontend. Backend tests live in `../tests` (
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `VITE_API_URL` | `http://localhost:8000/api` | Base URL of the API (read in `src/api/telemetry.js`). Set it in `frontend/.env` or in the environment before `npm run dev` / `npm run build`. It is baked into the bundle at build time. |
+| `VITE_API_URL` | dev: `http://localhost:8000/api`; production build: `/api` | Base URL of the API, read by all clients (`src/api/telemetry.js`, `library.js`, `setups.js`). Without it, the production build uses the relative `/api` (nginx proxies it to the backend, same origin, no CORS). Set it in `frontend/.env` or in the environment before `npm run dev` / `npm run build`; it is baked into the bundle at build time. |
+| `VITE_PROXY_TARGET` | `http://localhost:8000` | Dev only (`vite.config.js`): backend to which Vite proxies `/api` when you run `VITE_API_URL=/api npm run dev`. |
 
 The backend must list the frontend origin in `CORS_ORIGINS` (the defaults already include `localhost:5173` and `localhost:3000`).
 
@@ -62,7 +63,7 @@ React 19, Vite 5 (`@vitejs/plugin-react`), Recharts 3 for charts, axios for HTTP
 ## Design system and themes
 
 - `src/styles/design-system.css` - "Pit Wall" tokens: graphite surfaces (`--surface-0..3`), text (`--ink-1..4`), one blue accent (`--accent`), semantic status colours (`--ok`, `--warn`, `--bad`) and a lap series palette (`--lap-a..f`). It loads after `index.css` and redefines the legacy variable names, so unmigrated rules inherit the new palette. New code should use the semantic tokens.
-- `src/styles/theme-light.css` - light theme: redefines the same tokens under `[data-theme="light"]`. `src/hooks/useTheme.js` keeps the preference (`system`, `light`, `dark`; `localStorage` key `ma-theme`), applies `data-theme` on `<html>` and follows the OS setting; `index.html` applies it before the first paint. `python ../scripts/check_contrast.py` verifies WCAG contrast: the light theme passes every pair, the dark theme has 10 pairs below AA documented as known debt.
+- `src/styles/theme-light.css` - light theme: redefines the same tokens under `[data-theme="light"]`. `src/hooks/useTheme.js` keeps the preference (`system`, `light`, `dark`; `localStorage` key `ma-theme`), applies `data-theme` on `<html>` and follows the OS setting; `index.html` applies it before the first paint through the external script `public/theme-init.js` (it must not be inline: the nginx Content-Security-Policy only allows `script-src 'self'`). `python ../scripts/check_contrast.py` verifies WCAG contrast: 64 pairs per theme checked, 0 failures.
 - `src/styles/shell.css` - layout of the application shell (top bar, side rail, content).
 - `src/components/ui/` - shared primitives, exported from `ui/index.js`:
 
@@ -126,7 +127,7 @@ src/
 | `detectSessionMeta`, `fetchSetupCandidates`, `fetchSetupById`, `uploadSetup`, `annotateRecommendations` | `/setups/detect`, `/candidates`, `/file`, `/parse`, `/annotate` |
 | `saveToLibrary`, `listLibrary`, `getLibrarySession`, `patchLibrarySession`, `deleteLibrarySession`, `libraryFacets`, `compareLibrarySessions`, `sniffMetadata` | `/library*` |
 
-In session mode the app uploads the file once and then runs `analyzeSession`, `analyzeStint` and the optimal lap as separate stages, showing each result as soon as it arrives (the stages share the backend's in-memory cache of the parsed file). In two-file mode it calls `compareLaps` and `analyzeTelemetry` in parallel and merges the results. Server error messages (`detail`) are shown to the user.
+In session mode the app uploads the file once and then runs `analyzeSession`, `analyzeStint` and the optimal lap as separate stages, showing each result as soon as it arrives (the stages share the backend's in-memory cache of the parsed file). In two-file mode it calls `compareLaps` and `analyzeTelemetry` in parallel and merges the results, including the `metadata` of both responses (they use different keys: `driver_a`/`vehicle_a`/`same_vehicle` from the first, `driver_fast`/`vehicle_fast`/... from the second). If the two files are from different cars, the UI shows a vehicle warning; for two files of the same car it does not. Server error messages (`detail`) are shown to the user.
 
 ## State, i18n and persistence
 
@@ -141,7 +142,7 @@ The core dictionaries are `src/i18n/en.js` and `es.js`. New features add their s
 
 ## Docker
 
-`Dockerfile` builds with `node:20-alpine` (`npm ci && npm run build`) and serves `dist/` with nginx (`nginx.conf`: SPA fallback to `index.html`, long cache for static assets, gzip, proxy to the backend). The image is based on unprivileged nginx and listens on port 8080 (health check at `/healthz`); it proxies `/api` to the backend, so production builds use the relative `/api`. `../docker-compose.yml` publishes it on `FRONTEND_PORT` (default 8080). Docker images were not built on the author's machine; see [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
+`Dockerfile` builds with `node:20-alpine` (`npm ci && npm run build`) and serves `dist/` with nginx (`nginx.conf`: SPA fallback to `index.html`, long cache for static assets, gzip, proxy to the backend). The image is based on unprivileged nginx and listens on port 8080 (health check at `/healthz`); it proxies `/api` to the backend, so production builds use the relative `/api`. `../docker-compose.yml` publishes it on `FRONTEND_PORT` (default 8080). The image was built and run with Docker Compose and on kind on the author's machine; see [../docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md) for what was and was not verified. The nginx CSP allows only same-origin scripts (plus Google Fonts for styles/fonts), which is why the theme script is an external file.
 
 ## Resumen en español
 
@@ -153,4 +154,5 @@ Aplicación React 19 + Vite que consume la API del backend (`VITE_API_URL`, por 
 - Tabla de vueltas: elige dos vueltas (A/B) y pulsa "Comparar", o "Mejor vs Peor"; las vueltas de pit y atípicas aparecen marcadas. El panel de salud y el panel de calidad de datos muestran qué módulos tienen datos. También hay vuelta óptima por microsectores, enlace con los setups de Assetto Corsa (Actual -> Sugerido) y nombres de curva en circuitos conocidos.
 - Sistema de diseño en `src/styles/design-system.css` y componentes base en `src/components/ui/` (`Panel`, `Stat`, `Badge`, `Icon`, `EmptyState`).
 - Textos traducidos: añade `src/i18n/extra/<modulo>.en.js` y `<modulo>.es.js`; se cargan solos con `import.meta.glob`.
+- Los clientes de API usan `/api` en producción (mismo origen) y `http://localhost:8000/api` en desarrollo; el script de tema es externo (`public/theme-init.js`) por la CSP de nginx.
 - El idioma, el modo de vista, el tema, el autoguardado de la biblioteca y el setup recordado se guardan en `localStorage`. No hay tests unitarios de frontend; los tests del backend están en `../tests` y los e2e de navegador (`E2E=1`) en `../tests/e2e`.

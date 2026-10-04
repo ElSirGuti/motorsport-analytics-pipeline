@@ -65,6 +65,14 @@ The top bar holds the brand, the **Analysis / Library / Compare sessions** switc
 
 Click a corner in the corner analysis and all charts zoom into that zone.
 
+### Comparing two single-lap files
+
+Drop **two files with one lap each** (for example a fast lap and a slow lap exported separately) to compare them directly. The app runs the basic comparison (`/api/compare-laps`) and the advanced one (`/api/telemetry/analyze`) and merges both results, including the metadata (driver, car, circuit) of each file.
+
+- The first file is the reference lap and the second one the lap compared against it (load the fast lap first).
+- If the two files come from **different cars**, a warning says so (with both car names) because the comparison then mixes car and driver differences. With the same car there is no warning.
+- Real example, Red Bull Ring, Porsche Cayman GT4: fast lap vs slow lap = **+3.25 s**. The same fast lap against a lap of a Maserati GT MC GT4 = **+1.44 s**, with the different-vehicles warning.
+
 ---
 
 ## Session features
@@ -117,11 +125,11 @@ Notes: the server can only read your game folder when it runs on the same comput
 
 ### Known circuits and corner names
 
-If the circuit in the file header is known, the interface shows a badge with its name and length, and corners are shown as "Corner 4 - Tamburello". **Names exist only for Imola and Spa-Francorchamps**; another 17 circuits (Monza, Silverstone, Mugello, Nordschleife, Monaco, Le Mans and others) are only recognised, and their corners keep their number. If the lap length does not match the circuit (another layout or a partial lap) the badge says "low confidence" and no names are shown. Names are never guessed: a corner table is published only when it was verified against real telemetry.
+If the circuit in the file header is known, the interface shows a badge with its name and length, and corners are shown as "Corner 4 - Tamburello". **19 circuits are recognised and 7 have corner names**: Imola, Spa-Francorchamps, Silverstone GP, Le Mans and Monaco (high confidence) and Mugello and Brands Hatch GP (medium confidence). The other 12 (Monza, Red Bull Ring, Nordschleife and others) are only recognised, and their corners keep their number. If the lap length does not match the circuit (another layout or a partial lap) the badge says "low confidence" and no names are shown. Names are never guessed: a corner table is published only when it was verified against real telemetry.
 
 ### Theme
 
-Use the theme selector in the top bar: **System** (follows your operating system), **Light** or **Dark**. The choice is remembered in your browser.
+Use the theme selector in the top bar: **System** (follows your operating system), **Light** or **Dark**. The choice is remembered in your browser. Text and chart colours were checked for contrast in both themes (64 colour pairs per theme, no failures).
 
 ### Faster analysis (upload once)
 
@@ -488,7 +496,7 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, MoTeC CSV
 - Depending on the simulator and the export, some channels may be missing; the panels tell you when that is the case.
 - `.ibt` and `.ld` are experimental (tested on 53 files from one author); CSV is the stable format.
 - The theoretical optimal lap grows as the microsector shrinks; with a synthesised `Distance` the optimal lap is only indicative.
-- Corner names exist only for Imola and Spa-Francorchamps.
+- Corner names exist for 7 of the 19 recognised circuits (Imola, Spa, Silverstone GP, Le Mans, Monaco, Mugello, Brands Hatch GP).
 - Setup units are shown only where they are certain, and ranges are missing for most cars (their data files are encrypted).
 - There is no authentication: do not expose the app to the internet as is.
 
@@ -520,6 +528,9 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, MoTeC CSV
 **The app uploads the file again or says the file expired (HTTP 410):**
 - The server no longer had your uploaded copy (restart, 24-hour expiry or another replica without a shared volume). The app retries automatically; if it still fails, press **New analysis** and load the file again.
 
+**A warning says the two files are from different vehicles:**
+- You loaded laps of different cars in two-file mode. The numbers are still computed, but the gap includes the car difference; load two laps of the same car for a driver-only comparison.
+
 **Error 413 (file too large):**
 - The file is above the server limit (`MAX_UPLOAD_MB`, 2048 MB per file by default). A saved library session is limited to 5 MB.
 
@@ -531,6 +542,9 @@ Validated with a Porsche Cayman GT4 Clubsport at Imola (Assetto Corsa, MoTeC CSV
 
 **The optimal lap says it is indicative or unavailable:**
 - It needs at least 3 valid laps and a reliable `Distance`; without it the distance is rebuilt from speed. Check the data-quality panel.
+
+**The app runs in Docker or Kubernetes and something fails to start or analyse:**
+- See the troubleshooting table in [Deployment](./DEPLOYMENT.md#troubleshooting) (`POSTGRES_PASSWORD`, first slow build, pandas version, history database folder, `curl.exe` on PowerShell).
 
 **Analysis takes too long:**
 - Session files of tens of MB can take tens of seconds or more in the backend; keep the tab open
