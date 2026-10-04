@@ -369,7 +369,21 @@ La tabla completa de alias es `COLUMN_ALIASES` en `src/io/loaders.py`. Los canal
 - Si la longitud medida no encaja (probablemente otro trazado o una vuelta parcial) el circuito se marca con confianza `low` y no se asignan nombres. Un apex sin curva tabulada cerca conserva su número.
 - **Regla de honestidad:** una tabla de curvas solo se publica cuando su orden y sus posiciones se verificaron con telemetría. No añadas nombres de memoria ni desde un plano sin comprobar dónde cae cada apex en una vuelta real.
 
-Para añadir un circuito, agrega una entrada a `src/data/circuits.json` (`id`, `name`, `short_name`, `country`, `length_m`, `aliases`, `confidence`, `source`, `notes`, `corners: []`) y ejecuta `python -m pytest tests/test_circuits.py -q`; el validador `validate_database` comprueba ids, alias, orden y rangos. Añade `corners` (`order`, `name`, `apex_fraction`, estrictamente crecientes) solo con una vuelta real como evidencia y documéntalo en `source`.
+**Añadir un circuito o los nombres de sus curvas** (todo en `src/data/circuits.json`):
+
+1. **Reconocimiento.** Agrega una entrada con `id`, `name`, `short_name`, `country`, `length_m`, `aliases` (el texto `Venue` de tus logs, por ejemplo `ks_red_bull_ring`), `confidence`, `source`, `notes` y `corners: []`. Solo con esto el circuito ya se reconoce (distintivo en la interfaz).
+2. **Encuentra dónde están las curvas.** Ejecuta la herramienta sobre un log real, idealmente una sesión con varias vueltas (y un segundo coche o archivo antes de marcarlo `high`):
+
+   ```bash
+   python scripts/circuit_apexes.py ruta/al/log.csv --json     # también .ibt y .ld
+   ```
+
+   Detecta los ápices (curvatura de la trazada y mínimos de velocidad) en **todas** las vueltas completas, los agrupa por posición y conserva solo los que aparecen en al menos el 60% de las vueltas (`--min-share`). Imprime cada `apex_fraction` (posición como fracción de la vuelta), la velocidad allí y, si el circuito ya está en la tabla, el nombre que recibe hoy. Con `--json` imprime el bloque `corners` para pegarlo. Un archivo de una sola vuelta también sirve, pero muestra un aviso porque no hay consenso.
+3. **Ponles nombre.** Sustituye cada `"?"` por el nombre real de la curva, con el trazado oficial delante. `order` debe seguir la vuelta y `apex_fraction` debe ser estrictamente creciente. Las curvas que salgan en la lista pero no existan en el trazado oficial son ruido: bórralas.
+4. **Deja la evidencia.** Pon `confidence` en `medium` (una vuelta o un coche) o `high` (varias vueltas y al menos dos archivos o coches), y di en `source` qué logs usaste. Nunca publiques nombres de los que no estés seguro: un nombre equivocado es peor que ninguno.
+5. **Valida.** `python -m pytest tests/test_circuits.py -q` comprueba ids, alias, orden y rangos (`validate_database`). Después sube un log de ese circuito y comprueba que los nombres aparecen en los paneles de curvas.
+
+**Límites que conviene conocer.** Una curva solo se nombra si el detector encuentra un ápice cerca de su posición tabulada (tolerancia del 2.5% de la vuelta, entre 120 y 180 m, o `apex_tolerance_m` por circuito). Una curva que un coche toma **a fondo** no tiene mínimo de velocidad y casi no tiene curvatura, así que no genera ápice y nunca se nombra: por eso Variante Bassa de Imola no está en la tabla (en 26 vueltas de 5 coches la velocidad sigue subiendo ahí). Esas curvas tampoco aparecen en la salida de la herramienta, así que una ausencia en esa lista es información, no un fallo.
 
 ## Temas
 
@@ -438,7 +452,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (445 recogidos: 422 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (448 recogidos: 425 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -556,7 +570,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 445 recogidos: 422 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 448 recogidos: 425 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

@@ -11,7 +11,7 @@
 PowerShell:
 
 ```powershell
-python -m pytest tests -q                              # 445 collected: 422 run and pass, 23 e2e skipped (about 1 min)
+python -m pytest tests -q                              # 448 collected: 425 run and pass, 23 e2e skipped (about 1 min)
 python -m pytest tests/test_regression_real.py -q      # only the real-data regression tests
 $env:E2E = "1"; python -m pytest tests/e2e -q          # browser tests (starts its own servers)
 $env:E2E = "1"; $env:E2E_UPDATE_BASELINE = "1"; python -m pytest tests/e2e -k visual   # regenerate baselines
@@ -27,7 +27,7 @@ E2E=1 python -m pytest tests/e2e -q
 E2E=1 E2E_UPDATE_BASELINE=1 python -m pytest tests/e2e -k visual
 ```
 
-Counts (`python -m pytest tests --co -q`): 445 tests collected. Without `E2E=1`, `pytest tests -q` runs 422 and skips 23, all of them browser (e2e) tests. With `E2E=1` the 23 e2e tests run too.
+Counts (`python -m pytest tests --co -q`): 448 tests collected. Without `E2E=1`, `pytest tests -q` runs 425 and skips 23, all of them browser (e2e) tests. With `E2E=1` the 23 e2e tests run too.
 
 Isolation: `tests/conftest.py` sets a temporary `DATABASE_URL` and `STORAGE_DIR` before importing the app, so the unit tests never touch `data/motorsport.db`, `data/storage` or the real lap history (`LAPTIME_HISTORY_DB` / `STORAGE_DIR` decide where `laptime_history.db` lives).
 

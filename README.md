@@ -369,7 +369,21 @@ The complete alias table is `COLUMN_ALIASES` in `src/io/loaders.py`. Missing opt
 - If the measured length does not fit (probably another layout or a partial lap) the circuit is flagged `low` confidence and no names are assigned. An apex without a tabulated corner nearby keeps its number.
 - **Honesty rule:** a corner table is published only when its order and its positions were verified against telemetry. Never add names from memory or from a layout map without checking where each apex falls on a real lap.
 
-To add a circuit, append an entry to `src/data/circuits.json` (`id`, `name`, `short_name`, `country`, `length_m`, `aliases`, `confidence`, `source`, `notes`, `corners: []`) and run `python -m pytest tests/test_circuits.py -q`; the validator `validate_database` checks ids, aliases, ordering and ranges. Add `corners` (`order`, `name`, `apex_fraction`, strictly increasing) only with a real lap as evidence, and document it in `source`.
+**Adding a circuit or its corner names** (all in `src/data/circuits.json`):
+
+1. **Recognition.** Append an entry with `id`, `name`, `short_name`, `country`, `length_m`, `aliases` (the `Venue` text of your logs, e.g. `ks_red_bull_ring`), `confidence`, `source`, `notes` and `corners: []`. This alone makes the circuit recognized (badge in the UI).
+2. **Find where the corners are.** Run the helper on a real log, ideally a session with several laps (and a second car or file before calling it `high`):
+
+   ```bash
+   python scripts/circuit_apexes.py path/to/log.csv --json     # also .ibt and .ld
+   ```
+
+   It detects apexes (track curvature and speed minima) in **every** complete lap, groups them by position and keeps only the ones present in at least 60% of the laps (`--min-share`). It prints each `apex_fraction` (position as a fraction of the lap), the speed there and, if the circuit is already in the table, the name it currently gets. With `--json` it prints the `corners` block to paste. A single-lap file also works, but it shows a warning because there is no consensus.
+3. **Name them.** Replace each `"?"` with the real corner name, with the official layout in front of you. `order` must follow the lap and `apex_fraction` must be strictly increasing. Corners that appear in the list but are not in the official layout are noise: delete them.
+4. **Record the evidence.** Set `confidence` to `medium` (one lap or one car) or `high` (several laps and at least two files or cars) and say in `source` which logs you used. Never publish names you are not sure about: a wrong name is worse than none.
+5. **Validate.** `python -m pytest tests/test_circuits.py -q` checks ids, aliases, ordering and ranges (`validate_database`). Then upload a log of that circuit and check that the names appear in the corner panels.
+
+**Limits to know.** A corner is only named if the detector finds an apex near its tabulated position (tolerance 2.5% of the lap, between 120 and 180 m, or `apex_tolerance_m` per circuit). A bend that a car takes **flat out** has no speed minimum and almost no curvature, so it produces no apex and is never named: that is why Variante Bassa at Imola is not in the table (in 26 laps of 5 cars the speed keeps rising there). Such bends do not appear in the helper's output either, so a missing entry in that list is information, not a bug.
 
 ## Themes
 
@@ -437,7 +451,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (445 collected: 422 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (448 collected: 425 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -555,7 +569,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 445 collected: 422 run, 23 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 448 collected: 425 run, 23 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint
