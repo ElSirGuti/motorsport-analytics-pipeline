@@ -120,14 +120,21 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--imola", help="CSV MoTeC original de Imola (Assetto Corsa, 21 vueltas)")
     ap.add_argument("--spa", help="CSV MoTeC original de Spa (desgaste inactivo)")
+    ap.add_argument("--lap-fast", help="CSV de UNA vuelta rapida (Red Bull Ring, Cayman GT4)")
+    ap.add_argument("--lap-slow", help="CSV de UNA vuelta lenta (mismo coche y circuito)")
+    ap.add_argument("--lap-other-car", help="CSV de UNA vuelta con otro coche (Maserati GT MC GT4)")
     ap.add_argument("--out", default=os.path.join(ROOT, "tests", "fixtures"))
     ap.add_argument("--step", type=int, default=2)
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--anonymize", dest="anonymize", action="store_true", default=True)
     g.add_argument("--no-anonymize", dest="anonymize", action="store_false")
     a = ap.parse_args()
-    if not (a.imola or a.spa):
-        ap.error("indica --imola y/o --spa")
+    singles = {"rbr_fast": a.lap_fast, "rbr_slow": a.lap_slow, "rbr_other_car": a.lap_other_car}
+    if not (a.imola or a.spa or any(singles.values())):
+        ap.error("indica --imola, --spa y/o --lap-fast/--lap-slow/--lap-other-car")
+    for name, src in singles.items():  # archivos de una sola vuelta: se conservan todas las filas
+        if src:
+            make_fixture(src, os.path.join(a.out, f"{name}.csv.gz"), -1e9, 1e9, a.step, a.anonymize)
     if a.imola:  # vueltas 1..5 (la 1 es lenta: salida/primera vuelta)
         make_fixture(a.imola, os.path.join(a.out, "imola_5laps.csv.gz"), 1, 5, a.step, a.anonymize)
     if a.spa:    # vueltas 0..3 (la 3 es parcial: la sesion termina a mitad de vuelta)

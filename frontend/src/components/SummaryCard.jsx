@@ -1,6 +1,7 @@
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Stat, Badge, Icon } from './ui';
 import { clean } from './chartTheme';
+import { prettyName } from '../utils/prettyName';
 import styles from './SummaryCard.module.css';
 
 const SummaryCard = ({ summary, metadata, rawTimeDelta }) => {
@@ -21,9 +22,9 @@ const SummaryCard = ({ summary, metadata, rawTimeDelta }) => {
           <div className={`${styles.id} ${styles.idA}`}>
             <Badge tone="accent">{clean(t.summaryLapA)}</Badge>
             <div className={styles.driver}>{metadata.driver_a || '—'}</div>
-            <div className={styles.vehicle}>{metadata.vehicle_a || '—'}</div>
+            <div className={styles.vehicle}>{prettyName(metadata.vehicle_a) || '—'}</div>
             {metadata.venue && (
-              <div className={styles.venue}><Icon name="flag" size={12} />{metadata.venue}</div>
+              <div className={styles.venue}><Icon name="flag" size={12} />{prettyName(metadata.venue)}</div>
             )}
           </div>
 
@@ -32,7 +33,7 @@ const SummaryCard = ({ summary, metadata, rawTimeDelta }) => {
           <div className={`${styles.id} ${styles.idB}`}>
             <Badge>{clean(t.summaryLapB)}</Badge>
             <div className={styles.driver}>{metadata.driver_b || '—'}</div>
-            <div className={styles.vehicle}>{metadata.vehicle_b || '—'}</div>
+            <div className={styles.vehicle}>{prettyName(metadata.vehicle_b) || '—'}</div>
           </div>
         </div>
       )}
@@ -40,7 +41,7 @@ const SummaryCard = ({ summary, metadata, rawTimeDelta }) => {
       {metadata && !metadata.same_vehicle && (
         <div className={`${styles.alert} ${styles.alertWarn}`} role="status">
           <Icon name="alert" size={16} />
-          <strong>{t.summaryDifferentVehicles(metadata.vehicle_a, metadata.vehicle_b)}</strong>
+          <strong>{t.summaryDifferentVehicles(prettyName(metadata.vehicle_a), prettyName(metadata.vehicle_b))}</strong>
         </div>
       )}
 

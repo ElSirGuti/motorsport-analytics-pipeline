@@ -297,7 +297,9 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
       <div className="shell-cmphead">
         <div className="ui-eyebrow">{t.compareTitle}</div>
         <h2 className="shell-cmphead__title">{title}</h2>
-        {meta?.venue && <div className="shell-cmphead__sub">{meta.venue}</div>}
+        {(result?.circuit?.recognized ? result.circuit.name : meta?.venue) && (
+          <div className="shell-cmphead__sub">{result?.circuit?.recognized ? result.circuit.name : meta.venue}</div>
+        )}
       </div>
 
       {meta?.distance_synthetic && (
@@ -791,6 +793,12 @@ export default function App() {
           time_delta_series: basicSettled.value.time_delta_series,
           text_report: basicSettled.value.text_report,
           track_map: basicSettled.value.track_map,
+          // Both endpoints return `metadata` with different keys (driver_a/vehicle_a/same_vehicle vs
+          // driver_fast/vehicle_fast/...): merge them instead of letting the advanced one replace the basic one.
+          metadata: {
+            ...(advancedSettled.status === 'fulfilled' ? advancedSettled.value.metadata : {}),
+            ...basicSettled.value.metadata,
+          },
         };
         setCompareResult(merged);
       }

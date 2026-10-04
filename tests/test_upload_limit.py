@@ -33,8 +33,21 @@ def test_oversized_upload_returns_413_translated(client, monkeypatch):
     assert r.status_code == 413 and "maximum" in r.json()["detail"]
 
 
-def test_partial_file_is_removed(monkeypatch, tmp_path):
+def _run(coro):
+    """Ejecuta una corrutina en un hilo propio.
+
+    `asyncio.run` falla con 'cannot be called from a running event loop' si otro componente de la misma
+    sesión de pytest (p. ej. la API síncrona de Playwright en los tests e2e) deja un bucle activo en el
+    hilo principal. Un hilo nuevo no tiene bucle, así que funciona siempre.
+    """
     import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
+def test_partial_file_is_removed(monkeypatch, tmp_path):
     import io
 
     class _Up:
@@ -43,13 +56,12 @@ def test_partial_file_is_removed(monkeypatch, tmp_path):
     monkeypatch.setattr(main, "MAX_UPLOAD_BYTES", 1000)
     dest = tmp_path / "p.csv"
     with pytest.raises(main.HTTPException) as exc:
-        asyncio.run(main._save_upload(_Up(), str(dest)))
+        _run(main._save_upload(_Up(), str(dest)))
     assert exc.value.status_code == 413
     assert not dest.exists()
 
 
 def test_small_upload_is_saved(monkeypatch, tmp_path):
-    import asyncio
     import io
 
     class _Up:
@@ -57,7 +69,7 @@ def test_small_upload_is_saved(monkeypatch, tmp_path):
 
     monkeypatch.setattr(main, "MAX_UPLOAD_BYTES", 1000)
     dest = tmp_path / "ok.csv"
-    asyncio.run(main._save_upload(_Up(), str(dest)))
+    _run(main._save_upload(_Up(), str(dest)))
     assert os.path.getsize(dest) == 500
 
 

@@ -303,3 +303,44 @@ def test_a11y_visible_focus_in_top_bar(page):
     assert len(seen) >= 5, f"expected to tab through the top bar controls, got {seen}"
     invisible = [s for s in seen if not s["visible"]]
     assert not invisible, f"focus indicator not visible on: {invisible}"
+
+
+# ── comparación de DOS archivos de una vuelta (modo 'Comparar') ──────────────────────────────
+_DIFFERENT_VEHICLES = re.compile("Vehículos distintos|Different vehicles")
+
+
+def _compare_two_files(pg, a: str, b: str, timeout_s: int = 150) -> None:
+    pg.set_input_files("input[type=file]", [a, b])
+    pg.locator(".shell-actions button.ui-btn--primary").first.click()
+    pg.locator("#section-core-lap").wait_for(timeout=timeout_s * 1000)
+    settle(pg)
+
+
+@pytest.mark.parametrize("lang", ["es", "en"])
+def test_compare_two_single_lap_files_same_car(page, single_laps, lang):
+    """Mismo coche: identidad de ambas vueltas rellena y SIN aviso de vehículos distintos.
+
+    Regresión: la UI fusiona la respuesta de /compare-laps con la de /telemetry/analyze y el metadata
+    de la segunda reemplazaba al de la primera (tarjetas vacías y 'undefined vs undefined').
+    """
+    open_app(page, lang)
+    _compare_two_files(page, single_laps["rbr_fast"], single_laps["rbr_slow"])
+    text = page.locator("body").inner_text()
+    assert "undefined" not in text and "[object Object]" not in text
+    assert "cayman" in text.lower()  # coche visible en las tarjetas de identidad
+    assert page.get_by_role("status").filter(has_text=_DIFFERENT_VEHICLES).count() == 0
+    assert page.locator("#section-core-lap").is_visible()
+    _no_errors(page)
+
+
+@pytest.mark.parametrize("lang", ["es", "en"])
+def test_compare_two_single_lap_files_different_cars(page, single_laps, lang):
+    """Coches distintos: aviso visible con los DOS nombres y sin 'undefined'."""
+    open_app(page, lang)
+    _compare_two_files(page, single_laps["rbr_fast"], single_laps["rbr_other_car"])
+    warn = page.get_by_role("status").filter(has_text=_DIFFERENT_VEHICLES)
+    assert warn.count() >= 1
+    msg = warn.first.inner_text().lower()
+    assert "undefined" not in msg
+    assert "cayman" in msg and "maserati" in msg
+    _no_errors(page)

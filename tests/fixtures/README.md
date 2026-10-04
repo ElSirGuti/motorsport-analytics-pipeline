@@ -9,6 +9,11 @@ windows, 3-point extrapolation, LateralG sign conventions...
 |---|---|---|---|
 | `imola_5laps.csv.gz` | `cayman_gt4_imola_assetto_corsa.csv` (Porsche Cayman GT4, Imola, 21 laps) | session laps 1-5 (the first one is slow: out lap), ~6000 samples, tyre wear active | ~340 KB |
 | `spa_3laps.csv.gz` | `porsche_gt4_spa.csv` (Porsche Cayman GT4, Spa) | 3 full laps + a trailing half lap, tyre wear **disabled** in the simulator | ~325 KB |
+| `rbr_fast.csv.gz` | `vuelta_rapida.csv` (Porsche Cayman GT4, Red Bull Ring) | ONE fast lap, all rows | ~60 KB |
+| `rbr_slow.csv.gz` | `vuelta_lenta.csv` (same car and track) | ONE slow lap (~3.2 s slower), all rows | ~60 KB |
+| `rbr_other_car.csv.gz` | `vuelta_rapida_mc.csv` (Maserati GT MC GT4, same track) | ONE fast lap with a **different car** | ~70 KB |
+
+The three `rbr_*` files cover the **two-file compare mode** (`/api/compare-laps` + `/api/telemetry/analyze`) used by `tests/test_compare_two_laps.py` and the e2e tests. Regenerate with `--lap-fast`, `--lap-slow` and `--lap-other-car` (see `scripts/make_fixtures.py`).
 
 ## What is kept
 

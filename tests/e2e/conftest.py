@@ -213,6 +213,22 @@ def imola_csv(tmp_path_factory) -> str:
     return str(dst)
 
 
+@pytest.fixture(scope="session")
+def single_laps(tmp_path_factory) -> dict:
+    """Tres vueltas sueltas del Red Bull Ring: rapida/lenta (mismo coche) y rapida con otro coche."""
+    d = tmp_path_factory.mktemp("e2e_laps")
+    out = {}
+    for name in ("rbr_fast", "rbr_slow", "rbr_other_car"):
+        src = FIXTURES / f"{name}.csv.gz"
+        if not src.exists():
+            pytest.skip(f"tests/fixtures/{name}.csv.gz missing")
+        dst = d / f"{name}.csv"
+        with gzip.open(src, "rb") as a, open(dst, "wb") as b:
+            shutil.copyfileobj(a, b)
+        out[name] = str(dst)
+    return out
+
+
 # ── helpers de interaccion (los importan los tests) ──────────────────────────
 def settle(pg, ms: int = 1500) -> None:
     """Deja terminar peticiones y animaciones de graficos."""

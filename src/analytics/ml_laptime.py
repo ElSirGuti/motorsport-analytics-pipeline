@@ -16,6 +16,7 @@ Capa 3 — XGBoost + Explicaciones (con ≥30 obs totales):
   Devuelve las top-2 features que más alejan al piloto del perfil rápido.
 """
 import logging
+import os
 import sqlite3
 from pathlib import Path
 
@@ -26,7 +27,25 @@ from src.i18n import _ as _tr
 
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "laptime_history.db"
+_REPO_DATA_DIR = Path(__file__).parent.parent.parent / "data"
+
+
+def _resolve_db_path() -> Path:
+    """Ubicación del historial de vueltas (SQLite, escrito por /api/telemetry/analyze).
+
+    Orden: LAPTIME_HISTORY_DB (ruta explícita) > STORAGE_DIR/laptime_history.db (volumen
+    persistente y escribible en contenedores) > <repo>/data/laptime_history.db (uso local).
+    """
+    explicit = os.getenv("LAPTIME_HISTORY_DB", "").strip()
+    if explicit:
+        return Path(explicit)
+    storage = os.getenv("STORAGE_DIR", "").strip()
+    if storage:
+        return Path(storage) / "laptime_history.db"
+    return _REPO_DATA_DIR / "laptime_history.db"
+
+
+DB_PATH = _resolve_db_path()
 MIN_SAMPLES_FOR_ML = 30
 
 HISTORY_FEATURES = [
