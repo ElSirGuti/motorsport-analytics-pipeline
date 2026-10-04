@@ -45,7 +45,7 @@
    "circuit": "imola",
    "vehicle": "ks_porsche_cayman_gt4_clubsport",
    "laps": 21,
-   "map_seconds": 2.05,
+   "map_seconds": 2.3,
    "detector_errors": {}
   },
   {
@@ -53,7 +53,7 @@
    "circuit": "imola",
    "vehicle": "ferrari_458",
    "laps": 4,
-   "map_seconds": 0.35,
+   "map_seconds": 0.54,
    "detector_errors": {}
   },
   {
@@ -61,7 +61,7 @@
    "circuit": "imola",
    "vehicle": "ks_porsche_919_hybrid_2016",
    "laps": 4,
-   "map_seconds": 0.33,
+   "map_seconds": 0.54,
    "detector_errors": {}
   },
   {
@@ -69,7 +69,7 @@
    "circuit": "imola",
    "vehicle": "ks_porsche_919_hybrid_2016",
    "laps": 1,
-   "map_seconds": 0.11,
+   "map_seconds": 0.12,
    "detector_errors": {}
   },
   {
@@ -77,7 +77,7 @@
    "circuit": "silverstone",
    "vehicle": "ks_porsche_919_hybrid_2016",
    "laps": 5,
-   "map_seconds": 0.68,
+   "map_seconds": 0.74,
    "detector_errors": {}
   },
   {
@@ -85,7 +85,7 @@
    "circuit": "silverstone",
    "vehicle": "ks_porsche_919_hybrid_2016",
    "laps": 1,
-   "map_seconds": 0.1,
+   "map_seconds": 0.15,
    "detector_errors": {}
   },
   {
@@ -93,7 +93,7 @@
    "circuit": "monaco",
    "vehicle": "cky_porschecarrera_gt_04",
    "laps": 2,
-   "map_seconds": 0.15,
+   "map_seconds": 0.26,
    "detector_errors": {}
   },
   {
@@ -101,7 +101,7 @@
    "circuit": "monaco",
    "vehicle": "f_porsche_gt2rs_mr",
    "laps": 1,
-   "map_seconds": 0.08,
+   "map_seconds": 0.13,
    "detector_errors": {}
   },
   {
@@ -109,7 +109,7 @@
    "circuit": "spa_francorchamps",
    "vehicle": "ks_porsche_cayman_gt4_clubsport",
    "laps": 3,
-   "map_seconds": 0.34,
+   "map_seconds": 0.47,
    "detector_errors": {}
   },
   {
@@ -117,7 +117,7 @@
    "circuit": "le_mans",
    "vehicle": "ks_porsche_919_hybrid_2016",
    "laps": 4,
-   "map_seconds": 0.59,
+   "map_seconds": 0.61,
    "detector_errors": {}
   },
   {
@@ -125,7 +125,7 @@
    "circuit": "le_mans",
    "vehicle": "ks_porsche_919_hybrid_2016",
    "laps": 3,
-   "map_seconds": 0.43,
+   "map_seconds": 0.44,
    "detector_errors": {}
   },
   {
@@ -133,7 +133,7 @@
    "circuit": "imola",
    "vehicle": "ks_porsche_cayman_gt4_clubsport",
    "laps": 21,
-   "map_seconds": 2.67,
+   "map_seconds": 2.09,
    "detector_errors": {}
   },
   {
@@ -141,7 +141,7 @@
    "circuit": "spa_francorchamps",
    "vehicle": "ks_porsche_cayman_gt4_clubsport",
    "laps": 3,
-   "map_seconds": 0.44,
+   "map_seconds": 0.31,
    "detector_errors": {}
   },
   {
@@ -149,7 +149,7 @@
    "circuit": "imola",
    "vehicle": "ks_porsche_cayman_gt4_clubsport",
    "laps": 5,
-   "map_seconds": 0.41,
+   "map_seconds": 0.4,
    "detector_errors": {}
   },
   {
@@ -157,7 +157,7 @@
    "circuit": "spa_francorchamps",
    "vehicle": "ks_porsche_cayman_gt4_clubsport",
    "laps": 3,
-   "map_seconds": 0.31,
+   "map_seconds": 0.29,
    "detector_errors": {}
   }
  ],
@@ -7797,6 +7797,968 @@
     "detections_per_lap": 10.467,
     "stability_std_m": 23.88,
     "appearance_pct": 92.326
+   }
+  }
+ },
+ "comparison_with": "corners_baseline_legacy.json",
+ "comparison": {
+  "imola": {
+   "legacy": {
+    "speed": {
+     "recall": 0.761,
+     "extras_per_lap": 0.59,
+     "detections_per_lap": 6.68,
+     "stability_std_m": 37.2,
+     "appearance_pct": 76.1,
+     "never_detected": []
+    },
+    "geometry": {
+     "recall": 0.926,
+     "extras_per_lap": 2.21,
+     "detections_per_lap": 9.62,
+     "stability_std_m": 30.7,
+     "appearance_pct": 92.6,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.857,
+     "extras_per_lap": 0.3,
+     "detections_per_lap": 7.16,
+     "stability_std_m": 33.8,
+     "appearance_pct": 85.7,
+     "never_detected": []
+    },
+    "union": {
+     "recall": 0.978,
+     "extras_per_lap": 2.82,
+     "detections_per_lap": 10.64,
+     "stability_std_m": 28.8,
+     "appearance_pct": 97.8,
+     "never_detected": []
+    }
+   },
+   "now": {
+    "speed": {
+     "recall": 0.681,
+     "recall_detectable": 0.761,
+     "spurious_per_lap": 0.29,
+     "extras_per_lap": 0.55,
+     "detections_per_lap": 6.68,
+     "stability_std_m": 33.3,
+     "appearance_pct": 68.1,
+     "never_detected": []
+    },
+    "geometry": {
+     "recall": 0.827,
+     "recall_detectable": 0.926,
+     "spurious_per_lap": 0.2,
+     "extras_per_lap": 2.18,
+     "detections_per_lap": 9.62,
+     "stability_std_m": 27.4,
+     "appearance_pct": 82.7,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.764,
+     "recall_detectable": 0.857,
+     "spurious_per_lap": 0.12,
+     "extras_per_lap": 0.29,
+     "detections_per_lap": 7.16,
+     "stability_std_m": 33.8,
+     "appearance_pct": 76.4,
+     "never_detected": []
+    },
+    "union": {
+     "recall": 0.873,
+     "recall_detectable": 0.978,
+     "spurious_per_lap": 0.57,
+     "extras_per_lap": 2.79,
+     "detections_per_lap": 10.64,
+     "stability_std_m": 25.9,
+     "appearance_pct": 87.3,
+     "never_detected": []
+    },
+    "corner_map": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 0.98,
+     "detections_per_lap": 9.98,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_no_table": {
+     "recall": 0.889,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 0.98,
+     "detections_per_lap": 8.98,
+     "stability_std_m": null,
+     "appearance_pct": 88.9,
+     "never_detected": [
+      "Variante Bassa"
+     ]
+    },
+    "map_telemetry": {
+     "recall": 0.821,
+     "recall_detectable": 0.924,
+     "spurious_per_lap": 0.02,
+     "extras_per_lap": 0.02,
+     "detections_per_lap": 7.41,
+     "stability_std_m": null,
+     "appearance_pct": 82.1,
+     "never_detected": [
+      "Variante Bassa"
+     ]
+    },
+    "single_lap": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 0.71,
+     "detections_per_lap": 9.71,
+     "stability_std_m": 21.8,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "single_lap_no_table": {
+     "recall": 0.889,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 0.71,
+     "detections_per_lap": 8.71,
+     "stability_std_m": 20.2,
+     "appearance_pct": 88.9,
+     "never_detected": [
+      "Variante Bassa"
+     ]
+    }
+   }
+  },
+  "le_mans": {
+   "legacy": {
+    "speed": {
+     "recall": 0.679,
+     "extras_per_lap": 10.29,
+     "detections_per_lap": 13.0,
+     "stability_std_m": 58.7,
+     "appearance_pct": 67.8,
+     "never_detected": []
+    },
+    "geometry": {
+     "recall": 0.821,
+     "extras_per_lap": 15.0,
+     "detections_per_lap": 18.29,
+     "stability_std_m": 65.8,
+     "appearance_pct": 82.1,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.643,
+     "extras_per_lap": 7.29,
+     "detections_per_lap": 9.86,
+     "stability_std_m": 59.2,
+     "appearance_pct": 64.3,
+     "never_detected": []
+    },
+    "union": {
+     "recall": 0.893,
+     "extras_per_lap": 17.43,
+     "detections_per_lap": 21.0,
+     "stability_std_m": 68.7,
+     "appearance_pct": 89.3,
+     "never_detected": []
+    }
+   },
+   "now": {
+    "speed": {
+     "recall": 0.679,
+     "recall_detectable": 0.679,
+     "spurious_per_lap": 2.57,
+     "extras_per_lap": 10.29,
+     "detections_per_lap": 13.0,
+     "stability_std_m": 58.7,
+     "appearance_pct": 67.8,
+     "never_detected": []
+    },
+    "geometry": {
+     "recall": 0.821,
+     "recall_detectable": 0.821,
+     "spurious_per_lap": 2.71,
+     "extras_per_lap": 15.0,
+     "detections_per_lap": 18.29,
+     "stability_std_m": 65.8,
+     "appearance_pct": 82.1,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.643,
+     "recall_detectable": 0.643,
+     "spurious_per_lap": 1.86,
+     "extras_per_lap": 7.29,
+     "detections_per_lap": 9.86,
+     "stability_std_m": 59.2,
+     "appearance_pct": 64.3,
+     "never_detected": []
+    },
+    "union": {
+     "recall": 0.893,
+     "recall_detectable": 0.893,
+     "spurious_per_lap": 3.86,
+     "extras_per_lap": 17.43,
+     "detections_per_lap": 21.0,
+     "stability_std_m": 68.7,
+     "appearance_pct": 89.3,
+     "never_detected": []
+    },
+    "corner_map": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 16.57,
+     "detections_per_lap": 20.57,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 16.57,
+     "detections_per_lap": 20.57,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_telemetry": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.43,
+     "extras_per_lap": 10.71,
+     "detections_per_lap": 14.71,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "single_lap": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 15.29,
+     "detections_per_lap": 19.29,
+     "stability_std_m": 72.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 15.29,
+     "detections_per_lap": 19.29,
+     "stability_std_m": 72.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    }
+   }
+  },
+  "monaco": {
+   "legacy": {
+    "speed": {
+     "recall": 1.0,
+     "extras_per_lap": 6.67,
+     "detections_per_lap": 12.67,
+     "stability_std_m": 7.7,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "geometry": {
+     "recall": 1.0,
+     "extras_per_lap": 4.67,
+     "detections_per_lap": 10.67,
+     "stability_std_m": 7.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.944,
+     "extras_per_lap": 4.67,
+     "detections_per_lap": 10.33,
+     "stability_std_m": 5.6,
+     "appearance_pct": 94.5,
+     "never_detected": []
+    },
+    "union": {
+     "recall": 1.0,
+     "extras_per_lap": 6.67,
+     "detections_per_lap": 12.67,
+     "stability_std_m": 6.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    }
+   },
+   "now": {
+    "speed": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 6.67,
+     "detections_per_lap": 12.67,
+     "stability_std_m": 7.7,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "geometry": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.67,
+     "detections_per_lap": 10.67,
+     "stability_std_m": 7.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.944,
+     "recall_detectable": 0.944,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.67,
+     "detections_per_lap": 10.33,
+     "stability_std_m": 5.6,
+     "appearance_pct": 94.5,
+     "never_detected": []
+    },
+    "union": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 6.67,
+     "detections_per_lap": 12.67,
+     "stability_std_m": 6.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "corner_map": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.0,
+     "detections_per_lap": 10.0,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.0,
+     "detections_per_lap": 10.0,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_telemetry": {
+     "recall": 0.833,
+     "recall_detectable": 0.833,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.33,
+     "detections_per_lap": 9.33,
+     "stability_std_m": null,
+     "appearance_pct": 83.3,
+     "never_detected": [
+      "Portier"
+     ]
+    },
+    "single_lap": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.0,
+     "detections_per_lap": 10.0,
+     "stability_std_m": 3.5,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.0,
+     "detections_per_lap": 10.0,
+     "stability_std_m": 3.5,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    }
+   }
+  },
+  "silverstone": {
+   "legacy": {
+    "speed": {
+     "recall": 0.617,
+     "extras_per_lap": 1.17,
+     "detections_per_lap": 7.33,
+     "stability_std_m": 29.1,
+     "appearance_pct": 61.6,
+     "never_detected": [
+      "Abbey",
+      "Aintree"
+     ]
+    },
+    "geometry": {
+     "recall": 0.667,
+     "extras_per_lap": 2.5,
+     "detections_per_lap": 9.17,
+     "stability_std_m": 32.8,
+     "appearance_pct": 66.7,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.517,
+     "extras_per_lap": 1.33,
+     "detections_per_lap": 6.5,
+     "stability_std_m": 28.5,
+     "appearance_pct": 51.7,
+     "never_detected": [
+      "Aintree"
+     ]
+    },
+    "union": {
+     "recall": 0.733,
+     "extras_per_lap": 3.67,
+     "detections_per_lap": 11.0,
+     "stability_std_m": 30.3,
+     "appearance_pct": 73.3,
+     "never_detected": []
+    }
+   },
+   "now": {
+    "speed": {
+     "recall": 0.617,
+     "recall_detectable": 0.617,
+     "spurious_per_lap": 0.17,
+     "extras_per_lap": 1.17,
+     "detections_per_lap": 7.33,
+     "stability_std_m": 29.1,
+     "appearance_pct": 61.6,
+     "never_detected": [
+      "Abbey",
+      "Aintree"
+     ]
+    },
+    "geometry": {
+     "recall": 0.667,
+     "recall_detectable": 0.667,
+     "spurious_per_lap": 0.17,
+     "extras_per_lap": 2.5,
+     "detections_per_lap": 9.17,
+     "stability_std_m": 32.8,
+     "appearance_pct": 66.7,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.517,
+     "recall_detectable": 0.517,
+     "spurious_per_lap": 0.17,
+     "extras_per_lap": 1.33,
+     "detections_per_lap": 6.5,
+     "stability_std_m": 28.5,
+     "appearance_pct": 51.7,
+     "never_detected": [
+      "Aintree"
+     ]
+    },
+    "union": {
+     "recall": 0.733,
+     "recall_detectable": 0.733,
+     "spurious_per_lap": 0.33,
+     "extras_per_lap": 3.67,
+     "detections_per_lap": 11.0,
+     "stability_std_m": 30.3,
+     "appearance_pct": 73.3,
+     "never_detected": []
+    },
+    "corner_map": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 5.0,
+     "detections_per_lap": 15.0,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 5.0,
+     "detections_per_lap": 15.0,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_telemetry": {
+     "recall": 0.683,
+     "recall_detectable": 0.683,
+     "spurious_per_lap": 0.17,
+     "extras_per_lap": 2.83,
+     "detections_per_lap": 9.67,
+     "stability_std_m": null,
+     "appearance_pct": 68.3,
+     "never_detected": [
+      "Aintree",
+      "Club"
+     ]
+    },
+    "single_lap": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.5,
+     "detections_per_lap": 14.5,
+     "stability_std_m": 40.6,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 4.5,
+     "detections_per_lap": 14.5,
+     "stability_std_m": 40.6,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    }
+   }
+  },
+  "spa_francorchamps": {
+   "legacy": {
+    "speed": {
+     "recall": 0.589,
+     "extras_per_lap": 2.33,
+     "detections_per_lap": 8.22,
+     "stability_std_m": 24.4,
+     "appearance_pct": 58.9,
+     "never_detected": [
+      "Eau Rouge / Raidillon",
+      "Blanchimont"
+     ]
+    },
+    "geometry": {
+     "recall": 0.922,
+     "extras_per_lap": 3.67,
+     "detections_per_lap": 12.89,
+     "stability_std_m": 19.3,
+     "appearance_pct": 92.2,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.567,
+     "extras_per_lap": 0.33,
+     "detections_per_lap": 6.0,
+     "stability_std_m": 17.1,
+     "appearance_pct": 56.7,
+     "never_detected": [
+      "Eau Rouge / Raidillon",
+      "Malmedy",
+      "Blanchimont"
+     ]
+    },
+    "union": {
+     "recall": 0.922,
+     "extras_per_lap": 4.33,
+     "detections_per_lap": 13.56,
+     "stability_std_m": 15.6,
+     "appearance_pct": 92.2,
+     "never_detected": []
+    }
+   },
+   "now": {
+    "speed": {
+     "recall": 0.589,
+     "recall_detectable": 0.589,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 2.33,
+     "detections_per_lap": 8.22,
+     "stability_std_m": 24.4,
+     "appearance_pct": 58.9,
+     "never_detected": [
+      "Eau Rouge / Raidillon",
+      "Blanchimont"
+     ]
+    },
+    "geometry": {
+     "recall": 0.922,
+     "recall_detectable": 0.922,
+     "spurious_per_lap": 0.22,
+     "extras_per_lap": 3.67,
+     "detections_per_lap": 12.89,
+     "stability_std_m": 19.3,
+     "appearance_pct": 92.2,
+     "never_detected": []
+    },
+    "segmenter": {
+     "recall": 0.567,
+     "recall_detectable": 0.567,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 0.33,
+     "detections_per_lap": 6.0,
+     "stability_std_m": 17.1,
+     "appearance_pct": 56.7,
+     "never_detected": [
+      "Eau Rouge / Raidillon",
+      "Malmedy",
+      "Blanchimont"
+     ]
+    },
+    "union": {
+     "recall": 0.922,
+     "recall_detectable": 0.922,
+     "spurious_per_lap": 0.44,
+     "extras_per_lap": 4.33,
+     "detections_per_lap": 13.56,
+     "stability_std_m": 15.6,
+     "appearance_pct": 92.2,
+     "never_detected": []
+    },
+    "corner_map": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 3.0,
+     "detections_per_lap": 13.0,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 2.0,
+     "detections_per_lap": 12.0,
+     "stability_std_m": null,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "map_telemetry": {
+     "recall": 0.933,
+     "recall_detectable": 0.933,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 3.0,
+     "detections_per_lap": 12.33,
+     "stability_std_m": null,
+     "appearance_pct": 93.3,
+     "never_detected": []
+    },
+    "single_lap": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 3.0,
+     "detections_per_lap": 13.0,
+     "stability_std_m": 5.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "spurious_per_lap": 0.0,
+     "extras_per_lap": 2.0,
+     "detections_per_lap": 12.0,
+     "stability_std_m": 5.0,
+     "appearance_pct": 100.0,
+     "never_detected": []
+    }
+   }
+  }
+ },
+ "crossval": {
+  "description": "Leave-one-circuit-out: los parametros de cada fila se eligieron mirando solo los otros 4 circuitos (rejilla de 243 configuraciones: min_share en [0.5, 0.6, 0.75], cluster_tol_min_m en [40.0, 60.0, 90.0], match_pad_m en [40.0, 60.0, 90.0], unbacked_min_support en [0.4, 0.6, 0.8], group_gap_m en [80.0, 120.0, 160.0]). 'En muestra' = los parametros por defecto de corner_map (el optimo con todos los circuitos) evaluados en ese circuito.",
+  "variant": "map_no_table, single_lap_no_table y map_telemetry (media)",
+  "objective": "recall - 0.1 * ruido - 0.02 * extras, media de las tres variantes",
+  "n_laps": 81,
+  "n_configs": 243,
+  "seconds": 124.9,
+  "default_params": {
+   "min_share": 0.6,
+   "cluster_tol_min_m": 60.0,
+   "match_pad_m": 90.0,
+   "unbacked_min_support": 0.4,
+   "group_gap_m": 120.0
+  },
+  "best_all_params": {
+   "min_share": 0.6,
+   "cluster_tol_min_m": 90.0,
+   "match_pad_m": 90.0,
+   "unbacked_min_support": 0.4,
+   "group_gap_m": 120.0
+  },
+  "best_all_objective": 0.8418,
+  "default_objective": 0.8311,
+  "objective_grid": {
+   "min": 0.7596,
+   "median": 0.7832,
+   "max": 0.8418
+  },
+  "folds": {
+   "imola": {
+    "n_laps": 56,
+    "params": {
+     "min_share": 0.6,
+     "cluster_tol_min_m": 90.0,
+     "match_pad_m": 90.0,
+     "unbacked_min_support": 0.4,
+     "group_gap_m": 120.0
+    },
+    "heldout": {
+     "recall": 0.866,
+     "recall_consensus": 0.889,
+     "recall_single_lap": 0.889,
+     "recall_telemetry_only": 0.821,
+     "extras_per_lap": 0.57,
+     "spurious_per_lap": 0.01
+    },
+    "default": {
+     "recall": 0.866,
+     "recall_consensus": 0.889,
+     "recall_single_lap": 0.889,
+     "recall_telemetry_only": 0.821,
+     "extras_per_lap": 0.57,
+     "spurious_per_lap": 0.01
+    },
+    "train_objective": 0.8387
+   },
+   "le_mans": {
+    "n_laps": 7,
+    "params": {
+     "min_share": 0.6,
+     "cluster_tol_min_m": 90.0,
+     "match_pad_m": 90.0,
+     "unbacked_min_support": 0.4,
+     "group_gap_m": 120.0
+    },
+    "heldout": {
+     "recall": 1.0,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 1.0,
+     "extras_per_lap": 14.19,
+     "spurious_per_lap": 0.14
+    },
+    "default": {
+     "recall": 1.0,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 1.0,
+     "extras_per_lap": 14.19,
+     "spurious_per_lap": 0.14
+    },
+    "train_objective": 0.8768
+   },
+   "monaco": {
+    "n_laps": 3,
+    "params": {
+     "min_share": 0.6,
+     "cluster_tol_min_m": 60.0,
+     "match_pad_m": 90.0,
+     "unbacked_min_support": 0.4,
+     "group_gap_m": 120.0
+    },
+    "heldout": {
+     "recall": 0.944,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 0.833,
+     "extras_per_lap": 4.11,
+     "spurious_per_lap": 0.0
+    },
+    "default": {
+     "recall": 0.944,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 0.833,
+     "extras_per_lap": 4.11,
+     "spurious_per_lap": 0.0
+    },
+    "train_objective": 0.8234
+   },
+   "silverstone": {
+    "n_laps": 6,
+    "params": {
+     "min_share": 0.6,
+     "cluster_tol_min_m": 90.0,
+     "match_pad_m": 90.0,
+     "unbacked_min_support": 0.4,
+     "group_gap_m": 120.0
+    },
+    "heldout": {
+     "recall": 0.894,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 0.683,
+     "extras_per_lap": 4.11,
+     "spurious_per_lap": 0.06
+    },
+    "default": {
+     "recall": 0.894,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 0.683,
+     "extras_per_lap": 4.11,
+     "spurious_per_lap": 0.06
+    },
+    "train_objective": 0.8507
+   },
+   "spa_francorchamps": {
+    "n_laps": 9,
+    "params": {
+     "min_share": 0.6,
+     "cluster_tol_min_m": 90.0,
+     "match_pad_m": 90.0,
+     "unbacked_min_support": 0.4,
+     "group_gap_m": 120.0
+    },
+    "heldout": {
+     "recall": 0.978,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 0.933,
+     "extras_per_lap": 2.33,
+     "spurious_per_lap": 0.0
+    },
+    "default": {
+     "recall": 0.978,
+     "recall_consensus": 1.0,
+     "recall_single_lap": 1.0,
+     "recall_telemetry_only": 0.933,
+     "extras_per_lap": 2.33,
+     "spurious_per_lap": 0.0
+    },
+    "train_objective": 0.8195
+   }
+  },
+  "total_heldout": {
+   "recall": 0.895,
+   "recall_consensus": 0.923,
+   "recall_single_lap": 0.923,
+   "recall_telemetry_only": 0.839,
+   "extras_per_lap": 2.336,
+   "spurious_per_lap": 0.023
+  },
+  "total_default": {
+   "recall": 0.895,
+   "recall_consensus": 0.923,
+   "recall_single_lap": 0.923,
+   "recall_telemetry_only": 0.839,
+   "extras_per_lap": 2.336,
+   "spurious_per_lap": 0.023
+  },
+  "default_by_circuit_variant": {
+   "imola": {
+    "map_no_table": {
+     "recall": 0.889,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 0.98,
+     "spurious_per_lap": 0.0
+    },
+    "single_lap_no_table": {
+     "recall": 0.889,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 0.71,
+     "spurious_per_lap": 0.0
+    },
+    "map_telemetry": {
+     "recall": 0.821,
+     "recall_detectable": 0.924,
+     "extras_per_lap": 0.02,
+     "spurious_per_lap": 0.02
+    }
+   },
+   "le_mans": {
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 16.57,
+     "spurious_per_lap": 0.0
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 15.29,
+     "spurious_per_lap": 0.0
+    },
+    "map_telemetry": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 10.71,
+     "spurious_per_lap": 0.43
+    }
+   },
+   "monaco": {
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 4.0,
+     "spurious_per_lap": 0.0
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 4.0,
+     "spurious_per_lap": 0.0
+    },
+    "map_telemetry": {
+     "recall": 0.833,
+     "recall_detectable": 0.833,
+     "extras_per_lap": 4.33,
+     "spurious_per_lap": 0.0
+    }
+   },
+   "silverstone": {
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 5.0,
+     "spurious_per_lap": 0.0
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 4.5,
+     "spurious_per_lap": 0.0
+    },
+    "map_telemetry": {
+     "recall": 0.683,
+     "recall_detectable": 0.683,
+     "extras_per_lap": 2.83,
+     "spurious_per_lap": 0.17
+    }
+   },
+   "spa_francorchamps": {
+    "map_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 2.0,
+     "spurious_per_lap": 0.0
+    },
+    "single_lap_no_table": {
+     "recall": 1.0,
+     "recall_detectable": 1.0,
+     "extras_per_lap": 2.0,
+     "spurious_per_lap": 0.0
+    },
+    "map_telemetry": {
+     "recall": 0.933,
+     "recall_detectable": 0.933,
+     "extras_per_lap": 3.0,
+     "spurious_per_lap": 0.0
+    }
    }
   }
  }

@@ -246,6 +246,10 @@ def test_imola_table_against_exported_geometry():
     circ = C.get_circuit("imola")
     res = G.compare_with_table(circ, C.get_track_geometry("imola")["corners"])
     rows = {r["name"]: r for r in res["rows"]}
+    assert len(rows) == 9
+    # Variante Bassa is tabulated as flat_out: radius 478 m, above the export cut, so it has no geometric corner
+    assert rows["Variante Bassa"]["kind"] == "flat_out"
+    rows = {n: r for n, r in rows.items() if r["kind"] != "flat_out"}
     assert len(rows) == 8
     d = [r["nearest_m"] for r in rows.values()]
     assert max(d) <= 40 and sum(d) / len(d) <= 20

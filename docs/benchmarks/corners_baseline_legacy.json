@@ -1,0 +1,3032 @@
+{
+ "generated": "2026-10-04",
+ "dedup_m": 60.0,
+ "detectors": [
+  "speed",
+  "geometry",
+  "segmenter",
+  "union"
+ ],
+ "files_used": [
+  {
+   "file": "cayman_gt4_imola_assetto_corsa.csv",
+   "circuit": "imola",
+   "vehicle": "ks_porsche_cayman_gt4_clubsport",
+   "laps": 21,
+   "detector_errors": {}
+  },
+  {
+   "file": "porsche_gt4_spa.csv",
+   "circuit": "spa_francorchamps",
+   "vehicle": "ks_porsche_cayman_gt4_clubsport",
+   "laps": 3,
+   "detector_errors": {}
+  },
+  {
+   "file": "fn_imola_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld",
+   "circuit": "imola",
+   "vehicle": "ks_porsche_cayman_gt4_clubsport",
+   "laps": 21,
+   "detector_errors": {}
+  },
+  {
+   "file": "imola_&_ferrari_458_&_piloto_&_stint_1.ld",
+   "circuit": "imola",
+   "vehicle": "ferrari_458",
+   "laps": 4,
+   "detector_errors": {}
+  },
+  {
+   "file": "imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_1.ld",
+   "circuit": "imola",
+   "vehicle": "ks_porsche_919_hybrid_2016",
+   "laps": 4,
+   "detector_errors": {}
+  },
+  {
+   "file": "imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld",
+   "circuit": "imola",
+   "vehicle": "ks_porsche_919_hybrid_2016",
+   "laps": 1,
+   "detector_errors": {}
+  },
+  {
+   "file": "ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld",
+   "circuit": "silverstone",
+   "vehicle": "ks_porsche_919_hybrid_2016",
+   "laps": 5,
+   "detector_errors": {}
+  },
+  {
+   "file": "ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld",
+   "circuit": "silverstone",
+   "vehicle": "ks_porsche_919_hybrid_2016",
+   "laps": 1,
+   "detector_errors": {}
+  },
+  {
+   "file": "monaco_2020_&_cky_porschecarrera_gt_04_&_piloto_&_stint_1.ld",
+   "circuit": "monaco",
+   "vehicle": "cky_porschecarrera_gt_04",
+   "laps": 2,
+   "detector_errors": {}
+  },
+  {
+   "file": "monaco_2020_&_f_porsche_gt2rs_mr_&_piloto_&_stint_1.ld",
+   "circuit": "monaco",
+   "vehicle": "f_porsche_gt2rs_mr",
+   "laps": 1,
+   "detector_errors": {}
+  },
+  {
+   "file": "spa_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld",
+   "circuit": "spa_francorchamps",
+   "vehicle": "ks_porsche_cayman_gt4_clubsport",
+   "laps": 3,
+   "detector_errors": {}
+  },
+  {
+   "file": "sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld",
+   "circuit": "le_mans",
+   "vehicle": "ks_porsche_919_hybrid_2016",
+   "laps": 4,
+   "detector_errors": {}
+  },
+  {
+   "file": "sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld",
+   "circuit": "le_mans",
+   "vehicle": "ks_porsche_919_hybrid_2016",
+   "laps": 3,
+   "detector_errors": {}
+  },
+  {
+   "file": "imola_5laps.csv.gz",
+   "circuit": "imola",
+   "vehicle": "ks_porsche_cayman_gt4_clubsport",
+   "laps": 5,
+   "detector_errors": {}
+  },
+  {
+   "file": "spa_3laps.csv.gz",
+   "circuit": "spa_francorchamps",
+   "vehicle": "ks_porsche_cayman_gt4_clubsport",
+   "laps": 3,
+   "detector_errors": {}
+  }
+ ],
+ "files_skipped": [
+  {
+   "file": "vuelta_lenta.csv",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "vuelta_rapida.csv",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "vuelta_rapida_mc.csv",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "acu_sepang_&_honda_nsx_gt500_2023_&_piloto_&_stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "acu_sepang_&_rss_formula_hybrid_2017_&_piloto_&_stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "el capitan_&_ddm_honda_s2000_ap1_&_piloto_&_stint_1.ld",
+   "reason": "circuito no esta en la tabla"
+  },
+  {
+   "file": "imola_&_ks_porsche_991_carrera_s_&_piloto_&_stint_1.ld",
+   "reason": "sin vueltas completas"
+  },
+  {
+   "file": "ks_brands_hatch_&_ks_ferrari_330_p4_&_piloto_&_stint_1.ld",
+   "reason": "sin vueltas completas"
+  },
+  {
+   "file": "ks_nordschleife_&_ks_mclaren_p1_&_piloto_&_stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "ks_nordschleife_&_ks_mclaren_p1_&_piloto_&_stint_2.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "ks_nordschleife_&_ks_mclaren_p1_&_piloto_&_stint_3.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "ks_nordschleife_&_ks_mclaren_p1_&_piloto_&_stint_4.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "ks_nordschleife_&_ks_mclaren_p1_&_piloto_&_stint_5.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "ks_red_bull_ring_&_ks_maserati_gt_mc_gt4_&_piloto_&_stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "ks_red_bull_ring_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_1.ld",
+   "reason": "longitud medida 5641 m no encaja con la tabla (5891 m): otro trazado"
+  },
+  {
+   "file": "ks_silverstone_&_ks_porsche_cayman_gt4_std_&_piloto_&_stint_1.ld",
+   "reason": "longitud medida 2956 m no encaja con la tabla (5891 m): otro trazado"
+  },
+  {
+   "file": "ks_silverstone_&_ks_porsche_cayman_gt4_std_&_piloto_&_stint_2.ld",
+   "reason": "longitud medida 2957 m no encaja con la tabla (5891 m): otro trazado"
+  },
+  {
+   "file": "mugello_&_lotus_exos_125_&_piloto_&_stint_1.ld",
+   "reason": "sin vueltas completas"
+  },
+  {
+   "file": "onin_&_ks_mazda_rx7_spirit_r_&_piloto_&_stint_1.ld",
+   "reason": "circuito no esta en la tabla"
+  },
+  {
+   "file": "onin_&_ks_mazda_rx7_spirit_r_&_piloto_&_stint_2.ld",
+   "reason": "circuito no esta en la tabla"
+  },
+  {
+   "file": "rt_california_highway_&_s2000_2003_time_attack_&_piloto_&_stint_1.ld",
+   "reason": "circuito no esta en la tabla"
+  },
+  {
+   "file": "rt_california_highway_&_s2000_2003_time_attack_&_piloto_&_stint_2.ld",
+   "reason": "circuito no esta en la tabla"
+  },
+  {
+   "file": "spa_&_ks_mercedes_c9_&_piloto_&_stint_1.ld",
+   "reason": "sin vueltas completas"
+  },
+  {
+   "file": "sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_1.ld",
+   "reason": "sin vueltas completas"
+  },
+  {
+   "file": "zw_croft_&_ferrari_458_&_piloto_&_stint_1.ld",
+   "reason": "circuito no esta en la tabla"
+  },
+  {
+   "file": "zw_croft_&_ferrari_458_&_piloto_&_stint_2.ld",
+   "reason": "circuito no esta en la tabla"
+  },
+  {
+   "file": "bmwm2g87_oran gp 2026-06-09 21-10-09.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran gp 2026-06-09 21-10-09_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-15-58.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-15-58_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-23-44.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-23-44_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-27-03.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-27-03_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-28-12.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-28-12_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-31-36.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-31-36_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-36-08.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-36-08_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-42-39.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "bmwm2g87_oran south 2026-06-14 20-42-39_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "fordmustanggt4_limerock 2019 gp 2026-06-08 17-57-09.ibt",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "fordmustanggt4_limerock 2019 gp 2026-06-08 17-57-09_Stint_1.ld",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "rbr_fast.csv.gz",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "rbr_other_car.csv.gz",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  },
+  {
+   "file": "rbr_slow.csv.gz",
+   "reason": "circuito reconocido pero sin curvas tabuladas"
+  }
+ ],
+ "circuits": {
+  "imola": {
+   "name": "Autodromo Enzo e Dino Ferrari (Imola)",
+   "length_m": 4909,
+   "tolerance_m": 121.6,
+   "n_files": 6,
+   "n_laps": 56,
+   "n_tabulated": 8,
+   "detectors": {
+    "speed": {
+     "recall": 0.761,
+     "extras_per_lap": 0.59,
+     "detections_per_lap": 6.68,
+     "stability_std_m": 37.2,
+     "appearance_pct": 76.1,
+     "never_detected": [],
+     "per_corner": {
+      "Tamburello": {
+       "share": 0.786,
+       "mean_m": 738.1,
+       "std_m": 34.2
+      },
+      "Villeneuve": {
+       "share": 0.804,
+       "mean_m": 1442.7,
+       "std_m": 46.5
+      },
+      "Tosa": {
+       "share": 0.714,
+       "mean_m": 1715.9,
+       "std_m": 25.9
+      },
+      "Piratella": {
+       "share": 0.75,
+       "mean_m": 2351.9,
+       "std_m": 46.6
+      },
+      "Acque Minerali": {
+       "share": 0.821,
+       "mean_m": 2845.0,
+       "std_m": 32.3
+      },
+      "Variante Alta": {
+       "share": 0.804,
+       "mean_m": 3377.8,
+       "std_m": 38.7
+      },
+      "Rivazza 1": {
+       "share": 0.732,
+       "mean_m": 4122.0,
+       "std_m": 36.7
+      },
+      "Rivazza 2": {
+       "share": 0.679,
+       "mean_m": 4240.9,
+       "std_m": 36.5
+      }
+     }
+    },
+    "geometry": {
+     "recall": 0.926,
+     "extras_per_lap": 2.21,
+     "detections_per_lap": 9.62,
+     "stability_std_m": 30.7,
+     "appearance_pct": 92.6,
+     "never_detected": [],
+     "per_corner": {
+      "Tamburello": {
+       "share": 0.946,
+       "mean_m": 718.3,
+       "std_m": 28.8
+      },
+      "Villeneuve": {
+       "share": 0.964,
+       "mean_m": 1422.6,
+       "std_m": 32.8
+      },
+      "Tosa": {
+       "share": 0.929,
+       "mean_m": 1714.4,
+       "std_m": 29.1
+      },
+      "Piratella": {
+       "share": 0.857,
+       "mean_m": 2336.1,
+       "std_m": 37.7
+      },
+      "Acque Minerali": {
+       "share": 0.946,
+       "mean_m": 2839.7,
+       "std_m": 25.1
+      },
+      "Variante Alta": {
+       "share": 0.893,
+       "mean_m": 3382.6,
+       "std_m": 32.4
+      },
+      "Rivazza 1": {
+       "share": 0.946,
+       "mean_m": 4120.8,
+       "std_m": 28.9
+      },
+      "Rivazza 2": {
+       "share": 0.929,
+       "mean_m": 4238.8,
+       "std_m": 30.5
+      }
+     }
+    },
+    "segmenter": {
+     "recall": 0.857,
+     "extras_per_lap": 0.3,
+     "detections_per_lap": 7.16,
+     "stability_std_m": 33.8,
+     "appearance_pct": 85.7,
+     "never_detected": [],
+     "per_corner": {
+      "Tamburello": {
+       "share": 0.804,
+       "mean_m": 733.0,
+       "std_m": 33.1
+      },
+      "Villeneuve": {
+       "share": 0.696,
+       "mean_m": 1431.6,
+       "std_m": 35.0
+      },
+      "Tosa": {
+       "share": 0.982,
+       "mean_m": 1716.3,
+       "std_m": 23.8
+      },
+      "Piratella": {
+       "share": 0.929,
+       "mean_m": 2341.4,
+       "std_m": 45.2
+      },
+      "Acque Minerali": {
+       "share": 0.982,
+       "mean_m": 2846.1,
+       "std_m": 30.0
+      },
+      "Variante Alta": {
+       "share": 0.946,
+       "mean_m": 3375.4,
+       "std_m": 34.8
+      },
+      "Rivazza 1": {
+       "share": 0.768,
+       "mean_m": 4119.9,
+       "std_m": 34.3
+      },
+      "Rivazza 2": {
+       "share": 0.75,
+       "mean_m": 4244.5,
+       "std_m": 33.8
+      }
+     }
+    },
+    "union": {
+     "recall": 0.978,
+     "extras_per_lap": 2.82,
+     "detections_per_lap": 10.64,
+     "stability_std_m": 28.8,
+     "appearance_pct": 97.8,
+     "never_detected": [],
+     "per_corner": {
+      "Tamburello": {
+       "share": 0.964,
+       "mean_m": 723.7,
+       "std_m": 28.6
+      },
+      "Villeneuve": {
+       "share": 0.982,
+       "mean_m": 1430.4,
+       "std_m": 30.6
+      },
+      "Tosa": {
+       "share": 0.982,
+       "mean_m": 1712.5,
+       "std_m": 17.9
+      },
+      "Piratella": {
+       "share": 0.982,
+       "mean_m": 2338.1,
+       "std_m": 35.6
+      },
+      "Acque Minerali": {
+       "share": 0.982,
+       "mean_m": 2843.2,
+       "std_m": 20.8
+      },
+      "Variante Alta": {
+       "share": 0.982,
+       "mean_m": 3378.0,
+       "std_m": 35.3
+      },
+      "Rivazza 1": {
+       "share": 0.964,
+       "mean_m": 4120.7,
+       "std_m": 30.5
+      },
+      "Rivazza 2": {
+       "share": 0.982,
+       "mean_m": 4241.1,
+       "std_m": 31.4
+      }
+     }
+    }
+   },
+   "never_detected": [],
+   "never_detected_by_detector": {
+    "speed": [],
+    "geometry": [],
+    "segmenter": []
+   },
+   "cars": {
+    "ferrari_458": {
+     "n_files": 1,
+     "n_laps": 4,
+     "files": [
+      "imola_&_ferrari_458_&_piloto_&_stint_1.ld"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 1.0,
+       "extras_per_lap": 0.5,
+       "detections_per_lap": 8.5,
+       "stability_std_m": 17.1,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 1.0,
+         "mean_m": 712.9,
+         "std_m": 29.1
+        },
+        "Villeneuve": {
+         "share": 1.0,
+         "mean_m": 1409.4,
+         "std_m": 2.4
+        },
+        "Tosa": {
+         "share": 1.0,
+         "mean_m": 1689.1,
+         "std_m": 14.1
+        },
+        "Piratella": {
+         "share": 1.0,
+         "mean_m": 2309.0,
+         "std_m": 16.2
+        },
+        "Acque Minerali": {
+         "share": 1.0,
+         "mean_m": 2831.7,
+         "std_m": 12.0
+        },
+        "Variante Alta": {
+         "share": 1.0,
+         "mean_m": 3352.4,
+         "std_m": 18.5
+        },
+        "Rivazza 1": {
+         "share": 1.0,
+         "mean_m": 4108.6,
+         "std_m": 17.2
+        },
+        "Rivazza 2": {
+         "share": 1.0,
+         "mean_m": 4238.1,
+         "std_m": 27.3
+        }
+       }
+      },
+      "geometry": {
+       "recall": 0.812,
+       "extras_per_lap": 1.75,
+       "detections_per_lap": 8.25,
+       "stability_std_m": 17.2,
+       "appearance_pct": 81.2,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 1.0,
+         "mean_m": 692.0,
+         "std_m": 4.6
+        },
+        "Villeneuve": {
+         "share": 1.0,
+         "mean_m": 1407.0,
+         "std_m": 23.1
+        },
+        "Tosa": {
+         "share": 0.5,
+         "mean_m": 1696.0,
+         "std_m": 13.0
+        },
+        "Piratella": {
+         "share": 0.75,
+         "mean_m": 2310.0,
+         "std_m": 20.8
+        },
+        "Acque Minerali": {
+         "share": 0.75,
+         "mean_m": 2828.0,
+         "std_m": 10.6
+        },
+        "Variante Alta": {
+         "share": 0.75,
+         "mean_m": 3342.0,
+         "std_m": 36.1
+        },
+        "Rivazza 1": {
+         "share": 1.0,
+         "mean_m": 4104.8,
+         "std_m": 12.7
+        },
+        "Rivazza 2": {
+         "share": 0.75,
+         "mean_m": 4222.0,
+         "std_m": 17.0
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 0.906,
+       "extras_per_lap": 0.25,
+       "detections_per_lap": 7.5,
+       "stability_std_m": 12.8,
+       "appearance_pct": 90.6,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.75,
+         "mean_m": 697.3,
+         "std_m": 11.9
+        },
+        "Villeneuve": {
+         "share": 1.0,
+         "mean_m": 1408.0,
+         "std_m": 2.5
+        },
+        "Tosa": {
+         "share": 1.0,
+         "mean_m": 1689.0,
+         "std_m": 14.2
+        },
+        "Piratella": {
+         "share": 0.75,
+         "mean_m": 2301.0,
+         "std_m": 8.2
+        },
+        "Acque Minerali": {
+         "share": 1.0,
+         "mean_m": 2831.5,
+         "std_m": 12.0
+        },
+        "Variante Alta": {
+         "share": 1.0,
+         "mean_m": 3352.8,
+         "std_m": 18.5
+        },
+        "Rivazza 1": {
+         "share": 1.0,
+         "mean_m": 4108.5,
+         "std_m": 17.2
+        },
+        "Rivazza 2": {
+         "share": 0.75,
+         "mean_m": 4225.3,
+         "std_m": 18.1
+        }
+       }
+      },
+      "union": {
+       "recall": 1.0,
+       "extras_per_lap": 2.25,
+       "detections_per_lap": 10.25,
+       "stability_std_m": 18.7,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 1.0,
+         "mean_m": 711.7,
+         "std_m": 29.1
+        },
+        "Villeneuve": {
+         "share": 1.0,
+         "mean_m": 1408.1,
+         "std_m": 8.1
+        },
+        "Tosa": {
+         "share": 1.0,
+         "mean_m": 1689.8,
+         "std_m": 14.9
+        },
+        "Piratella": {
+         "share": 1.0,
+         "mean_m": 2311.5,
+         "std_m": 16.9
+        },
+        "Acque Minerali": {
+         "share": 1.0,
+         "mean_m": 2829.0,
+         "std_m": 11.2
+        },
+        "Variante Alta": {
+         "share": 1.0,
+         "mean_m": 3355.3,
+         "std_m": 26.4
+        },
+        "Rivazza 1": {
+         "share": 1.0,
+         "mean_m": 4107.3,
+         "std_m": 15.6
+        },
+        "Rivazza 2": {
+         "share": 1.0,
+         "mean_m": 4237.4,
+         "std_m": 27.4
+        }
+       }
+      }
+     }
+    },
+    "ks_porsche_919_hybrid_2016": {
+     "n_files": 2,
+     "n_laps": 5,
+     "files": [
+      "imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_1.ld",
+      "imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 0.775,
+       "extras_per_lap": 1.2,
+       "detections_per_lap": 7.4,
+       "stability_std_m": 76.6,
+       "appearance_pct": 77.5,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.6,
+         "mean_m": 765.8,
+         "std_m": 56.3
+        },
+        "Villeneuve": {
+         "share": 0.8,
+         "mean_m": 1465.6,
+         "std_m": 83.4
+        },
+        "Tosa": {
+         "share": 0.8,
+         "mean_m": 1732.8,
+         "std_m": 57.3
+        },
+        "Piratella": {
+         "share": 0.8,
+         "mean_m": 2378.6,
+         "std_m": 85.2
+        },
+        "Acque Minerali": {
+         "share": 0.8,
+         "mean_m": 2884.5,
+         "std_m": 78.4
+        },
+        "Variante Alta": {
+         "share": 0.8,
+         "mean_m": 3431.5,
+         "std_m": 91.9
+        },
+        "Rivazza 1": {
+         "share": 0.8,
+         "mean_m": 4155.8,
+         "std_m": 86.7
+        },
+        "Rivazza 2": {
+         "share": 0.8,
+         "mean_m": 4288.2,
+         "std_m": 73.7
+        }
+       }
+      },
+      "geometry": {
+       "recall": 0.775,
+       "extras_per_lap": 2.0,
+       "detections_per_lap": 8.2,
+       "stability_std_m": 72.6,
+       "appearance_pct": 77.5,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.6,
+         "mean_m": 694.3,
+         "std_m": 4.5
+        },
+        "Villeneuve": {
+         "share": 0.8,
+         "mean_m": 1456.0,
+         "std_m": 82.6
+        },
+        "Tosa": {
+         "share": 0.8,
+         "mean_m": 1746.5,
+         "std_m": 81.8
+        },
+        "Piratella": {
+         "share": 0.8,
+         "mean_m": 2368.5,
+         "std_m": 98.0
+        },
+        "Acque Minerali": {
+         "share": 0.8,
+         "mean_m": 2836.5,
+         "std_m": 69.0
+        },
+        "Variante Alta": {
+         "share": 0.8,
+         "mean_m": 3424.2,
+         "std_m": 82.5
+        },
+        "Rivazza 1": {
+         "share": 0.8,
+         "mean_m": 4151.0,
+         "std_m": 84.9
+        },
+        "Rivazza 2": {
+         "share": 0.8,
+         "mean_m": 4280.2,
+         "std_m": 77.6
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 0.75,
+       "extras_per_lap": 1.4,
+       "detections_per_lap": 7.4,
+       "stability_std_m": 79.1,
+       "appearance_pct": 75.0,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.6,
+         "mean_m": 746.7,
+         "std_m": 63.3
+        },
+        "Villeneuve": {
+         "share": 0.8,
+         "mean_m": 1465.0,
+         "std_m": 83.4
+        },
+        "Tosa": {
+         "share": 0.8,
+         "mean_m": 1732.8,
+         "std_m": 56.9
+        },
+        "Piratella": {
+         "share": 0.6,
+         "mean_m": 2381.0,
+         "std_m": 98.3
+        },
+        "Acque Minerali": {
+         "share": 0.8,
+         "mean_m": 2884.5,
+         "std_m": 78.3
+        },
+        "Variante Alta": {
+         "share": 0.8,
+         "mean_m": 3431.5,
+         "std_m": 92.0
+        },
+        "Rivazza 1": {
+         "share": 0.8,
+         "mean_m": 4155.8,
+         "std_m": 87.0
+        },
+        "Rivazza 2": {
+         "share": 0.8,
+         "mean_m": 4288.0,
+         "std_m": 73.8
+        }
+       }
+      },
+      "union": {
+       "recall": 0.775,
+       "extras_per_lap": 3.0,
+       "detections_per_lap": 9.2,
+       "stability_std_m": 59.5,
+       "appearance_pct": 77.5,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.6,
+         "mean_m": 693.2,
+         "std_m": 5.9
+        },
+        "Villeneuve": {
+         "share": 0.8,
+         "mean_m": 1462.2,
+         "std_m": 83.1
+        },
+        "Tosa": {
+         "share": 0.8,
+         "mean_m": 1706.3,
+         "std_m": 12.3
+        },
+        "Piratella": {
+         "share": 0.8,
+         "mean_m": 2381.1,
+         "std_m": 86.7
+        },
+        "Acque Minerali": {
+         "share": 0.8,
+         "mean_m": 2861.6,
+         "std_m": 38.4
+        },
+        "Variante Alta": {
+         "share": 0.8,
+         "mean_m": 3429.1,
+         "std_m": 88.7
+        },
+        "Rivazza 1": {
+         "share": 0.8,
+         "mean_m": 4154.2,
+         "std_m": 86.2
+        },
+        "Rivazza 2": {
+         "share": 0.8,
+         "mean_m": 4285.5,
+         "std_m": 74.9
+        }
+       }
+      }
+     }
+    },
+    "ks_porsche_cayman_gt4_clubsport": {
+     "n_files": 3,
+     "n_laps": 47,
+     "files": [
+      "cayman_gt4_imola_assetto_corsa.csv",
+      "fn_imola_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld",
+      "imola_5laps.csv.gz"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 0.739,
+       "extras_per_lap": 0.53,
+       "detections_per_lap": 6.45,
+       "stability_std_m": 26.9,
+       "appearance_pct": 73.9,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.787,
+         "mean_m": 738.6,
+         "std_m": 30.1
+        },
+        "Villeneuve": {
+         "share": 0.787,
+         "mean_m": 1443.8,
+         "std_m": 41.2
+        },
+        "Tosa": {
+         "share": 0.681,
+         "mean_m": 1717.1,
+         "std_m": 16.6
+        },
+        "Piratella": {
+         "share": 0.723,
+         "mean_m": 2353.8,
+         "std_m": 38.6
+        },
+        "Acque Minerali": {
+         "share": 0.809,
+         "mean_m": 2842.2,
+         "std_m": 20.2
+        },
+        "Variante Alta": {
+         "share": 0.787,
+         "mean_m": 3374.7,
+         "std_m": 22.0
+        },
+        "Rivazza 1": {
+         "share": 0.702,
+         "mean_m": 4119.6,
+         "std_m": 23.7
+        },
+        "Rivazza 2": {
+         "share": 0.638,
+         "mean_m": 4234.9,
+         "std_m": 23.0
+        }
+       }
+      },
+      "geometry": {
+       "recall": 0.952,
+       "extras_per_lap": 2.28,
+       "detections_per_lap": 9.89,
+       "stability_std_m": 19.5,
+       "appearance_pct": 95.2,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.979,
+         "mean_m": 722.2,
+         "std_m": 29.0
+        },
+        "Villeneuve": {
+         "share": 0.979,
+         "mean_m": 1421.1,
+         "std_m": 22.3
+        },
+        "Tosa": {
+         "share": 0.979,
+         "mean_m": 1712.5,
+         "std_m": 16.2
+        },
+        "Piratella": {
+         "share": 0.872,
+         "mean_m": 2334.9,
+         "std_m": 23.3
+        },
+        "Acque Minerali": {
+         "share": 0.979,
+         "mean_m": 2840.7,
+         "std_m": 17.2
+        },
+        "Variante Alta": {
+         "share": 0.915,
+         "mean_m": 3381.6,
+         "std_m": 14.8
+        },
+        "Rivazza 1": {
+         "share": 0.957,
+         "mean_m": 4119.6,
+         "std_m": 14.9
+        },
+        "Rivazza 2": {
+         "share": 0.957,
+         "mean_m": 4236.2,
+         "std_m": 18.5
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 0.864,
+       "extras_per_lap": 0.19,
+       "detections_per_lap": 7.11,
+       "stability_std_m": 22.8,
+       "appearance_pct": 86.5,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 0.83,
+         "mean_m": 734.6,
+         "std_m": 28.8
+        },
+        "Villeneuve": {
+         "share": 0.66,
+         "mean_m": 1430.4,
+         "std_m": 20.7
+        },
+        "Tosa": {
+         "share": 1.0,
+         "mean_m": 1717.2,
+         "std_m": 16.9
+        },
+        "Piratella": {
+         "share": 0.979,
+         "mean_m": 2341.4,
+         "std_m": 38.3
+        },
+        "Acque Minerali": {
+         "share": 1.0,
+         "mean_m": 2844.1,
+         "std_m": 19.2
+        },
+        "Variante Alta": {
+         "share": 0.957,
+         "mean_m": 3372.5,
+         "std_m": 17.6
+        },
+        "Rivazza 1": {
+         "share": 0.745,
+         "mean_m": 4117.1,
+         "std_m": 19.4
+        },
+        "Rivazza 2": {
+         "share": 0.745,
+         "mean_m": 4241.2,
+         "std_m": 21.4
+        }
+       }
+      },
+      "union": {
+       "recall": 0.997,
+       "extras_per_lap": 2.85,
+       "detections_per_lap": 10.83,
+       "stability_std_m": 20.8,
+       "appearance_pct": 99.7,
+       "never_detected": [],
+       "per_corner": {
+        "Tamburello": {
+         "share": 1.0,
+         "mean_m": 726.7,
+         "std_m": 28.1
+        },
+        "Villeneuve": {
+         "share": 1.0,
+         "mean_m": 1429.6,
+         "std_m": 19.3
+        },
+        "Tosa": {
+         "share": 1.0,
+         "mean_m": 1715.0,
+         "std_m": 17.1
+        },
+        "Piratella": {
+         "share": 1.0,
+         "mean_m": 2336.7,
+         "std_m": 24.4
+        },
+        "Acque Minerali": {
+         "share": 1.0,
+         "mean_m": 2842.9,
+         "std_m": 18.0
+        },
+        "Variante Alta": {
+         "share": 1.0,
+         "mean_m": 3375.6,
+         "std_m": 21.4
+        },
+        "Rivazza 1": {
+         "share": 0.979,
+         "mean_m": 4119.0,
+         "std_m": 17.5
+        },
+        "Rivazza 2": {
+         "share": 1.0,
+         "mean_m": 4237.6,
+         "std_m": 20.7
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "le_mans": {
+   "name": "Circuit de la Sarthe (Le Mans)",
+   "length_m": 13626,
+   "tolerance_m": 90.0,
+   "n_files": 2,
+   "n_laps": 7,
+   "n_tabulated": 4,
+   "detectors": {
+    "speed": {
+     "recall": 0.679,
+     "extras_per_lap": 10.29,
+     "detections_per_lap": 13.0,
+     "stability_std_m": 58.7,
+     "appearance_pct": 67.8,
+     "never_detected": [],
+     "per_corner": {
+      "Dunlop Chicane": {
+       "share": 0.571,
+       "mean_m": 848.9,
+       "std_m": 5.6
+      },
+      "Mulsanne": {
+       "share": 0.571,
+       "mean_m": 7723.0,
+       "std_m": 15.8
+      },
+      "Arnage": {
+       "share": 0.714,
+       "mean_m": 10086.7,
+       "std_m": 116.2
+      },
+      "Ford Chicanes": {
+       "share": 0.857,
+       "mean_m": 13319.5,
+       "std_m": 97.2
+      }
+     }
+    },
+    "geometry": {
+     "recall": 0.821,
+     "extras_per_lap": 15.0,
+     "detections_per_lap": 18.29,
+     "stability_std_m": 65.8,
+     "appearance_pct": 82.1,
+     "never_detected": [],
+     "per_corner": {
+      "Dunlop Chicane": {
+       "share": 0.857,
+       "mean_m": 838.3,
+       "std_m": 9.7
+      },
+      "Mulsanne": {
+       "share": 0.714,
+       "mean_m": 7694.6,
+       "std_m": 52.0
+      },
+      "Arnage": {
+       "share": 0.857,
+       "mean_m": 10088.3,
+       "std_m": 104.0
+      },
+      "Ford Chicanes": {
+       "share": 0.857,
+       "mean_m": 13314.8,
+       "std_m": 97.3
+      }
+     }
+    },
+    "segmenter": {
+     "recall": 0.643,
+     "extras_per_lap": 7.29,
+     "detections_per_lap": 9.86,
+     "stability_std_m": 59.2,
+     "appearance_pct": 64.3,
+     "never_detected": [],
+     "per_corner": {
+      "Dunlop Chicane": {
+       "share": 0.429,
+       "mean_m": 856.0,
+       "std_m": 17.0
+      },
+      "Mulsanne": {
+       "share": 0.571,
+       "mean_m": 7723.0,
+       "std_m": 15.7
+      },
+      "Arnage": {
+       "share": 0.857,
+       "mean_m": 10095.0,
+       "std_m": 107.9
+      },
+      "Ford Chicanes": {
+       "share": 0.714,
+       "mean_m": 13300.8,
+       "std_m": 96.3
+      }
+     }
+    },
+    "union": {
+     "recall": 0.893,
+     "extras_per_lap": 17.43,
+     "detections_per_lap": 21.0,
+     "stability_std_m": 68.7,
+     "appearance_pct": 89.3,
+     "never_detected": [],
+     "per_corner": {
+      "Dunlop Chicane": {
+       "share": 1.0,
+       "mean_m": 853.9,
+       "std_m": 21.9
+      },
+      "Mulsanne": {
+       "share": 0.857,
+       "mean_m": 7697.8,
+       "std_m": 48.7
+      },
+      "Arnage": {
+       "share": 0.857,
+       "mean_m": 10092.3,
+       "std_m": 106.3
+      },
+      "Ford Chicanes": {
+       "share": 0.857,
+       "mean_m": 13318.0,
+       "std_m": 98.0
+      }
+     }
+    }
+   },
+   "never_detected": [],
+   "never_detected_by_detector": {
+    "speed": [],
+    "geometry": [],
+    "segmenter": []
+   },
+   "cars": {
+    "ks_porsche_919_hybrid_2016": {
+     "n_files": 2,
+     "n_laps": 7,
+     "files": [
+      "sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld",
+      "sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 0.679,
+       "extras_per_lap": 10.29,
+       "detections_per_lap": 13.0,
+       "stability_std_m": 58.7,
+       "appearance_pct": 67.8,
+       "never_detected": [],
+       "per_corner": {
+        "Dunlop Chicane": {
+         "share": 0.571,
+         "mean_m": 848.9,
+         "std_m": 5.6
+        },
+        "Mulsanne": {
+         "share": 0.571,
+         "mean_m": 7723.0,
+         "std_m": 15.8
+        },
+        "Arnage": {
+         "share": 0.714,
+         "mean_m": 10086.7,
+         "std_m": 116.2
+        },
+        "Ford Chicanes": {
+         "share": 0.857,
+         "mean_m": 13319.5,
+         "std_m": 97.2
+        }
+       }
+      },
+      "geometry": {
+       "recall": 0.821,
+       "extras_per_lap": 15.0,
+       "detections_per_lap": 18.29,
+       "stability_std_m": 65.8,
+       "appearance_pct": 82.1,
+       "never_detected": [],
+       "per_corner": {
+        "Dunlop Chicane": {
+         "share": 0.857,
+         "mean_m": 838.3,
+         "std_m": 9.7
+        },
+        "Mulsanne": {
+         "share": 0.714,
+         "mean_m": 7694.6,
+         "std_m": 52.0
+        },
+        "Arnage": {
+         "share": 0.857,
+         "mean_m": 10088.3,
+         "std_m": 104.0
+        },
+        "Ford Chicanes": {
+         "share": 0.857,
+         "mean_m": 13314.8,
+         "std_m": 97.3
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 0.643,
+       "extras_per_lap": 7.29,
+       "detections_per_lap": 9.86,
+       "stability_std_m": 59.2,
+       "appearance_pct": 64.3,
+       "never_detected": [],
+       "per_corner": {
+        "Dunlop Chicane": {
+         "share": 0.429,
+         "mean_m": 856.0,
+         "std_m": 17.0
+        },
+        "Mulsanne": {
+         "share": 0.571,
+         "mean_m": 7723.0,
+         "std_m": 15.7
+        },
+        "Arnage": {
+         "share": 0.857,
+         "mean_m": 10095.0,
+         "std_m": 107.9
+        },
+        "Ford Chicanes": {
+         "share": 0.714,
+         "mean_m": 13300.8,
+         "std_m": 96.3
+        }
+       }
+      },
+      "union": {
+       "recall": 0.893,
+       "extras_per_lap": 17.43,
+       "detections_per_lap": 21.0,
+       "stability_std_m": 68.7,
+       "appearance_pct": 89.3,
+       "never_detected": [],
+       "per_corner": {
+        "Dunlop Chicane": {
+         "share": 1.0,
+         "mean_m": 853.9,
+         "std_m": 21.9
+        },
+        "Mulsanne": {
+         "share": 0.857,
+         "mean_m": 7697.8,
+         "std_m": 48.7
+        },
+        "Arnage": {
+         "share": 0.857,
+         "mean_m": 10092.3,
+         "std_m": 106.3
+        },
+        "Ford Chicanes": {
+         "share": 0.857,
+         "mean_m": 13318.0,
+         "std_m": 98.0
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "monaco": {
+   "name": "Circuit de Monaco",
+   "length_m": 3337,
+   "tolerance_m": 120.0,
+   "n_files": 2,
+   "n_laps": 3,
+   "n_tabulated": 6,
+   "detectors": {
+    "speed": {
+     "recall": 1.0,
+     "extras_per_lap": 6.67,
+     "detections_per_lap": 12.67,
+     "stability_std_m": 7.7,
+     "appearance_pct": 100.0,
+     "never_detected": [],
+     "per_corner": {
+      "Sainte Devote": {
+       "share": 1.0,
+       "mean_m": 220.5,
+       "std_m": 15.8
+      },
+      "Grand Hotel Hairpin": {
+       "share": 1.0,
+       "mean_m": 1251.1,
+       "std_m": 3.6
+      },
+      "Portier": {
+       "share": 1.0,
+       "mean_m": 1417.8,
+       "std_m": 11.9
+      },
+      "Nouvelle Chicane": {
+       "share": 1.0,
+       "mean_m": 2091.8,
+       "std_m": 6.2
+      },
+      "Tabac": {
+       "share": 1.0,
+       "mean_m": 2344.1,
+       "std_m": 1.8
+      },
+      "La Rascasse": {
+       "share": 1.0,
+       "mean_m": 2878.6,
+       "std_m": 7.1
+      }
+     }
+    },
+    "geometry": {
+     "recall": 1.0,
+     "extras_per_lap": 4.67,
+     "detections_per_lap": 10.67,
+     "stability_std_m": 7.0,
+     "appearance_pct": 100.0,
+     "never_detected": [],
+     "per_corner": {
+      "Sainte Devote": {
+       "share": 1.0,
+       "mean_m": 209.7,
+       "std_m": 7.3
+      },
+      "Grand Hotel Hairpin": {
+       "share": 1.0,
+       "mean_m": 1249.3,
+       "std_m": 6.8
+      },
+      "Portier": {
+       "share": 1.0,
+       "mean_m": 1413.3,
+       "std_m": 6.2
+      },
+      "Nouvelle Chicane": {
+       "share": 1.0,
+       "mean_m": 2098.3,
+       "std_m": 7.1
+      },
+      "Tabac": {
+       "share": 1.0,
+       "mean_m": 2345.0,
+       "std_m": 8.0
+      },
+      "La Rascasse": {
+       "share": 1.0,
+       "mean_m": 2876.3,
+       "std_m": 6.6
+      }
+     }
+    },
+    "segmenter": {
+     "recall": 0.944,
+     "extras_per_lap": 4.67,
+     "detections_per_lap": 10.33,
+     "stability_std_m": 5.6,
+     "appearance_pct": 94.5,
+     "never_detected": [],
+     "per_corner": {
+      "Sainte Devote": {
+       "share": 0.667,
+       "mean_m": 231.5,
+       "std_m": 3.5
+      },
+      "Grand Hotel Hairpin": {
+       "share": 1.0,
+       "mean_m": 1251.3,
+       "std_m": 3.7
+      },
+      "Portier": {
+       "share": 1.0,
+       "mean_m": 1418.0,
+       "std_m": 12.0
+      },
+      "Nouvelle Chicane": {
+       "share": 1.0,
+       "mean_m": 2091.7,
+       "std_m": 6.2
+      },
+      "Tabac": {
+       "share": 1.0,
+       "mean_m": 2343.7,
+       "std_m": 1.2
+      },
+      "La Rascasse": {
+       "share": 1.0,
+       "mean_m": 2878.7,
+       "std_m": 7.3
+      }
+     }
+    },
+    "union": {
+     "recall": 1.0,
+     "extras_per_lap": 6.67,
+     "detections_per_lap": 12.67,
+     "stability_std_m": 6.0,
+     "appearance_pct": 100.0,
+     "never_detected": [],
+     "per_corner": {
+      "Sainte Devote": {
+       "share": 1.0,
+       "mean_m": 222.9,
+       "std_m": 5.1
+      },
+      "Grand Hotel Hairpin": {
+       "share": 1.0,
+       "mean_m": 1250.6,
+       "std_m": 4.6
+      },
+      "Portier": {
+       "share": 1.0,
+       "mean_m": 1416.4,
+       "std_m": 10.0
+      },
+      "Nouvelle Chicane": {
+       "share": 1.0,
+       "mean_m": 2093.9,
+       "std_m": 6.5
+      },
+      "Tabac": {
+       "share": 1.0,
+       "mean_m": 2344.3,
+       "std_m": 3.4
+      },
+      "La Rascasse": {
+       "share": 1.0,
+       "mean_m": 2877.9,
+       "std_m": 6.3
+      }
+     }
+    }
+   },
+   "never_detected": [],
+   "never_detected_by_detector": {
+    "speed": [],
+    "geometry": [],
+    "segmenter": []
+   },
+   "cars": {
+    "cky_porschecarrera_gt_04": {
+     "n_files": 1,
+     "n_laps": 2,
+     "files": [
+      "monaco_2020_&_cky_porschecarrera_gt_04_&_piloto_&_stint_1.ld"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 1.0,
+       "extras_per_lap": 6.5,
+       "detections_per_lap": 12.5,
+       "stability_std_m": 7.5,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 1.0,
+         "mean_m": 213.2,
+         "std_m": 14.6
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1251.3,
+         "std_m": 4.4
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1421.6,
+         "std_m": 13.0
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2095.1,
+         "std_m": 4.9
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2345.3,
+         "std_m": 0.7
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2881.2,
+         "std_m": 7.5
+        }
+       }
+      },
+      "geometry": {
+       "recall": 1.0,
+       "extras_per_lap": 5.0,
+       "detections_per_lap": 11.0,
+       "stability_std_m": 6.3,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 1.0,
+         "mean_m": 204.5,
+         "std_m": 0.5
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1251.5,
+         "std_m": 7.5
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1415.0,
+         "std_m": 7.0
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2102.0,
+         "std_m": 6.0
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2346.5,
+         "std_m": 9.5
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2874.5,
+         "std_m": 7.5
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 0.917,
+       "extras_per_lap": 4.0,
+       "detections_per_lap": 9.5,
+       "stability_std_m": 6.1,
+       "appearance_pct": 91.7,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 0.5,
+         "mean_m": 228.0,
+         "std_m": null
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1251.5,
+         "std_m": 4.5
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1422.0,
+         "std_m": 13.0
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2095.0,
+         "std_m": 5.0
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2344.5,
+         "std_m": 0.5
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2881.5,
+         "std_m": 7.5
+        }
+       }
+      },
+      "union": {
+       "recall": 1.0,
+       "extras_per_lap": 6.0,
+       "detections_per_lap": 12.0,
+       "stability_std_m": 5.6,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 1.0,
+         "mean_m": 219.4,
+         "std_m": 0.9
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1251.4,
+         "std_m": 5.5
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1419.5,
+         "std_m": 11.0
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2097.4,
+         "std_m": 5.3
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2345.4,
+         "std_m": 3.6
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2879.1,
+         "std_m": 7.5
+        }
+       }
+      }
+     }
+    },
+    "f_porsche_gt2rs_mr": {
+     "n_files": 1,
+     "n_laps": 1,
+     "files": [
+      "monaco_2020_&_f_porsche_gt2rs_mr_&_piloto_&_stint_1.ld"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 1.0,
+       "extras_per_lap": 7.0,
+       "detections_per_lap": 13.0,
+       "stability_std_m": null,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 1.0,
+         "mean_m": 235.2,
+         "std_m": null
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1250.8,
+         "std_m": null
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1410.1,
+         "std_m": null
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2085.1,
+         "std_m": null
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2341.7,
+         "std_m": null
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2873.5,
+         "std_m": null
+        }
+       }
+      },
+      "geometry": {
+       "recall": 1.0,
+       "extras_per_lap": 4.0,
+       "detections_per_lap": 10.0,
+       "stability_std_m": null,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 1.0,
+         "mean_m": 220.0,
+         "std_m": null
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1245.0,
+         "std_m": null
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1410.0,
+         "std_m": null
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2091.0,
+         "std_m": null
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2342.0,
+         "std_m": null
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2880.0,
+         "std_m": null
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 1.0,
+       "extras_per_lap": 6.0,
+       "detections_per_lap": 12.0,
+       "stability_std_m": null,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 1.0,
+         "mean_m": 235.0,
+         "std_m": null
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1251.0,
+         "std_m": null
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1410.0,
+         "std_m": null
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2085.0,
+         "std_m": null
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2342.0,
+         "std_m": null
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2873.0,
+         "std_m": null
+        }
+       }
+      },
+      "union": {
+       "recall": 1.0,
+       "extras_per_lap": 8.0,
+       "detections_per_lap": 14.0,
+       "stability_std_m": null,
+       "appearance_pct": 100.0,
+       "never_detected": [],
+       "per_corner": {
+        "Sainte Devote": {
+         "share": 1.0,
+         "mean_m": 230.1,
+         "std_m": null
+        },
+        "Grand Hotel Hairpin": {
+         "share": 1.0,
+         "mean_m": 1248.9,
+         "std_m": null
+        },
+        "Portier": {
+         "share": 1.0,
+         "mean_m": 1410.0,
+         "std_m": null
+        },
+        "Nouvelle Chicane": {
+         "share": 1.0,
+         "mean_m": 2087.0,
+         "std_m": null
+        },
+        "Tabac": {
+         "share": 1.0,
+         "mean_m": 2341.9,
+         "std_m": null
+        },
+        "La Rascasse": {
+         "share": 1.0,
+         "mean_m": 2875.5,
+         "std_m": null
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "silverstone": {
+   "name": "Silverstone Circuit",
+   "length_m": 5891,
+   "tolerance_m": 145.1,
+   "n_files": 2,
+   "n_laps": 6,
+   "n_tabulated": 10,
+   "detectors": {
+    "speed": {
+     "recall": 0.617,
+     "extras_per_lap": 1.17,
+     "detections_per_lap": 7.33,
+     "stability_std_m": 29.1,
+     "appearance_pct": 61.6,
+     "never_detected": [
+      "Abbey",
+      "Aintree"
+     ],
+     "per_corner": {
+      "Abbey": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Village": {
+       "share": 0.833,
+       "mean_m": 774.0,
+       "std_m": 9.4
+      },
+      "The Loop": {
+       "share": 0.833,
+       "mean_m": 924.6,
+       "std_m": 15.7
+      },
+      "Aintree": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Brooklands": {
+       "share": 0.833,
+       "mean_m": 1865.7,
+       "std_m": 14.6
+      },
+      "Luffield": {
+       "share": 0.833,
+       "mean_m": 2028.1,
+       "std_m": 12.0
+      },
+      "Copse": {
+       "share": 0.5,
+       "mean_m": 2944.3,
+       "std_m": 30.6
+      },
+      "Stowe": {
+       "share": 0.833,
+       "mean_m": 4866.2,
+       "std_m": 32.5
+      },
+      "Vale": {
+       "share": 0.833,
+       "mean_m": 5338.2,
+       "std_m": 21.7
+      },
+      "Club": {
+       "share": 0.667,
+       "mean_m": 5474.4,
+       "std_m": 96.4
+      }
+     }
+    },
+    "geometry": {
+     "recall": 0.667,
+     "extras_per_lap": 2.5,
+     "detections_per_lap": 9.17,
+     "stability_std_m": 32.8,
+     "appearance_pct": 66.7,
+     "never_detected": [],
+     "per_corner": {
+      "Abbey": {
+       "share": 0.667,
+       "mean_m": 326.5,
+       "std_m": 25.3
+      },
+      "Village": {
+       "share": 0.833,
+       "mean_m": 770.6,
+       "std_m": 17.2
+      },
+      "The Loop": {
+       "share": 0.833,
+       "mean_m": 914.8,
+       "std_m": 15.1
+      },
+      "Aintree": {
+       "share": 0.167,
+       "mean_m": 1152.0,
+       "std_m": null
+      },
+      "Brooklands": {
+       "share": 0.833,
+       "mean_m": 1855.2,
+       "std_m": 16.9
+      },
+      "Luffield": {
+       "share": 0.667,
+       "mean_m": 2027.2,
+       "std_m": 12.3
+      },
+      "Copse": {
+       "share": 0.833,
+       "mean_m": 2942.0,
+       "std_m": 48.2
+      },
+      "Stowe": {
+       "share": 0.667,
+       "mean_m": 4849.5,
+       "std_m": 36.1
+      },
+      "Vale": {
+       "share": 0.833,
+       "mean_m": 5333.2,
+       "std_m": 20.3
+      },
+      "Club": {
+       "share": 0.333,
+       "mean_m": 5533.0,
+       "std_m": 104.0
+      }
+     }
+    },
+    "segmenter": {
+     "recall": 0.517,
+     "extras_per_lap": 1.33,
+     "detections_per_lap": 6.5,
+     "stability_std_m": 28.5,
+     "appearance_pct": 51.7,
+     "never_detected": [
+      "Aintree"
+     ],
+     "per_corner": {
+      "Abbey": {
+       "share": 0.5,
+       "mean_m": 347.0,
+       "std_m": 32.6
+      },
+      "Village": {
+       "share": 0.667,
+       "mean_m": 776.2,
+       "std_m": 9.2
+      },
+      "The Loop": {
+       "share": 0.833,
+       "mean_m": 924.6,
+       "std_m": 15.7
+      },
+      "Aintree": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Brooklands": {
+       "share": 0.333,
+       "mean_m": 1849.5,
+       "std_m": 3.5
+      },
+      "Luffield": {
+       "share": 0.667,
+       "mean_m": 2026.0,
+       "std_m": 12.2
+      },
+      "Copse": {
+       "share": 0.833,
+       "mean_m": 2957.4,
+       "std_m": 39.2
+      },
+      "Stowe": {
+       "share": 0.5,
+       "mean_m": 4883.7,
+       "std_m": 17.2
+      },
+      "Vale": {
+       "share": 0.5,
+       "mean_m": 5351.0,
+       "std_m": 19.0
+      },
+      "Club": {
+       "share": 0.333,
+       "mean_m": 5509.5,
+       "std_m": 107.5
+      }
+     }
+    },
+    "union": {
+     "recall": 0.733,
+     "extras_per_lap": 3.67,
+     "detections_per_lap": 11.0,
+     "stability_std_m": 30.3,
+     "appearance_pct": 73.3,
+     "never_detected": [],
+     "per_corner": {
+      "Abbey": {
+       "share": 0.667,
+       "mean_m": 333.4,
+       "std_m": 26.8
+      },
+      "Village": {
+       "share": 0.833,
+       "mean_m": 772.6,
+       "std_m": 11.9
+      },
+      "The Loop": {
+       "share": 0.833,
+       "mean_m": 921.3,
+       "std_m": 15.1
+      },
+      "Aintree": {
+       "share": 0.167,
+       "mean_m": 1152.0,
+       "std_m": null
+      },
+      "Brooklands": {
+       "share": 0.833,
+       "mean_m": 1861.4,
+       "std_m": 13.5
+      },
+      "Luffield": {
+       "share": 0.833,
+       "mean_m": 2027.8,
+       "std_m": 11.5
+      },
+      "Copse": {
+       "share": 0.833,
+       "mean_m": 2956.1,
+       "std_m": 36.2
+      },
+      "Stowe": {
+       "share": 0.833,
+       "mean_m": 4861.3,
+       "std_m": 32.0
+      },
+      "Vale": {
+       "share": 0.833,
+       "mean_m": 5336.4,
+       "std_m": 21.2
+      },
+      "Club": {
+       "share": 0.667,
+       "mean_m": 5523.9,
+       "std_m": 104.9
+      }
+     }
+    }
+   },
+   "never_detected": [],
+   "never_detected_by_detector": {
+    "speed": [
+     "Abbey",
+     "Aintree"
+    ],
+    "geometry": [],
+    "segmenter": [
+     "Aintree"
+    ]
+   },
+   "cars": {
+    "ks_porsche_919_hybrid_2016": {
+     "n_files": 2,
+     "n_laps": 6,
+     "files": [
+      "ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld",
+      "ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 0.617,
+       "extras_per_lap": 1.17,
+       "detections_per_lap": 7.33,
+       "stability_std_m": 29.1,
+       "appearance_pct": 61.6,
+       "never_detected": [
+        "Abbey",
+        "Aintree"
+       ],
+       "per_corner": {
+        "Abbey": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Village": {
+         "share": 0.833,
+         "mean_m": 774.0,
+         "std_m": 9.4
+        },
+        "The Loop": {
+         "share": 0.833,
+         "mean_m": 924.6,
+         "std_m": 15.7
+        },
+        "Aintree": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Brooklands": {
+         "share": 0.833,
+         "mean_m": 1865.7,
+         "std_m": 14.6
+        },
+        "Luffield": {
+         "share": 0.833,
+         "mean_m": 2028.1,
+         "std_m": 12.0
+        },
+        "Copse": {
+         "share": 0.5,
+         "mean_m": 2944.3,
+         "std_m": 30.6
+        },
+        "Stowe": {
+         "share": 0.833,
+         "mean_m": 4866.2,
+         "std_m": 32.5
+        },
+        "Vale": {
+         "share": 0.833,
+         "mean_m": 5338.2,
+         "std_m": 21.7
+        },
+        "Club": {
+         "share": 0.667,
+         "mean_m": 5474.4,
+         "std_m": 96.4
+        }
+       }
+      },
+      "geometry": {
+       "recall": 0.667,
+       "extras_per_lap": 2.5,
+       "detections_per_lap": 9.17,
+       "stability_std_m": 32.8,
+       "appearance_pct": 66.7,
+       "never_detected": [],
+       "per_corner": {
+        "Abbey": {
+         "share": 0.667,
+         "mean_m": 326.5,
+         "std_m": 25.3
+        },
+        "Village": {
+         "share": 0.833,
+         "mean_m": 770.6,
+         "std_m": 17.2
+        },
+        "The Loop": {
+         "share": 0.833,
+         "mean_m": 914.8,
+         "std_m": 15.1
+        },
+        "Aintree": {
+         "share": 0.167,
+         "mean_m": 1152.0,
+         "std_m": null
+        },
+        "Brooklands": {
+         "share": 0.833,
+         "mean_m": 1855.2,
+         "std_m": 16.9
+        },
+        "Luffield": {
+         "share": 0.667,
+         "mean_m": 2027.2,
+         "std_m": 12.3
+        },
+        "Copse": {
+         "share": 0.833,
+         "mean_m": 2942.0,
+         "std_m": 48.2
+        },
+        "Stowe": {
+         "share": 0.667,
+         "mean_m": 4849.5,
+         "std_m": 36.1
+        },
+        "Vale": {
+         "share": 0.833,
+         "mean_m": 5333.2,
+         "std_m": 20.3
+        },
+        "Club": {
+         "share": 0.333,
+         "mean_m": 5533.0,
+         "std_m": 104.0
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 0.517,
+       "extras_per_lap": 1.33,
+       "detections_per_lap": 6.5,
+       "stability_std_m": 28.5,
+       "appearance_pct": 51.7,
+       "never_detected": [
+        "Aintree"
+       ],
+       "per_corner": {
+        "Abbey": {
+         "share": 0.5,
+         "mean_m": 347.0,
+         "std_m": 32.6
+        },
+        "Village": {
+         "share": 0.667,
+         "mean_m": 776.2,
+         "std_m": 9.2
+        },
+        "The Loop": {
+         "share": 0.833,
+         "mean_m": 924.6,
+         "std_m": 15.7
+        },
+        "Aintree": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Brooklands": {
+         "share": 0.333,
+         "mean_m": 1849.5,
+         "std_m": 3.5
+        },
+        "Luffield": {
+         "share": 0.667,
+         "mean_m": 2026.0,
+         "std_m": 12.2
+        },
+        "Copse": {
+         "share": 0.833,
+         "mean_m": 2957.4,
+         "std_m": 39.2
+        },
+        "Stowe": {
+         "share": 0.5,
+         "mean_m": 4883.7,
+         "std_m": 17.2
+        },
+        "Vale": {
+         "share": 0.5,
+         "mean_m": 5351.0,
+         "std_m": 19.0
+        },
+        "Club": {
+         "share": 0.333,
+         "mean_m": 5509.5,
+         "std_m": 107.5
+        }
+       }
+      },
+      "union": {
+       "recall": 0.733,
+       "extras_per_lap": 3.67,
+       "detections_per_lap": 11.0,
+       "stability_std_m": 30.3,
+       "appearance_pct": 73.3,
+       "never_detected": [],
+       "per_corner": {
+        "Abbey": {
+         "share": 0.667,
+         "mean_m": 333.4,
+         "std_m": 26.8
+        },
+        "Village": {
+         "share": 0.833,
+         "mean_m": 772.6,
+         "std_m": 11.9
+        },
+        "The Loop": {
+         "share": 0.833,
+         "mean_m": 921.3,
+         "std_m": 15.1
+        },
+        "Aintree": {
+         "share": 0.167,
+         "mean_m": 1152.0,
+         "std_m": null
+        },
+        "Brooklands": {
+         "share": 0.833,
+         "mean_m": 1861.4,
+         "std_m": 13.5
+        },
+        "Luffield": {
+         "share": 0.833,
+         "mean_m": 2027.8,
+         "std_m": 11.5
+        },
+        "Copse": {
+         "share": 0.833,
+         "mean_m": 2956.1,
+         "std_m": 36.2
+        },
+        "Stowe": {
+         "share": 0.833,
+         "mean_m": 4861.3,
+         "std_m": 32.0
+        },
+        "Vale": {
+         "share": 0.833,
+         "mean_m": 5336.4,
+         "std_m": 21.2
+        },
+        "Club": {
+         "share": 0.667,
+         "mean_m": 5523.9,
+         "std_m": 104.9
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "spa_francorchamps": {
+   "name": "Circuit de Spa-Francorchamps",
+   "length_m": 7004,
+   "tolerance_m": 173.8,
+   "n_files": 3,
+   "n_laps": 9,
+   "n_tabulated": 10,
+   "detectors": {
+    "speed": {
+     "recall": 0.589,
+     "extras_per_lap": 2.33,
+     "detections_per_lap": 8.22,
+     "stability_std_m": 24.4,
+     "appearance_pct": 58.9,
+     "never_detected": [
+      "Eau Rouge / Raidillon",
+      "Blanchimont"
+     ],
+     "per_corner": {
+      "La Source": {
+       "share": 1.0,
+       "mean_m": 391.2,
+       "std_m": 0.7
+      },
+      "Eau Rouge / Raidillon": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Les Combes": {
+       "share": 0.889,
+       "mean_m": 2466.5,
+       "std_m": 16.8
+      },
+      "Malmedy": {
+       "share": 0.333,
+       "mean_m": 2612.9,
+       "std_m": 7.1
+      },
+      "Rivage": {
+       "share": 0.889,
+       "mean_m": 3060.2,
+       "std_m": 21.6
+      },
+      "Pouhon": {
+       "share": 0.778,
+       "mean_m": 3806.5,
+       "std_m": 52.7
+      },
+      "Fagnes": {
+       "share": 0.556,
+       "mean_m": 4524.1,
+       "std_m": 84.8
+      },
+      "Stavelot": {
+       "share": 0.556,
+       "mean_m": 4916.9,
+       "std_m": 5.6
+      },
+      "Blanchimont": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Bus Stop": {
+       "share": 0.889,
+       "mean_m": 6764.1,
+       "std_m": 6.1
+      }
+     }
+    },
+    "geometry": {
+     "recall": 0.922,
+     "extras_per_lap": 3.67,
+     "detections_per_lap": 12.89,
+     "stability_std_m": 19.3,
+     "appearance_pct": 92.2,
+     "never_detected": [],
+     "per_corner": {
+      "La Source": {
+       "share": 1.0,
+       "mean_m": 388.0,
+       "std_m": 5.3
+      },
+      "Eau Rouge / Raidillon": {
+       "share": 1.0,
+       "mean_m": 1119.1,
+       "std_m": 10.3
+      },
+      "Les Combes": {
+       "share": 1.0,
+       "mean_m": 2475.0,
+       "std_m": 27.0
+      },
+      "Malmedy": {
+       "share": 0.778,
+       "mean_m": 2622.4,
+       "std_m": 17.4
+      },
+      "Rivage": {
+       "share": 1.0,
+       "mean_m": 3053.2,
+       "std_m": 22.0
+      },
+      "Pouhon": {
+       "share": 1.0,
+       "mean_m": 3844.9,
+       "std_m": 34.5
+      },
+      "Fagnes": {
+       "share": 1.0,
+       "mean_m": 4489.4,
+       "std_m": 32.5
+      },
+      "Stavelot": {
+       "share": 1.0,
+       "mean_m": 4908.7,
+       "std_m": 8.6
+      },
+      "Blanchimont": {
+       "share": 0.444,
+       "mean_m": 6146.2,
+       "std_m": 12.1
+      },
+      "Bus Stop": {
+       "share": 1.0,
+       "mean_m": 6753.4,
+       "std_m": 23.2
+      }
+     }
+    },
+    "segmenter": {
+     "recall": 0.567,
+     "extras_per_lap": 0.33,
+     "detections_per_lap": 6.0,
+     "stability_std_m": 17.1,
+     "appearance_pct": 56.7,
+     "never_detected": [
+      "Eau Rouge / Raidillon",
+      "Malmedy",
+      "Blanchimont"
+     ],
+     "per_corner": {
+      "La Source": {
+       "share": 1.0,
+       "mean_m": 391.2,
+       "std_m": 0.6
+      },
+      "Eau Rouge / Raidillon": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Les Combes": {
+       "share": 1.0,
+       "mean_m": 2468.7,
+       "std_m": 17.2
+      },
+      "Malmedy": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Rivage": {
+       "share": 1.0,
+       "mean_m": 3173.1,
+       "std_m": 88.4
+      },
+      "Pouhon": {
+       "share": 0.333,
+       "mean_m": 3767.7,
+       "std_m": 0.9
+      },
+      "Fagnes": {
+       "share": 0.333,
+       "mean_m": 4619.7,
+       "std_m": 0.5
+      },
+      "Stavelot": {
+       "share": 1.0,
+       "mean_m": 4915.2,
+       "std_m": 5.9
+      },
+      "Blanchimont": {
+       "share": 0.0,
+       "mean_m": null,
+       "std_m": null
+      },
+      "Bus Stop": {
+       "share": 1.0,
+       "mean_m": 6763.1,
+       "std_m": 6.4
+      }
+     }
+    },
+    "union": {
+     "recall": 0.922,
+     "extras_per_lap": 4.33,
+     "detections_per_lap": 13.56,
+     "stability_std_m": 15.6,
+     "appearance_pct": 92.2,
+     "never_detected": [],
+     "per_corner": {
+      "La Source": {
+       "share": 1.0,
+       "mean_m": 390.1,
+       "std_m": 1.9
+      },
+      "Eau Rouge / Raidillon": {
+       "share": 1.0,
+       "mean_m": 1119.1,
+       "std_m": 10.3
+      },
+      "Les Combes": {
+       "share": 1.0,
+       "mean_m": 2468.6,
+       "std_m": 18.9
+      },
+      "Malmedy": {
+       "share": 0.778,
+       "mean_m": 2621.1,
+       "std_m": 16.9
+      },
+      "Rivage": {
+       "share": 1.0,
+       "mean_m": 3056.0,
+       "std_m": 15.5
+      },
+      "Pouhon": {
+       "share": 1.0,
+       "mean_m": 3843.2,
+       "std_m": 38.8
+      },
+      "Fagnes": {
+       "share": 1.0,
+       "mean_m": 4489.9,
+       "std_m": 31.3
+      },
+      "Stavelot": {
+       "share": 1.0,
+       "mean_m": 4912.8,
+       "std_m": 5.3
+      },
+      "Blanchimont": {
+       "share": 0.444,
+       "mean_m": 6146.2,
+       "std_m": 12.1
+      },
+      "Bus Stop": {
+       "share": 1.0,
+       "mean_m": 6763.0,
+       "std_m": 4.9
+      }
+     }
+    }
+   },
+   "never_detected": [],
+   "never_detected_by_detector": {
+    "speed": [
+     "Eau Rouge / Raidillon",
+     "Blanchimont"
+    ],
+    "geometry": [],
+    "segmenter": [
+     "Eau Rouge / Raidillon",
+     "Malmedy",
+     "Blanchimont"
+    ]
+   },
+   "cars": {
+    "ks_porsche_cayman_gt4_clubsport": {
+     "n_files": 3,
+     "n_laps": 9,
+     "files": [
+      "porsche_gt4_spa.csv",
+      "spa_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld",
+      "spa_3laps.csv.gz"
+     ],
+     "detectors": {
+      "speed": {
+       "recall": 0.589,
+       "extras_per_lap": 2.33,
+       "detections_per_lap": 8.22,
+       "stability_std_m": 24.4,
+       "appearance_pct": 58.9,
+       "never_detected": [
+        "Eau Rouge / Raidillon",
+        "Blanchimont"
+       ],
+       "per_corner": {
+        "La Source": {
+         "share": 1.0,
+         "mean_m": 391.2,
+         "std_m": 0.7
+        },
+        "Eau Rouge / Raidillon": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Les Combes": {
+         "share": 0.889,
+         "mean_m": 2466.5,
+         "std_m": 16.8
+        },
+        "Malmedy": {
+         "share": 0.333,
+         "mean_m": 2612.9,
+         "std_m": 7.1
+        },
+        "Rivage": {
+         "share": 0.889,
+         "mean_m": 3060.2,
+         "std_m": 21.6
+        },
+        "Pouhon": {
+         "share": 0.778,
+         "mean_m": 3806.5,
+         "std_m": 52.7
+        },
+        "Fagnes": {
+         "share": 0.556,
+         "mean_m": 4524.1,
+         "std_m": 84.8
+        },
+        "Stavelot": {
+         "share": 0.556,
+         "mean_m": 4916.9,
+         "std_m": 5.6
+        },
+        "Blanchimont": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Bus Stop": {
+         "share": 0.889,
+         "mean_m": 6764.1,
+         "std_m": 6.1
+        }
+       }
+      },
+      "geometry": {
+       "recall": 0.922,
+       "extras_per_lap": 3.67,
+       "detections_per_lap": 12.89,
+       "stability_std_m": 19.3,
+       "appearance_pct": 92.2,
+       "never_detected": [],
+       "per_corner": {
+        "La Source": {
+         "share": 1.0,
+         "mean_m": 388.0,
+         "std_m": 5.3
+        },
+        "Eau Rouge / Raidillon": {
+         "share": 1.0,
+         "mean_m": 1119.1,
+         "std_m": 10.3
+        },
+        "Les Combes": {
+         "share": 1.0,
+         "mean_m": 2475.0,
+         "std_m": 27.0
+        },
+        "Malmedy": {
+         "share": 0.778,
+         "mean_m": 2622.4,
+         "std_m": 17.4
+        },
+        "Rivage": {
+         "share": 1.0,
+         "mean_m": 3053.2,
+         "std_m": 22.0
+        },
+        "Pouhon": {
+         "share": 1.0,
+         "mean_m": 3844.9,
+         "std_m": 34.5
+        },
+        "Fagnes": {
+         "share": 1.0,
+         "mean_m": 4489.4,
+         "std_m": 32.5
+        },
+        "Stavelot": {
+         "share": 1.0,
+         "mean_m": 4908.7,
+         "std_m": 8.6
+        },
+        "Blanchimont": {
+         "share": 0.444,
+         "mean_m": 6146.2,
+         "std_m": 12.1
+        },
+        "Bus Stop": {
+         "share": 1.0,
+         "mean_m": 6753.4,
+         "std_m": 23.2
+        }
+       }
+      },
+      "segmenter": {
+       "recall": 0.567,
+       "extras_per_lap": 0.33,
+       "detections_per_lap": 6.0,
+       "stability_std_m": 17.1,
+       "appearance_pct": 56.7,
+       "never_detected": [
+        "Eau Rouge / Raidillon",
+        "Malmedy",
+        "Blanchimont"
+       ],
+       "per_corner": {
+        "La Source": {
+         "share": 1.0,
+         "mean_m": 391.2,
+         "std_m": 0.6
+        },
+        "Eau Rouge / Raidillon": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Les Combes": {
+         "share": 1.0,
+         "mean_m": 2468.7,
+         "std_m": 17.2
+        },
+        "Malmedy": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Rivage": {
+         "share": 1.0,
+         "mean_m": 3173.1,
+         "std_m": 88.4
+        },
+        "Pouhon": {
+         "share": 0.333,
+         "mean_m": 3767.7,
+         "std_m": 0.9
+        },
+        "Fagnes": {
+         "share": 0.333,
+         "mean_m": 4619.7,
+         "std_m": 0.5
+        },
+        "Stavelot": {
+         "share": 1.0,
+         "mean_m": 4915.2,
+         "std_m": 5.9
+        },
+        "Blanchimont": {
+         "share": 0.0,
+         "mean_m": null,
+         "std_m": null
+        },
+        "Bus Stop": {
+         "share": 1.0,
+         "mean_m": 6763.1,
+         "std_m": 6.4
+        }
+       }
+      },
+      "union": {
+       "recall": 0.922,
+       "extras_per_lap": 4.33,
+       "detections_per_lap": 13.56,
+       "stability_std_m": 15.6,
+       "appearance_pct": 92.2,
+       "never_detected": [],
+       "per_corner": {
+        "La Source": {
+         "share": 1.0,
+         "mean_m": 390.1,
+         "std_m": 1.9
+        },
+        "Eau Rouge / Raidillon": {
+         "share": 1.0,
+         "mean_m": 1119.1,
+         "std_m": 10.3
+        },
+        "Les Combes": {
+         "share": 1.0,
+         "mean_m": 2468.6,
+         "std_m": 18.9
+        },
+        "Malmedy": {
+         "share": 0.778,
+         "mean_m": 2621.1,
+         "std_m": 16.9
+        },
+        "Rivage": {
+         "share": 1.0,
+         "mean_m": 3056.0,
+         "std_m": 15.5
+        },
+        "Pouhon": {
+         "share": 1.0,
+         "mean_m": 3843.2,
+         "std_m": 38.8
+        },
+        "Fagnes": {
+         "share": 1.0,
+         "mean_m": 4489.9,
+         "std_m": 31.3
+        },
+        "Stavelot": {
+         "share": 1.0,
+         "mean_m": 4912.8,
+         "std_m": 5.3
+        },
+        "Blanchimont": {
+         "share": 0.444,
+         "mean_m": 6146.2,
+         "std_m": 12.1
+        },
+        "Bus Stop": {
+         "share": 1.0,
+         "mean_m": 6763.0,
+         "std_m": 4.9
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "total": {
+  "n_files": 15,
+  "n_laps": 81,
+  "detectors": {
+   "speed": {
+    "recall": 0.733,
+    "extras_per_lap": 1.89,
+    "detections_per_lap": 7.667,
+    "stability_std_m": 35.943,
+    "appearance_pct": 73.283
+   },
+   "geometry": {
+    "recall": 0.9,
+    "extras_per_lap": 3.59,
+    "detections_per_lap": 10.738,
+    "stability_std_m": 31.744,
+    "appearance_pct": 90.004
+   },
+   "segmenter": {
+    "recall": 0.784,
+    "extras_per_lap": 1.146,
+    "detections_per_lap": 7.333,
+    "stability_std_m": 32.702,
+    "appearance_pct": 78.436
+   },
+   "union": {
+    "recall": 0.947,
+    "extras_per_lap": 4.456,
+    "detections_per_lap": 11.962,
+    "stability_std_m": 30.048,
+    "appearance_pct": 94.71
+   }
+  }
+ }
+}

@@ -586,7 +586,7 @@ def compare_with_table(circuit: dict, corners: Iterable[dict], length_m: Optiona
                 delta = ((tf - f + 0.5) % 1.0 - 0.5) * length     # signed: + = table after geometry
                 if best is None or abs(delta) < abs(best[0]):
                     best = (delta, c)
-        row = {"name": t["name"], "fraction": tf, "nearest_m": None, "delta_m": None, "geo_index": None,
+        row = {"name": t["name"], "fraction": tf, "kind": t.get("kind"), "nearest_m": None, "delta_m": None, "geo_index": None,
                "min_radius_m": None, "severity": None, "inside_extent": None}
         if best:
             c = best[1]
@@ -598,5 +598,6 @@ def compare_with_table(circuit: dict, corners: Iterable[dict], length_m: Optiona
                 near_used.add(c["index"])
         rows.append(row)
     untabulated = [c for c in corners if c["index"] not in near_used]
-    unmatched = [r for r in rows if r["nearest_m"] is None or r["nearest_m"] > 250]
+    # a tabulated flat_out corner (e.g. Variante Bassa) need not have a geometric peak: its radius is above the export cut
+    unmatched = [r for r in rows if (r["nearest_m"] is None or r["nearest_m"] > 250) and r["kind"] != "flat_out"]
     return {"rows": rows, "geometric_without_table": untabulated, "table_without_peak": unmatched}

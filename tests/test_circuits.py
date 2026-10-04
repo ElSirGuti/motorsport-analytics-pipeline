@@ -362,7 +362,7 @@ def test_pdf_corner_label():
 
 # ── corner tables added from real laps (Monaco, Silverstone, Le Mans, Mugello, Brands Hatch) ──
 VALIDATED = {
-    "imola": (8, "high"), "spa_francorchamps": (10, "high"), "monaco": (6, "high"),
+    "imola": (9, "high"), "spa_francorchamps": (10, "high"), "monaco": (6, "high"),
     "silverstone": (10, "high"), "le_mans": (4, "high"), "mugello": (7, "medium"),
     "brands_hatch": (3, "medium"),
 }
@@ -377,8 +377,9 @@ def test_validated_tables_and_recognition_only_circuits():
     for cid in ("monza", "red_bull_ring", "nordschleife", "barcelona", "laguna_seca", "zandvoort",
                 "vallelunga", "magione", "sepang", "oran_park_gp", "oran_park_south", "lime_rock_gp"):
         assert circuits[cid]["corners"] == [], cid
-    # Variante Bassa is flat out in the AC lap (no apex) and is not tabulated
-    assert "Variante Bassa" not in [k["name"] for k in circuits["imola"]["corners"]]
+    # Variante Bassa is flat out for most cars (no apex): tabulated with kind flat_out
+    bassa = [k for k in circuits["imola"]["corners"] if k["name"] == "Variante Bassa"]
+    assert len(bassa) == 1 and bassa[0]["kind"] == "flat_out" and 0.92 <= bassa[0]["apex_fraction"] <= 0.96
 
 
 def test_corner_order_is_the_real_lap_order():

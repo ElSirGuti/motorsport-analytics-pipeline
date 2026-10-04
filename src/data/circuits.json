@@ -20,7 +20,7 @@
       ],
       "confidence": "high",
       "source": "Corner order and names: official Imola circuit layout. Positions: fitted against speed minima of full laps recorded in Assetto Corsa (fn_imola, imola; 3 cars).",
-      "notes": "Numbering is by named complex (a chicane or double apex counts once). Rivazza is split in two apexes because both are detected as separate speed minima. Variante Bassa is not tabulated: in the Assetto Corsa lap the bend before the line (about 0.94 of the lap) is flat out (no speed minimum, speed keeps rising in 26 laps of 5 cars), so it never produces an apex to name.",
+      "notes": "Numbering is by named complex (a chicane or double apex counts once). Rivazza is split in two apexes because both are detected as separate speed minima. Variante Bassa (corner 9, about 0.94 of the lap; the Assetto Corsa racing line puts its minimum radius, 478 m, at 0.923) is tabulated with kind flat_out: with a GT4 or a prototype it has no speed minimum (speed keeps rising in 26 laps of 5 cars), so a speed/curvature detector never produces an apex there and it is only found by the unified corner map (src/analytics/corner_map.py) from the track geometry and this table. A car that brakes there makes it an ordinary apex.",
       "corners": [
         {"order": 1, "name": "Tamburello", "apex_fraction": 0.148},
         {"order": 2, "name": "Villeneuve", "apex_fraction": 0.294},
@@ -29,7 +29,8 @@
         {"order": 5, "name": "Acque Minerali", "apex_fraction": 0.582},
         {"order": 6, "name": "Variante Alta", "apex_fraction": 0.692},
         {"order": 7, "name": "Rivazza 1", "apex_fraction": 0.846},
-        {"order": 8, "name": "Rivazza 2", "apex_fraction": 0.872}
+        {"order": 8, "name": "Rivazza 2", "apex_fraction": 0.872},
+        {"order": 9, "name": "Variante Bassa", "apex_fraction": 0.94, "kind": "flat_out"}
       ]
     },
     {

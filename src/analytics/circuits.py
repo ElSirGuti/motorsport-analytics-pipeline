@@ -34,6 +34,7 @@ APEX_TOLERANCE_MIN_M = 120.0     # ... but never below this ...
 APEX_TOLERANCE_MAX_M = 180.0     # ... nor above this (long circuits)
 
 CONFIDENCE_LEVELS = ("high", "medium")
+CORNER_KINDS = ("braking", "lift", "flat_out", "kink")  # optional per-corner "kind"; flat_out/kink need no detectable apex
 _PREFIX_RE = re.compile(r"^(ks|fn|acu|zw|sx|rt|ac)_")
 
 
@@ -92,6 +93,8 @@ def _warn_geometry(circuit: dict) -> None:
         if not fracs:
             return
         for k in corners:
+            if k.get("kind") == "flat_out":
+                continue   # a flat-out bend need not sit on a geometric corner (radius above the export cut)
             f = float(k["apex_fraction"])
             d = min(min(abs(f - x), 1.0 - abs(f - x)) for x in fracs) * length
             if d > GEOMETRY_WARN_M:
@@ -174,6 +177,8 @@ def validate_database(data) -> list:
                 if f <= last_f:
                     errors.append(f"{ktag}: corners must be strictly ordered by apex_fraction")
                 last_f = float(f)
+            if "kind" in k and k["kind"] not in CORNER_KINDS:
+                errors.append(f"{ktag}: kind must be one of {CORNER_KINDS}")
             o = k.get("order")
             if not isinstance(o, int) or isinstance(o, bool) or o <= last_o:
                 errors.append(f"{ktag}: order must be a strictly increasing integer")

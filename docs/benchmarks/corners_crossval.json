@@ -1,0 +1,284 @@
+{
+ "description": "Leave-one-circuit-out: los parametros de cada fila se eligieron mirando solo los otros 4 circuitos (rejilla de 243 configuraciones: min_share en [0.5, 0.6, 0.75], cluster_tol_min_m en [40.0, 60.0, 90.0], match_pad_m en [40.0, 60.0, 90.0], unbacked_min_support en [0.4, 0.6, 0.8], group_gap_m en [80.0, 120.0, 160.0]). 'En muestra' = los parametros por defecto de corner_map (el optimo con todos los circuitos) evaluados en ese circuito.",
+ "variant": "map_no_table, single_lap_no_table y map_telemetry (media)",
+ "objective": "recall - 0.1 * ruido - 0.02 * extras, media de las tres variantes",
+ "n_laps": 81,
+ "n_configs": 243,
+ "seconds": 124.9,
+ "default_params": {
+  "min_share": 0.6,
+  "cluster_tol_min_m": 60.0,
+  "match_pad_m": 90.0,
+  "unbacked_min_support": 0.4,
+  "group_gap_m": 120.0
+ },
+ "best_all_params": {
+  "min_share": 0.6,
+  "cluster_tol_min_m": 90.0,
+  "match_pad_m": 90.0,
+  "unbacked_min_support": 0.4,
+  "group_gap_m": 120.0
+ },
+ "best_all_objective": 0.8418,
+ "default_objective": 0.8311,
+ "objective_grid": {
+  "min": 0.7596,
+  "median": 0.7832,
+  "max": 0.8418
+ },
+ "folds": {
+  "imola": {
+   "n_laps": 56,
+   "params": {
+    "min_share": 0.6,
+    "cluster_tol_min_m": 90.0,
+    "match_pad_m": 90.0,
+    "unbacked_min_support": 0.4,
+    "group_gap_m": 120.0
+   },
+   "heldout": {
+    "recall": 0.866,
+    "recall_consensus": 0.889,
+    "recall_single_lap": 0.889,
+    "recall_telemetry_only": 0.821,
+    "extras_per_lap": 0.57,
+    "spurious_per_lap": 0.01
+   },
+   "default": {
+    "recall": 0.866,
+    "recall_consensus": 0.889,
+    "recall_single_lap": 0.889,
+    "recall_telemetry_only": 0.821,
+    "extras_per_lap": 0.57,
+    "spurious_per_lap": 0.01
+   },
+   "train_objective": 0.8387
+  },
+  "le_mans": {
+   "n_laps": 7,
+   "params": {
+    "min_share": 0.6,
+    "cluster_tol_min_m": 90.0,
+    "match_pad_m": 90.0,
+    "unbacked_min_support": 0.4,
+    "group_gap_m": 120.0
+   },
+   "heldout": {
+    "recall": 1.0,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 1.0,
+    "extras_per_lap": 14.19,
+    "spurious_per_lap": 0.14
+   },
+   "default": {
+    "recall": 1.0,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 1.0,
+    "extras_per_lap": 14.19,
+    "spurious_per_lap": 0.14
+   },
+   "train_objective": 0.8768
+  },
+  "monaco": {
+   "n_laps": 3,
+   "params": {
+    "min_share": 0.6,
+    "cluster_tol_min_m": 60.0,
+    "match_pad_m": 90.0,
+    "unbacked_min_support": 0.4,
+    "group_gap_m": 120.0
+   },
+   "heldout": {
+    "recall": 0.944,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 0.833,
+    "extras_per_lap": 4.11,
+    "spurious_per_lap": 0.0
+   },
+   "default": {
+    "recall": 0.944,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 0.833,
+    "extras_per_lap": 4.11,
+    "spurious_per_lap": 0.0
+   },
+   "train_objective": 0.8234
+  },
+  "silverstone": {
+   "n_laps": 6,
+   "params": {
+    "min_share": 0.6,
+    "cluster_tol_min_m": 90.0,
+    "match_pad_m": 90.0,
+    "unbacked_min_support": 0.4,
+    "group_gap_m": 120.0
+   },
+   "heldout": {
+    "recall": 0.894,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 0.683,
+    "extras_per_lap": 4.11,
+    "spurious_per_lap": 0.06
+   },
+   "default": {
+    "recall": 0.894,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 0.683,
+    "extras_per_lap": 4.11,
+    "spurious_per_lap": 0.06
+   },
+   "train_objective": 0.8507
+  },
+  "spa_francorchamps": {
+   "n_laps": 9,
+   "params": {
+    "min_share": 0.6,
+    "cluster_tol_min_m": 90.0,
+    "match_pad_m": 90.0,
+    "unbacked_min_support": 0.4,
+    "group_gap_m": 120.0
+   },
+   "heldout": {
+    "recall": 0.978,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 0.933,
+    "extras_per_lap": 2.33,
+    "spurious_per_lap": 0.0
+   },
+   "default": {
+    "recall": 0.978,
+    "recall_consensus": 1.0,
+    "recall_single_lap": 1.0,
+    "recall_telemetry_only": 0.933,
+    "extras_per_lap": 2.33,
+    "spurious_per_lap": 0.0
+   },
+   "train_objective": 0.8195
+  }
+ },
+ "total_heldout": {
+  "recall": 0.895,
+  "recall_consensus": 0.923,
+  "recall_single_lap": 0.923,
+  "recall_telemetry_only": 0.839,
+  "extras_per_lap": 2.336,
+  "spurious_per_lap": 0.023
+ },
+ "total_default": {
+  "recall": 0.895,
+  "recall_consensus": 0.923,
+  "recall_single_lap": 0.923,
+  "recall_telemetry_only": 0.839,
+  "extras_per_lap": 2.336,
+  "spurious_per_lap": 0.023
+ },
+ "default_by_circuit_variant": {
+  "imola": {
+   "map_no_table": {
+    "recall": 0.889,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 0.98,
+    "spurious_per_lap": 0.0
+   },
+   "single_lap_no_table": {
+    "recall": 0.889,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 0.71,
+    "spurious_per_lap": 0.0
+   },
+   "map_telemetry": {
+    "recall": 0.821,
+    "recall_detectable": 0.924,
+    "extras_per_lap": 0.02,
+    "spurious_per_lap": 0.02
+   }
+  },
+  "le_mans": {
+   "map_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 16.57,
+    "spurious_per_lap": 0.0
+   },
+   "single_lap_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 15.29,
+    "spurious_per_lap": 0.0
+   },
+   "map_telemetry": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 10.71,
+    "spurious_per_lap": 0.43
+   }
+  },
+  "monaco": {
+   "map_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 4.0,
+    "spurious_per_lap": 0.0
+   },
+   "single_lap_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 4.0,
+    "spurious_per_lap": 0.0
+   },
+   "map_telemetry": {
+    "recall": 0.833,
+    "recall_detectable": 0.833,
+    "extras_per_lap": 4.33,
+    "spurious_per_lap": 0.0
+   }
+  },
+  "silverstone": {
+   "map_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 5.0,
+    "spurious_per_lap": 0.0
+   },
+   "single_lap_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 4.5,
+    "spurious_per_lap": 0.0
+   },
+   "map_telemetry": {
+    "recall": 0.683,
+    "recall_detectable": 0.683,
+    "extras_per_lap": 2.83,
+    "spurious_per_lap": 0.17
+   }
+  },
+  "spa_francorchamps": {
+   "map_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 2.0,
+    "spurious_per_lap": 0.0
+   },
+   "single_lap_no_table": {
+    "recall": 1.0,
+    "recall_detectable": 1.0,
+    "extras_per_lap": 2.0,
+    "spurious_per_lap": 0.0
+   },
+   "map_telemetry": {
+    "recall": 0.933,
+    "recall_detectable": 0.933,
+    "extras_per_lap": 3.0,
+    "spurious_per_lap": 0.0
+   }
+  }
+ }
+}

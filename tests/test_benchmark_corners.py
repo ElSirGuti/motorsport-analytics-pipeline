@@ -86,4 +86,5 @@ def test_variante_bassa_is_absent_from_detections(csvs):
         for det, ds in dists.items():
             assert not [d for d in ds if 0.92 <= d / length <= 0.97], (det, ds)
     circuit = mod.C.get_circuit("imola")
-    assert "Variante Bassa" not in [k["name"] for k in circuit["corners"]]
+    bassa = [k for k in circuit["corners"] if k["name"] == "Variante Bassa"]
+    assert bassa and bassa[0]["kind"] == "flat_out"  # tabulated, but only the corner map can find it

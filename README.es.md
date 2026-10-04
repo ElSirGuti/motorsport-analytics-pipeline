@@ -453,7 +453,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (500 recogidos: 477 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (514 recogidos: 491 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -571,7 +571,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 500 recogidos: 477 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 514 recogidos: 491 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

@@ -1,4 +1,4 @@
-# Banco de pruebas de curvas: detectores existentes y mapa unificado
+# Banco de pruebas de curvas: despues del nucleo (mapa unificado)
 
 Fecha: 2026-10-04. Generado con `python scripts/benchmark_corners.py` (no modifica ningun detector; solo los ejecuta y compara con la tabla de `circuits.json`).
 
@@ -64,6 +64,40 @@ Detecciones medias por vuelta (cuantas curvas ve cada detector en la misma vuelt
 | Circuit de Monaco | 6 | 12.67 | 10.67 | 10.33 | 12.67 | 10.0 | 10.0 | 9.33 | 10.0 | 10.0 |
 | Silverstone Circuit | 10 | 7.33 | 9.17 | 6.5 | 11.0 | 15.0 | 15.0 | 9.67 | 14.5 | 14.5 |
 | Circuit de Spa-Francorchamps | 10 | 8.22 | 12.89 | 6.0 | 13.56 | 13.0 | 12.0 | 12.33 | 13.0 | 12.0 |
+
+## Antes / despues
+
+'Antes' = `docs/benchmarks/corners_baseline_legacy.json` (tabla de Imola con 8 curvas, sin Variante Bassa). 'Despues' usa el recall det. (mismas 8 curvas) para ser comparable; entre parentesis el recall con las 9 curvas. Cada celda: recall / extras por vuelta.
+
+| Circuito | segmenter antes | union antes | corner_map | map_no_table | single_lap | single_lap_no_table | map_telemetry |
+|---|---|---|---|---|---|---|---|
+| Autodromo Enzo e Dino Ferrari (Imola) | 0.86 / 0.3 | 0.98 / 2.8 | 1.00 / 1.0 | 1.00 (0.89) / 1.0 | 1.00 / 0.7 | 1.00 (0.89) / 0.7 | 0.92 (0.82) / 0.0 |
+| Circuit de la Sarthe (Le Mans) | 0.64 / 7.3 | 0.89 / 17.4 | 1.00 / 16.6 | 1.00 / 16.6 | 1.00 / 15.3 | 1.00 / 15.3 | 1.00 / 10.7 |
+| Circuit de Monaco | 0.94 / 4.7 | 1.00 / 6.7 | 1.00 / 4.0 | 1.00 / 4.0 | 1.00 / 4.0 | 1.00 / 4.0 | 0.83 / 4.3 |
+| Silverstone Circuit | 0.52 / 1.3 | 0.73 / 3.7 | 1.00 / 5.0 | 1.00 / 5.0 | 1.00 / 4.5 | 1.00 / 4.5 | 0.68 / 2.8 |
+| Circuit de Spa-Francorchamps | 0.57 / 0.3 | 0.92 / 4.3 | 1.00 / 3.0 | 1.00 / 2.0 | 1.00 / 3.0 | 1.00 / 2.0 | 0.93 / 3.0 |
+| **Total** | 0.78 / 1.15 | 0.95 / 4.46 | 1.00 / 2.96 | 1.00 / 2.85 | 1.00 / 2.63 | 1.00 / 2.52 | 0.91 / 1.64 |
+
+Estabilidad (std de la posicion entre vueltas, m): antes segmenter 32.7, union 30.05; despues single_lap 24.99, single_lap_no_table 23.88.
+
+## Validacion cruzada por circuito
+
+Leave-one-circuit-out: los parametros de cada fila se eligieron mirando solo los otros 4 circuitos (rejilla de 243 configuraciones: min_share en [0.5, 0.6, 0.75], cluster_tol_min_m en [40.0, 60.0, 90.0], match_pad_m en [40.0, 60.0, 90.0], unbacked_min_support en [0.4, 0.6, 0.8], group_gap_m en [80.0, 120.0, 160.0]). 'En muestra' = los parametros por defecto de corner_map (el optimo con todos los circuitos) evaluados en ese circuito.
+
+Cada celda: validacion cruzada (en muestra entre parentesis). Recall con nombre contra la tabla, sin inyectarla; ruido = detecciones sin curva tabulada ni geometrica.
+
+| Circuito | Vueltas | Recall consenso (telemetria + geometria) | Recall vuelta a vuelta | Recall solo telemetria | Extras/vuelta | Ruido/vuelta | Parametros elegidos sin mirar el circuito |
+|---|---|---|---|---|---|---|---|
+| imola | 56 | 0.89 (0.89) | 0.89 (0.89) | 0.82 (0.82) | 0.6 (0.6) | 0.01 (0.01) | min_share=0.6, cluster_tol_min_m=90.0, match_pad_m=90.0, unbacked_min_support=0.4, group_gap_m=120.0 |
+| le_mans | 7 | 1.00 (1.00) | 1.00 (1.00) | 1.00 (1.00) | 14.2 (14.2) | 0.14 (0.14) | min_share=0.6, cluster_tol_min_m=90.0, match_pad_m=90.0, unbacked_min_support=0.4, group_gap_m=120.0 |
+| monaco | 3 | 1.00 (1.00) | 1.00 (1.00) | 0.83 (0.83) | 4.1 (4.1) | 0.00 (0.00) | min_share=0.6, cluster_tol_min_m=60.0, match_pad_m=90.0, unbacked_min_support=0.4, group_gap_m=120.0 |
+| silverstone | 6 | 1.00 (1.00) | 1.00 (1.00) | 0.68 (0.68) | 4.1 (4.1) | 0.06 (0.06) | min_share=0.6, cluster_tol_min_m=90.0, match_pad_m=90.0, unbacked_min_support=0.4, group_gap_m=120.0 |
+| spa_francorchamps | 9 | 1.00 (1.00) | 1.00 (1.00) | 0.93 (0.93) | 2.3 (2.3) | 0.00 (0.00) | min_share=0.6, cluster_tol_min_m=90.0, match_pad_m=90.0, unbacked_min_support=0.4, group_gap_m=120.0 |
+| **Total** | 81 | 0.92 (0.92) | 0.92 (0.92) | 0.84 (0.84) | 2.3 (2.3) | 0.02 (0.02) | |
+
+Objetivo medio en la rejilla: minimo 0.7596, mediana 0.7832, maximo 0.8418; por defecto 0.8311. 4 de 5 pliegues eligen la misma configuracion que el optimo con todos los circuitos. Los valores por defecto de `corner_map` coinciden con ese optimo salvo cluster_tol_min_m 60 (optimo de la rejilla: 90) (se mantiene el valor razonado: la diferencia de objetivo es pequena). El optimo es estable, pero la muestra son 5 circuitos de un solo simulador.
+
+Variante evaluada: `map_no_table, single_lap_no_table y map_telemetry (media)`. Objetivo: recall - 0.1 * ruido - 0.02 * extras, media de las tres variantes.
 
 ## Mapas de curvas
 
@@ -179,21 +213,21 @@ Nunca detectadas por cada detector (aunque otro si las vea):
 
 ## Archivos utilizados
 
-- fn_imola_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld (imola, ks_porsche_cayman_gt4_clubsport, 21 vueltas, mapa en 2.05 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- imola_&_ferrari_458_&_piloto_&_stint_1.ld (imola, ferrari_458, 4 vueltas, mapa en 0.35 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_1.ld (imola, ks_porsche_919_hybrid_2016, 4 vueltas, mapa en 0.33 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld (imola, ks_porsche_919_hybrid_2016, 1 vueltas, mapa en 0.11 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld (silverstone, ks_porsche_919_hybrid_2016, 5 vueltas, mapa en 0.68 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld (silverstone, ks_porsche_919_hybrid_2016, 1 vueltas, mapa en 0.1 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- monaco_2020_&_cky_porschecarrera_gt_04_&_piloto_&_stint_1.ld (monaco, cky_porschecarrera_gt_04, 2 vueltas, mapa en 0.15 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- monaco_2020_&_f_porsche_gt2rs_mr_&_piloto_&_stint_1.ld (monaco, f_porsche_gt2rs_mr, 1 vueltas, mapa en 0.08 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- spa_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld (spa_francorchamps, ks_porsche_cayman_gt4_clubsport, 3 vueltas, mapa en 0.34 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld (le_mans, ks_porsche_919_hybrid_2016, 4 vueltas, mapa en 0.59 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld (le_mans, ks_porsche_919_hybrid_2016, 3 vueltas, mapa en 0.43 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- cayman_gt4_imola_assetto_corsa.csv (imola, ks_porsche_cayman_gt4_clubsport, 21 vueltas, mapa en 2.67 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- porsche_gt4_spa.csv (spa_francorchamps, ks_porsche_cayman_gt4_clubsport, 3 vueltas, mapa en 0.44 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- imola_5laps.csv.gz (imola, ks_porsche_cayman_gt4_clubsport, 5 vueltas, mapa en 0.41 s incluidas las 4 variantes y el modo vuelta a vuelta)
-- spa_3laps.csv.gz (spa_francorchamps, ks_porsche_cayman_gt4_clubsport, 3 vueltas, mapa en 0.31 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- fn_imola_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld (imola, ks_porsche_cayman_gt4_clubsport, 21 vueltas, mapa en 2.3 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- imola_&_ferrari_458_&_piloto_&_stint_1.ld (imola, ferrari_458, 4 vueltas, mapa en 0.54 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_1.ld (imola, ks_porsche_919_hybrid_2016, 4 vueltas, mapa en 0.54 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- imola_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld (imola, ks_porsche_919_hybrid_2016, 1 vueltas, mapa en 0.12 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld (silverstone, ks_porsche_919_hybrid_2016, 5 vueltas, mapa en 0.74 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- ks_silverstone_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld (silverstone, ks_porsche_919_hybrid_2016, 1 vueltas, mapa en 0.15 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- monaco_2020_&_cky_porschecarrera_gt_04_&_piloto_&_stint_1.ld (monaco, cky_porschecarrera_gt_04, 2 vueltas, mapa en 0.26 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- monaco_2020_&_f_porsche_gt2rs_mr_&_piloto_&_stint_1.ld (monaco, f_porsche_gt2rs_mr, 1 vueltas, mapa en 0.13 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- spa_&_ks_porsche_cayman_gt4_clubsport_&_piloto_&_stint_1.ld (spa_francorchamps, ks_porsche_cayman_gt4_clubsport, 3 vueltas, mapa en 0.47 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_2.ld (le_mans, ks_porsche_919_hybrid_2016, 4 vueltas, mapa en 0.61 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- sx_lemans_&_ks_porsche_919_hybrid_2016_&_piloto_&_stint_3.ld (le_mans, ks_porsche_919_hybrid_2016, 3 vueltas, mapa en 0.44 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- cayman_gt4_imola_assetto_corsa.csv (imola, ks_porsche_cayman_gt4_clubsport, 21 vueltas, mapa en 2.09 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- porsche_gt4_spa.csv (spa_francorchamps, ks_porsche_cayman_gt4_clubsport, 3 vueltas, mapa en 0.31 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- imola_5laps.csv.gz (imola, ks_porsche_cayman_gt4_clubsport, 5 vueltas, mapa en 0.4 s incluidas las 4 variantes y el modo vuelta a vuelta)
+- spa_3laps.csv.gz (spa_francorchamps, ks_porsche_cayman_gt4_clubsport, 3 vueltas, mapa en 0.29 s incluidas las 4 variantes y el modo vuelta a vuelta)
 
 ## Archivos omitidos
 
