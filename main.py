@@ -113,6 +113,7 @@ from src.analytics.slip_angle import analizar_slip_angle
 from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
 from src.analytics.session_corner_analysis import analizar_curvas_sesion, get_corner_observations
 from src.analytics import circuits as circuits_db  # circuitos conocidos y nombres de curva
+from src.analytics.incidents import detect_incidents
 from src.analytics import corner_service  # mapa unificado de curvas (CORNER_DETECTION=map|legacy) + caché
 from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 from src.analytics.tyre_degradation import predecir_degradacion_neumatico
@@ -793,7 +794,9 @@ def analyze_session_endpoint(
         result["data_quality"] = safe_assess_dq(
             df, build_dq_meta(path, filename, "session"), result, lang)
         if _seg_laps:  # mapa unificado de curvas de la sesión (aditivo; en caché para stint / vuelta óptima / comparar)
-            corner_service.attach(result, _session_map(_seg_laps, _venue, inp.sha))
+            _cm = _session_map(_seg_laps, _venue, inp.sha)
+            corner_service.attach(result, _cm)
+            result["incidents"] = detect_incidents(_seg_laps, _cm)   # trompos / salidas de pista + causa probable
 
         return JSONResponse(content=_sanitize(result))
 
@@ -1620,6 +1623,7 @@ def analyze_stint_endpoint(
             "track_evolution":       track_evolution,
         }
         corner_service.attach(stint_result, cmap)   # before enrich_stint: names come from the map
+        stint_result["incidents"] = detect_incidents(dfs, cmap)
         try:
             _flying = df_laps.index[~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()].tolist()
             _len = circuits_db.median_lap_length(

@@ -127,6 +127,10 @@ Notes: the server can only read your game folder when it runs on the same comput
 
 If the circuit in the file header is known, the interface shows a badge with its name and length, and corners are shown as "Corner 4 - Tamburello". **19 circuits are recognised and 7 have corner names**: Imola, Spa-Francorchamps, Silverstone GP, Le Mans and Monaco (high confidence) and Mugello and Brands Hatch GP (medium confidence). The other 12 (Monza, Red Bull Ring, Nordschleife and others) are only recognised, and their corners keep their number. If the lap length does not match the circuit (another layout or a partial lap) the badge says "low confidence" and no names are shown. Names are never guessed: a corner table is published only when it was verified against real telemetry.
 
+### Spins and off-track excursions
+
+After a session analysis, the **Spins and off-track excursions** panel (in the stint section) lists each spin, saved slide and off-track with its lap, corner and speed. Open one to see the **most likely cause** with the numbers behind it (for example "throttle 95 % vs 60 % on your other laps at this point"), how to avoid it, other contributing factors and a chart of pedals, steering, speed and slip angle around the moment. A corner that appears several times is flagged as repeated. Causes are inferences from your inputs, not certainties; the panel also states which signals your log offers (body velocity and tyre dirt are available in Assetto Corsa ACTI logs; iRacing offers a track-surface channel). Wind is only assessed when the log records it. Details: [docs/18_incidents.md](./18_incidents.md).
+
 ### Theme
 
 Use the theme selector in the top bar: **System** (follows your operating system), **Light** or **Dark**. The choice is remembered in your browser. Text and chart colours were checked for contrast in both themes (64 colour pairs per theme, no failures).

@@ -127,6 +127,10 @@ Notas: el servidor solo puede leer la carpeta del juego si corre en el mismo equ
 
 Si el circuito de la cabecera del archivo es conocido, la interfaz muestra una insignia con su nombre y longitud, y las curvas se muestran como "Curva 4 - Tamburello". **Se reconocen 19 circuitos y 7 tienen nombres de curva**: Imola, Spa-Francorchamps, Silverstone GP, Le Mans y Mónaco (confianza alta) y Mugello y Brands Hatch GP (confianza media). Los otros 12 (Monza, Red Bull Ring, Nordschleife y más) solo se reconocen y sus curvas conservan el número. Si la longitud de la vuelta no coincide con el circuito (otro trazado o vuelta parcial) la insignia dice "confianza baja" y no se muestran nombres. Los nombres nunca se adivinan: una tabla de curvas se publica solo cuando se verificó con telemetría real.
 
+### Trompos y salidas de pista
+
+Tras analizar una sesión, el panel **Trompos y salidas de pista** (en la sección de stint) lista cada trompo, derrape salvado y salida de pista con su vuelta, curva y velocidad. Ábrelo para ver la **causa más probable** con los números que la respaldan (por ejemplo "acelerador 95 % frente a 60 % en tus otras vueltas en este punto"), cómo evitarlo, otros factores que contribuyen y una gráfica de pedales, volante, velocidad y deslizamiento alrededor del momento. Una curva que aparece varias veces se marca como repetida. Las causas son inferencias a partir de tus inputs, no certezas; el panel también indica qué señales ofrece tu registro (velocidad del chasis y suciedad de neumáticos en los registros ACTI de Assetto Corsa; iRacing ofrece un canal de superficie de pista). El viento solo se evalúa si el registro lo graba. Detalle: [docs/18_incidents.es.md](./18_incidents.es.md).
+
 ### Tema
 
 Usá el selector de tema de la barra superior: **Sistema** (sigue tu sistema operativo), **Claro** u **Oscuro**. La elección se recuerda en tu navegador. Los colores de texto y gráficos se verificaron por contraste en ambos temas (64 pares de colores por tema, sin fallos).

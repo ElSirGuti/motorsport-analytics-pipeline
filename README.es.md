@@ -317,6 +317,10 @@ Código en `src/api/library.py`, `src/db/` (modelos SQLAlchemy y motor), `src/an
 
 Módulo `src/analytics/data_quality.py`. Se incluye en las respuestas como `data_quality` y es lo primero que se muestra en la interfaz. Da una **puntuación 0-100** (buena >= 75, aceptable >= 50, pobre por debajo) con desglose, y lista: origen (simulador, coche, circuito, frecuencia de muestreo, duración), **canales** (presentes, ausentes, constantes, sintetizados, dispersos, parciales), **vueltas** (válidas, de pit, atípicas, segmentos parciales descartados), **módulos de análisis** (ok, degradado o no disponible, con el motivo concreto) y una lista priorizada de **cómo mejorar**. Reutiliza las banderas `available`/`reason`/`low_confidence` que los módulos ya producen en lugar de recalcularlas.
 
+### Incidentes: trompos y salidas de pista
+
+Módulo `src/analytics/incidents.py` (detalle en [docs/18_incidents.es.md](docs/18_incidents.es.md)). El objeto `incidents` de `/api/analyze-session` y `/api/stint/analyze` lista cada **trompo**, **derrape** salvado y **salida de pista** con la vuelta, la curva (del mapa unificado), la velocidad, el tiempo perdido y la **causa probable** con su evidencia y consejo: demasiado acelerador a la salida, levantar a mitad de curva, frenar con volante, demasiado volante o muy brusco, contravolante tardío, sobrecorrección, entrada demasiado rápida, poco agarre (neumáticos fríos o sucios), piano o bache, reducción de marcha, subviraje y viento (confianza baja). Las causas se puntúan con los inputs previos a la pérdida comparados con tus otras vueltas en el mismo punto. Usa la mejor señal que tenga cada registro (velocidad del chasis, posición + guiñada o solo guiñada para el deslizamiento; suciedad de neumáticos, el canal de superficie de iRacing o la distancia a tu línea habitual para las salidas de pista) y el panel dice cuál. Las causas son inferencias, no certezas; los contactos con otros coches no se ven.
+
 ### Informe PDF
 
 Rediseñado y bilingüe (ES/EN, sigue el idioma de la interfaz). **Descargar informe** en la interfaz envía los resultados ya calculados a `POST /api/report/session-pdf-from-json` (sesión, stint y opcionalmente una comparación); las comparaciones de dos archivos o de pares de vueltas usan `POST /api/report/pdf-from-json`. Las secciones incluyen resumen ejecutivo, hallazgos clave, acciones recomendadas, calidad de datos y limitaciones, ritmo y vueltas, curvas en orden de pista, recomendaciones de setup, estrategia y neumáticos y, en comparaciones, telemetría del coche y comparación de trazas. Nombre del archivo: `motorsport_<circuito>_<coche>_<fecha>.pdf`.
@@ -455,7 +459,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (539 recogidos: 513 se ejecutan por defecto, 26 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (555 recogidos: 527 se ejecutan por defecto, 28 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -478,6 +482,7 @@ Módulos de `src/analytics/`:
 | `driver_inputs.py` | FFT del volante, nerviosismo, solapamiento de pedales | [11](docs/11_driver_inputs.es.md) |
 | `suspension.py` | Cabeceo, balanceo, tope de suspensión | [12](docs/12_suspension.es.md) |
 | `slip_angle.py` | Ángulo de deriva y balance | [13](docs/13_slip_angle.es.md) |
+| `incidents.py` | Trompos, derrapes salvados y salidas de pista con causa probable | [18](docs/18_incidents.es.md) |
 | `thermal_management.py` | Temperaturas y presiones de neumáticos, frenos y fluidos en la sesión | [14](docs/14_thermal_management.es.md) |
 | `tyre_degradation.py` | Predicción de degradación de neumáticos, detección de desgaste activo | [15](docs/15_tyre_degradation.es.md) |
 | `racing_line_rl.py` | Optimización de la trazada | [16](docs/16_racing_line_rl.es.md) |
@@ -501,8 +506,8 @@ Hay 26 endpoints (13 de análisis e informes, 5 de setups, 8 de biblioteca), lis
 | `/api/health` | GET | ninguna | `{status, service, version}` |
 | `/api/files` | POST | `file`: CSV, `.ibt` o `.ld` | `{file_id, filename, size_bytes, format, venue, vehicle, driver, ttl_hours}`; `413` si supera `MAX_UPLOAD_MB`, `400` si está vacío |
 | `/api/files/{file_id}` | GET | id SHA-256 | `{file_id, filename, size_bytes}`, o `410` si el cliente debe volver a subirlo |
-| `/api/analyze-session` | POST | `session_file` o `file_id` | JSON con `laps` (tiempo, banderas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `data_quality`. Si no se puede segmentar ninguna vuelta, `laps` vacío y un `message`. |
-| `/api/stint/analyze` | POST | `laps`: un archivo de sesión, o 3 o más archivos de una vuelta; o `file_id` de una sesión | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `health_summary`, `data_quality` |
+| `/api/analyze-session` | POST | `session_file` o `file_id` | JSON con `laps` (tiempo, banderas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `incidents`, `data_quality`. Si no se puede segmentar ninguna vuelta, `laps` vacío y un `message`. |
+| `/api/stint/analyze` | POST | `laps`: un archivo de sesión, o 3 o más archivos de una vuelta; o `file_id` de una sesión | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `incidents`, `health_summary`, `data_quality` |
 | `/api/optimal-lap` | POST | `session_file` o `file_id`; opcionales `microsector_m` (por defecto 25), `speed_tol_kmh` (por defecto 3) | Vuelta óptima teórica y realista, ganancias, microsectores, zonas, curvas, `corner_map`, contribuciones, avisos (ver "Vuelta óptima") |
 | `/api/compare-laps` | POST | `lap_a`, `lap_b` | Comparación básica: `summary`, comparaciones de velocidad/freno/acelerador, `time_delta_series`, `corners`, `corner_map`, `track_map`, `metadata`, `text_report`, `setup_advisor` y los resultados de los módulos avanzados cuando estén disponibles |
 | `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (o `lap_fast_id`, `lap_slow_id`); query `resolution_m` (por defecto 5) | Pipeline avanzado: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `corner_map`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, resultados de neumáticos/frenos/inputs/suspensión/slip, `data_quality` |
@@ -573,7 +578,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 539 recogidos: 513 se ejecutan, 26 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 555 recogidos: 527 se ejecutan, 28 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint
@@ -602,7 +607,7 @@ Añade siempre ambos idiomas y mantén las claves únicas entre módulos. Ver [C
 |---|---|
 | Usuarios | [Guía de Usuario](docs/GUIA_USUARIO.es.md), [Referencia Rápida](docs/REFERENCIA_RAPIDA.es.md) |
 | Operación | [Despliegue: local, Docker, Kubernetes](docs/DEPLOYMENT.es.md) |
-| Desarrolladores | [Índice de docs](docs/README.es.md) con los 17 documentos científicos de módulos (matemáticas, algoritmos, figuras), [frontend/README.md](frontend/README.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Desarrolladores | [Índice de docs](docs/README.es.md) con los 18 documentos científicos de módulos (matemáticas, algoritmos, figuras), [frontend/README.md](frontend/README.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Inglés | [README.md](README.md), [User Guide](docs/USER_GUIDE.md), [Quick Reference](docs/QUICK_REFERENCE.md), [Deployment](docs/DEPLOYMENT.md), [docs/README.md](docs/README.md) |
 
 ## Limitaciones conocidas

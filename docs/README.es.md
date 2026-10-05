@@ -19,7 +19,7 @@
 |-----------|-----------|
 | [README principal](../README.es.md) | Inicio rápido, instalación, funciones, formatos, tabla de la API, configuración, tests, arquitectura |
 | [Despliegue](./DEPLOYMENT.es.md) | Local, Docker Compose y Kubernetes (Kustomize); contrato de variables (todas), instalación de Docker/kind en Windows, caché de subida única, qué se verificó en Docker Compose y kind y qué no, solución de problemas del primer despliegue |
-| [Tests](../tests/README.md) | Suites de tests (539 recogidos; 513 se ejecutan por defecto, 26 e2e requieren `E2E=1`), fixtures reales anonimizados, tests del modo comparar dos archivos, tests end-to-end y visuales (en inglés) |
+| [Tests](../tests/README.md) | Suites de tests (555 recogidos; 527 se ejecutan por defecto, 28 e2e requieren `E2E=1`), fixtures reales anonimizados, tests del modo comparar dos archivos, tests end-to-end y visuales (en inglés) |
 | [README del frontend](../frontend/README.md) | Estructura de la UI, sistema de diseño y temas, cliente de API, módulos i18n, build y lint (en inglés, con resumen en español) |
 | [CONTRIBUTING](../CONTRIBUTING.md) | Cómo contribuir: flujo, traducciones por módulo, tests, sin datos personales (en inglés, con resumen en español) |
 | [LICENSE](../LICENSE) | Licencia MIT |
@@ -72,6 +72,7 @@ Documentación científica de todos los módulos de análisis. Cada sección inc
 | 15 | [Modelo de Degradación de Neumáticos](./15_tyre_degradation.es.md) | Tasa de degradación corregida por combustible, detección de desgaste activo, proyección del cliff |
 | 16 | [Optimización de Línea de Carrera (RL)](./16_racing_line_rl.es.md) | Q-learning tabular por curva sobre intervalos de frenada / ápice / acelerador |
 | 17 | [Asesor de Configuración del Vehículo](./17_setup_advisor.es.md) | Recomendaciones de setup por reglas (vuelta y sesión) y vinculación con el setup de Assetto Corsa |
+| 18 | [Incidentes](./18_incidents.es.md) | Detección de trompos, derrapes salvados y salidas de pista con causa probable puntuada y consejo |
 
 ---
 

@@ -41,7 +41,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 # ── i18n: leer textos de frontend/src/i18n por clave (resistente a cambios de copy) ──
-_EXTRAS = ("_init", "cornerMap", "data_quality", "formats", "library", "optimalLap", "pdf", "setups", "theme")
+_EXTRAS = ("_init", "cornerMap", "data_quality", "formats", "incidents", "library", "optimalLap", "pdf", "setups", "theme")
 _I18N_FILES = {lg: [f"{lg}.js"] + [f"extra/{n}.{lg}.js" for n in _EXTRAS] for lg in ("en", "es")}
 _i18n_cache: dict = {}
 
@@ -210,6 +210,15 @@ def imola_csv(tmp_path_factory) -> str:
     dst = d / "imola_5laps.csv"
     with gzip.open(src, "rb") as a, open(dst, "wb") as b:
         shutil.copyfileobj(a, b)
+    return str(dst)
+
+
+@pytest.fixture(scope="session")
+def spin_csv(tmp_path_factory) -> str:
+    """Synthetic 4-lap session with a spin (power oversteer) and an off-track in lap 2."""
+    from tests.test_incidents import write_session_csv
+    dst = tmp_path_factory.mktemp("e2e_spin") / "spin_session.csv"
+    write_session_csv(dst, spin_lap=2)
     return str(dst)
 
 

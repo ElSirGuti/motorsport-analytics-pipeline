@@ -152,6 +152,41 @@ COLUMN_ALIASES = {
     "TyrePressColdFR": ["RFcoldPressure", "TyrePressColdFR"],
     "TyrePressColdRL": ["LRcoldPressure", "TyrePressColdRL"],
     "TyrePressColdRR": ["RRcoldPressure", "TyrePressColdRR"],
+    # ── Incident-analysis channels (spins / off-track): optional, ACTI + iRacing ──
+    "BodyVelX":   ["Chassis Velocity X"],   # m/s, forward in the car frame (ACTI)
+    "BodyVelY":   ["Chassis Velocity Y"],   # m/s, lateral in the car frame (ACTI)
+    "WindSpeed":  ["Wind Speed", "WindVel"],
+    "WindDir":    ["Wind Direction", "WindDir"],
+    "SurfaceGrip": ["Surface Grip"],
+    "VerticalG":  ["CG Accel Vertical", "VertAccel"],
+    "TCActive":   ["TC Active"],
+    "ABSActive":  ["ABS Active"],
+    "LapInvalid": ["Lap Invalidated"],
+    "TrackSurface": ["PlayerTrackSurface"],  # iRacing: 0 = off track
+    "DirtFL": ["Tire Dirt Level FL"],
+    "DirtFR": ["Tire Dirt Level FR"],
+    "DirtRL": ["Tire Dirt Level RL"],
+    "DirtRR": ["Tire Dirt Level RR"],
+    "SlipAngleFL": ["Tire Slip Angle FL"],
+    "SlipAngleFR": ["Tire Slip Angle FR"],
+    "SlipAngleRL": ["Tire Slip Angle RL"],
+    "SlipAngleRR": ["Tire Slip Angle RR"],
+    "SlipRatioFL": ["Tire Slip Ratio FL"],
+    "SlipRatioFR": ["Tire Slip Ratio FR"],
+    "SlipRatioRL": ["Tire Slip Ratio RL"],
+    "SlipRatioRR": ["Tire Slip Ratio RR"],
+    "WheelSpeedFL": ["Wheel Angular Speed FL"],
+    "WheelSpeedFR": ["Wheel Angular Speed FR"],
+    "WheelSpeedRL": ["Wheel Angular Speed RL"],
+    "WheelSpeedRR": ["Wheel Angular Speed RR"],
+    "TyreLoadFL": ["Tire Load FL"],
+    "TyreLoadFR": ["Tire Load FR"],
+    "TyreLoadRL": ["Tire Load RL"],
+    "TyreLoadRR": ["Tire Load RR"],
+    "TyreGripFL": ["Tire Rubber Grip FL"],
+    "TyreGripFR": ["Tire Rubber Grip FR"],
+    "TyreGripRL": ["Tire Rubber Grip RL"],
+    "TyreGripRR": ["Tire Rubber Grip RR"],
 }
 
 # Canales que DEBEN existir para que el pipeline funcione

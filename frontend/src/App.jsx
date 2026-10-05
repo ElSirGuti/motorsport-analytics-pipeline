@@ -5,6 +5,7 @@ import BrakeThrottleChart from './components/BrakeThrottleChart';
 import TimeDeltaChart from './components/TimeDeltaChart';
 import SummaryCard from './components/SummaryCard';
 import CornerReport from './components/CornerReport';
+import IncidentsPanel from './components/IncidentsPanel';
 import { markerCorners } from './utils/cornerKind';
 import TrackMap from './components/TrackMap';
 import OptimalLapPanel from './components/OptimalLapPanel';
@@ -1318,6 +1319,11 @@ export default function App() {
                     montecarlo={stintResult.montecarlo}
                     laps={stintResult.laps}
                   />
+                  {(stintResult.incidents?.available || sessionResult.incidents?.available) && (
+                    <div className="shell-gap">
+                      <IncidentsPanel data={stintResult.incidents?.available ? stintResult.incidents : sessionResult.incidents} />
+                    </div>
+                  )}
                   {stintResult.combustible?.available && (
                     <div className="shell-gap">
                       <PitWindowWidget combustible={stintResult.combustible} />

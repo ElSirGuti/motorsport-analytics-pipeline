@@ -317,6 +317,10 @@ Code in `src/api/library.py`, `src/db/` (SQLAlchemy models and engine), `src/ana
 
 Module `src/analytics/data_quality.py`. Included in the responses as `data_quality` and shown first in the UI. It gives a **0-100 score** (good >= 75, fair >= 50, poor below) with a breakdown, and lists: source (sim, car, circuit, sample rate, duration), **channels** (present, missing, constant, synthesised, sparse, partial), **laps** (valid, pit, outliers, partial segments dropped), **analysis modules** (ok, degraded or unavailable, with the concrete reason) and a prioritised **how to improve** list. It reuses the `available`/`reason`/`low_confidence` flags the modules already produce instead of recomputing them.
 
+### Incidents: spins and off-track excursions
+
+Module `src/analytics/incidents.py` (details in [docs/18_incidents.md](docs/18_incidents.md)). The `incidents` object of `/api/analyze-session` and `/api/stint/analyze` lists every **spin**, saved **slide** and **off-track** excursion with the lap, the corner (from the unified corner map), the speed, the time lost and the **probable cause** with its evidence and advice: too much throttle on exit, lifting mid-corner, braking while steering, too much or too abrupt steering, late counter-steer, over-correction, entry too fast, low grip (cold or dirty tyres), kerb or bump, downshift, understeer, and wind (low confidence). Causes are scored from the inputs before the loss compared with your other laps at the same place. It uses the best signal each log has (body velocity, position + yaw, or yaw only for the slip angle; tyre dirt, the iRacing track-surface channel or the distance to your usual line for off-track) and says which one in the panel. Causes are inferences, not certainties; contact with other cars is not visible.
+
 ### PDF report
 
 Redesigned and bilingual (ES/EN, follows the UI language). **Download report** in the UI posts the already computed results to `POST /api/report/session-pdf-from-json` (session, stint and optionally a comparison); two-file and lap-pair comparisons use `POST /api/report/pdf-from-json`. Sections include executive summary, key findings, recommended actions, data quality and limitations, pace and laps, corners in track order, setup recommendations, strategy and tyres, and (in comparisons) car telemetry and trace comparisons. File name: `motorsport_<circuit>_<car>_<date>.pdf`.
@@ -454,7 +458,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (539 collected: 513 run by default, 26 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (555 collected: 527 run by default, 28 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -477,6 +481,7 @@ docs/                    User guides, deployment guide and scientific documentat
 | `driver_inputs.py` | Steering FFT, nervousness, pedal overlap | [11](docs/11_driver_inputs.md) |
 | `suspension.py` | Pitch, roll, bottoming | [12](docs/12_suspension.md) |
 | `slip_angle.py` | Sideslip and balance | [13](docs/13_slip_angle.md) |
+| `incidents.py` | Spins, saved slides and off-track excursions with probable cause | [18](docs/18_incidents.md) |
 | `thermal_management.py` | Tyre, brake and fluid temperatures and pressures over a session | [14](docs/14_thermal_management.md) |
 | `tyre_degradation.py` | Tyre degradation prediction, wear-tracking detection | [15](docs/15_tyre_degradation.md) |
 | `racing_line_rl.py` | Racing-line optimisation | [16](docs/16_racing_line_rl.md) |
@@ -500,8 +505,8 @@ There are 26 endpoints (13 analysis and reports, 5 setups, 8 library), listed be
 | `/api/health` | GET | none | `{status, service, version}` |
 | `/api/files` | POST | `file`: CSV, `.ibt` or `.ld` | `{file_id, filename, size_bytes, format, venue, vehicle, driver, ttl_hours}`; `413` above `MAX_UPLOAD_MB`, `400` if empty |
 | `/api/files/{file_id}` | GET | SHA-256 id | `{file_id, filename, size_bytes}`, or `410` if the client must upload again |
-| `/api/analyze-session` | POST | `session_file` or `file_id` | JSON with `laps` (time, pit/outlier flags), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `data_quality`. If no laps can be segmented, empty `laps` and a `message`. |
-| `/api/stint/analyze` | POST | `laps`: one session file, or 3 or more single-lap files; or `file_id` of a session | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `health_summary`, `data_quality` |
+| `/api/analyze-session` | POST | `session_file` or `file_id` | JSON with `laps` (time, pit/outlier flags), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `incidents`, `data_quality`. If no laps can be segmented, empty `laps` and a `message`. |
+| `/api/stint/analyze` | POST | `laps`: one session file, or 3 or more single-lap files; or `file_id` of a session | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `incidents`, `health_summary`, `data_quality` |
 | `/api/optimal-lap` | POST | `session_file` or `file_id`; optional `microsector_m` (default 25), `speed_tol_kmh` (default 3) | Theoretical and realistic optimal lap, gains, microsectors, zones, corners, `corner_map`, contributions, warnings (see "Optimal lap") |
 | `/api/compare-laps` | POST | `lap_a`, `lap_b` | Basic comparison: `summary`, speed/brake/throttle comparisons, `time_delta_series`, `corners`, `corner_map`, `track_map`, `metadata`, `text_report`, `setup_advisor` and the advanced module results when available |
 | `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (or `lap_fast_id`, `lap_slow_id`); query `resolution_m` (default 5) | Advanced pipeline: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `corner_map`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, tyre/brake/inputs/suspension/slip results, `data_quality` |
@@ -572,7 +577,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 539 collected: 513 run, 26 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 555 collected: 527 run, 28 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint
@@ -601,7 +606,7 @@ Always add both languages; keep keys unique across modules. See [CONTRIBUTING.md
 |---|---|
 | Users | [User Guide](docs/USER_GUIDE.md), [Quick Reference](docs/QUICK_REFERENCE.md) |
 | Operators | [Deployment: local, Docker, Kubernetes](docs/DEPLOYMENT.md) |
-| Developers | [Docs index](docs/README.md) with the 17 scientific module documents (math, algorithms, figures), [frontend/README.md](frontend/README.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
+| Developers | [Docs index](docs/README.md) with the 18 scientific module documents (math, algorithms, figures), [frontend/README.md](frontend/README.md), [CONTRIBUTING.md](CONTRIBUTING.md) |
 | Spanish | [README.es.md](README.es.md), [Guia de Usuario](docs/GUIA_USUARIO.es.md), [Referencia Rapida](docs/REFERENCIA_RAPIDA.es.md), [Despliegue](docs/DEPLOYMENT.es.md), [docs/README.es.md](docs/README.es.md) |
 
 ## Known limitations

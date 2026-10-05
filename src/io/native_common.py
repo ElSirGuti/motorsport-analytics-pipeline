@@ -117,6 +117,7 @@ KINDS: Dict[str, str] = {
     "SteerAngle": "angle_deg",
     "LateralG": "accel_g", "LongitudinalG": "accel_g",
     "YawRate": "rate_degs",
+    "WindSpeed": "wind_kmh", "WindDir": "angle_deg",
     "BrakeBias": "fraction_pct",
     **{f"TyrePress{p}": "pressure_bar" for p in ("FL", "FR", "RL", "RR")},
     **{f"TyrePressCold{p}": "pressure_bar" for p in ("FL", "FR", "RL", "RR")},
@@ -128,7 +129,7 @@ KINDS: Dict[str, str] = {
 PASSTHROUGH = ("Lat", "Lon", "Alt", "YawNorth", "VelocityX", "VelocityY", "Max Fuel")
 
 # canales discretos (se mantiene el ultimo valor al remuestrear)
-DISCRETE = {"Gear", "SessionLapCount", "InPit"}
+DISCRETE = {"Gear", "SessionLapCount", "InPit", "TCActive", "ABSActive", "LapInvalid", "TrackSurface"}
 
 # canales cuya presencia se requiere para que el pipeline funcione
 _ESSENTIAL = ("Speed", "Brake", "Throttle")
@@ -160,6 +161,8 @@ def convert(kind: str, values: np.ndarray, unit: str, *, fraction_pedals: Option
         if u in ("m/s2", "ms2"):
             return v / G0
         return v                                   # ya en g
+    if kind == "wind_kmh":
+        return v * 3.6 if u in ("m/s", "ms") else v
     if kind == "rate_degs":
         return np.rad2deg(v) if u in ("rad/s", "rads") else v
     if kind == "pressure_bar":

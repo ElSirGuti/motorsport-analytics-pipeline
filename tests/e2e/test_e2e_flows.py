@@ -415,3 +415,22 @@ def test_legacy_corner_detection_ui_still_works(page, imola_csv):
     assert all("—" not in r[2] for r in rows), "legacy corners have braking figures"
     assert page.locator("[data-testid=corner-map-notice]").count() == 0
     _no_errors(page)
+
+
+@pytest.mark.parametrize("lang", ["en", "es"])
+def test_incidents_panel_shows_spin_and_cause(page, spin_csv, lang):
+    """A spin in lap 2 appears in the incidents panel with its probable cause, evidence and advice."""
+    open_app(page, lang)
+    upload_and_analyze(page, spin_csv)
+    panel = page.locator("#incidents")
+    panel.scroll_into_view_if_needed()
+    panel.wait_for(timeout=30000)
+    assert i18n(lang, "incTitle") in panel.inner_text()
+    cards = panel.locator("[data-testid=incident-card]")
+    assert cards.count() == 1
+    assert i18n(lang, "incKind_spin") in cards.first.inner_text()
+    body = panel.inner_text().lower()
+    assert ("acelerador" if lang == "es" else "throttle") in body
+    assert panel.locator("svg.recharts-surface").count() >= 2        # the two small charts around the incident
+    _no_errors(page)
+

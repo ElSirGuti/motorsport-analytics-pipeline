@@ -17,7 +17,7 @@
 |----------|---------|
 | [Root README](../README.md) | Quick start, installation, features, formats, API table, configuration, tests, architecture |
 | [Deployment](./DEPLOYMENT.md) | Local, Docker Compose and Kubernetes (Kustomize); environment contract (all variables), Windows install of Docker/kind, upload-once cache, what was verified on Docker Compose and kind and what was not, troubleshooting of the first deployment |
-| [Tests](../tests/README.md) | Test suites (539 collected; 513 run by default, 26 e2e need `E2E=1`), real anonymised fixtures, two-file compare tests, end-to-end and visual tests |
+| [Tests](../tests/README.md) | Test suites (555 collected; 527 run by default, 28 e2e need `E2E=1`), real anonymised fixtures, two-file compare tests, end-to-end and visual tests |
 | [Frontend README](../frontend/README.md) | UI structure, design system and themes, API client, i18n modules, build and lint |
 | [CONTRIBUTING](../CONTRIBUTING.md) | How to contribute: workflow, translations by module, tests, no personal data |
 | [LICENSE](../LICENSE) | MIT License |
@@ -70,6 +70,7 @@ Scientific documentation for all analysis modules. Each section covers the mathe
 | 15 | [Tyre Degradation](./15_tyre_degradation.md) | Fuel-corrected tyre degradation rate, wear-tracking detection, cliff projection |
 | 16 | [Racing Line Optimization (RL)](./16_racing_line_rl.md) | Per-corner tabular Q-learning over brake / apex / throttle execution bins |
 | 17 | [Vehicle Setup Advisor](./17_setup_advisor.md) | Rule-based setup recommendations (lap and session) and Assetto Corsa setup linkage |
+| 18 | [Incidents](./18_incidents.md) | Spin, saved-slide and off-track detection with a scored probable cause and advice |
 
 ---
 
