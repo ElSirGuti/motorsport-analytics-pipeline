@@ -107,6 +107,7 @@ EXTRA_ALIASES: Dict[str, List[str]] = {
     "RPM":           ["RPM", "Engine RPM"],
     "AirTemp":       ["AirTemp", "Air Temp"],
     "RoadTemp":      ["TrackTemp", "Road Temp"],
+    "InPit":         ["OnPitRoad", "In Pit", "InPit"],
 }
 
 # canal canonico -> tipo de conversion
@@ -127,7 +128,7 @@ KINDS: Dict[str, str] = {
 PASSTHROUGH = ("Lat", "Lon", "Alt", "YawNorth", "VelocityX", "VelocityY", "Max Fuel")
 
 # canales discretos (se mantiene el ultimo valor al remuestrear)
-DISCRETE = {"Gear", "SessionLapCount"}
+DISCRETE = {"Gear", "SessionLapCount", "InPit"}
 
 # canales cuya presencia se requiere para que el pipeline funcione
 _ESSENTIAL = ("Speed", "Brake", "Throttle")

@@ -17,7 +17,7 @@
 |----------|---------|
 | [Root README](../README.md) | Quick start, installation, features, formats, API table, configuration, tests, architecture |
 | [Deployment](./DEPLOYMENT.md) | Local, Docker Compose and Kubernetes (Kustomize); environment contract (all variables), Windows install of Docker/kind, upload-once cache, what was verified on Docker Compose and kind and what was not, troubleshooting of the first deployment |
-| [Tests](../tests/README.md) | Test suites (538 collected; 512 run by default, 26 e2e need `E2E=1`), real anonymised fixtures, two-file compare tests, end-to-end and visual tests |
+| [Tests](../tests/README.md) | Test suites (539 collected; 513 run by default, 26 e2e need `E2E=1`), real anonymised fixtures, two-file compare tests, end-to-end and visual tests |
 | [Frontend README](../frontend/README.md) | UI structure, design system and themes, API client, i18n modules, build and lint |
 | [CONTRIBUTING](../CONTRIBUTING.md) | How to contribute: workflow, translations by module, tests, no personal data |
 | [LICENSE](../LICENSE) | MIT License |
