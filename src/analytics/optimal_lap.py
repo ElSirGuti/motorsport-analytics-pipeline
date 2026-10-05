@@ -254,6 +254,7 @@ def calcular_vuelta_optima(
     min_run_m: float = DEFAULT_MIN_RUN_M,
     lang: str = "es",
     distance_synthetic: bool = False,
+    corner_map=None,
 ) -> dict:
     """
     Calcula la vuelta óptima teórica y realista a partir de las vueltas segmentadas.
@@ -266,6 +267,9 @@ def calcular_vuelta_optima(
         min_run_m:     tramo mínimo (m) con la misma vuelta antes de poder cambiar.
         lang:          "es" | "en".
         distance_synthetic: la distancia fue integrada de la velocidad (menos precisa).
+        corner_map:    mapa unificado de curvas, o una función ``(dfs, df_laps) -> mapa | None`` que lo
+                       construye (así el llamador no segmenta dos veces). Con mapa, las curvas, su
+                       numeración y sus nombres son las del mapa; sin él, los apexes por geometría.
     """
     microsector_m = float(np.clip(microsector_m, 5.0, 200.0))
     if df_laps is None:
@@ -378,7 +382,15 @@ def calcular_vuelta_optima(
     # ── 4. Curvas ─────────────────────────────────────────────────────────────
     p_best = cand[b][3]
     df_best = dfs[cand[b][0]]
-    apex_d = _corner_apexes(df_best, p_best["ax_s"], p_best["ax_v"], L)
+    cmap = corner_map(dfs, df_laps) if callable(corner_map) else corner_map
+    cmap = cmap if cmap and cmap.get("corners") else None
+    by_number = {}
+    if cmap:
+        # apex positions as lap fractions of the map, scaled to the length used here
+        by_number = {int(c["number"]): c for c in cmap["corners"]}
+        apex_d = np.array([float(c["fraction"]) * L for c in cmap["corners"]])
+    else:
+        apex_d = _corner_apexes(df_best, p_best["ax_s"], p_best["ax_v"], L)
     corner_of = _assign_corner(mid, apex_d)
     corners = []
     for cn in sorted(set(corner_of.tolist())):
@@ -400,6 +412,14 @@ def calcular_vuelta_optima(
             "donor_lap": int(donors.index[0]) if len(donors) else best_num,
             "n_microsectors": int(m.sum()),
         })
+        mc = by_number.get(int(cn))
+        if mc is not None:      # unified corner map fields (additive)
+            corners[-1].update({
+                "number": int(cn), "name": mc.get("name"), "corner_name": mc.get("name"),
+                "kind": mc.get("kind"), "direction": mc.get("direction"),
+                "min_radius_m": mc.get("min_radius_m"), "flat_out_share": mc.get("flat_out_share"),
+                "confidence": mc.get("confidence"), "is_complex": bool(mc.get("is_complex")),
+            })
 
     # perfil de velocidad: mejor vuelta / construida realista / construida teórica
     k_of = np.clip(np.searchsorted(edges, grid_pts, side="right") - 1, 0, K - 1)
@@ -452,6 +472,9 @@ def calcular_vuelta_optima(
             "donor_lap": donor,
             "hint": _l(lang, hint_key, **hint_kw),
         })
+        if cmap and c_idx in by_number:
+            zones[-1]["corner_name"] = by_number[c_idx].get("name")
+            zones[-1]["corner_kind"] = by_number[c_idx].get("kind")
     for rnk, z in enumerate(zones, 1):
         z["rank"] = rnk
 
@@ -514,7 +537,7 @@ def calcular_vuelta_optima(
 
     logger.info("optimal_lap: %d vueltas, %d microsectores, mejor=%.3f teórica=%.3f realista=%.3f",
                 n, K, best_time, t_theo, t_real)
-    return {
+    result = {
         "available": True,
         "params": {
             "microsector_m": round(float(microsector_m), 1),
@@ -556,6 +579,10 @@ def calcular_vuelta_optima(
             },
         },
     }
+    if cmap:
+        from src.analytics.corner_service import attach
+        attach(result, cmap)
+    return result
 
 
 def calcular_vuelta_optima_desde_df(df: pd.DataFrame, **kwargs) -> dict:

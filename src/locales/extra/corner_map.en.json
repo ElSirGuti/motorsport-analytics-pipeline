@@ -1,0 +1,8 @@
+{
+  "sess_flat_out": "flat out, {loss} s in the corner window (no braking, apex or throttle phase to optimise)",
+  "insight_flat_out_loss": "Flat-out corner: {delta}s lost inside its window. There is no braking point or apex to work on: check the line, the gear and the speed on the straight before it.",
+  "pdf_kind_flat_out": "flat out",
+  "pdf_kind_kink": "kink",
+  "pdf_read_flat_out": "Flat out: only the time lost in the corner window is measured.",
+  "pdf_read_kink": "Kink, taken flat out: only the time lost in the window is measured."
+}

@@ -72,16 +72,18 @@ class _CornerAgent:
         return float(np.max(valid)) if len(valid) else 0.0
 
 
-def _get_per_lap_observations(dfs: list, df_laps):
+def _get_per_lap_observations(dfs: list, df_laps, corner_map: dict | None = None):
     """
     Re-run corner extraction for each flying lap and return raw per-corner
     observations: {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
+    (with ``corner_map``: measured in the windows of the unified corner map, keyed by its numbers)
     """
     from src.analytics.session_corner_analysis import get_corner_observations
-    return get_corner_observations(dfs, df_laps)
+    return get_corner_observations(dfs, df_laps, corner_map=corner_map)
 
 
-def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None) -> dict:
+def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None,
+                         corner_map: dict | None = None) -> dict:
     """
     Train a Q-learning agent per corner using historical lap observations.
 
@@ -89,6 +91,7 @@ def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None
         dfs:              Per-lap DataFrames.
         df_laps:          Lap metrics DataFrame.
         precomputed_obs:  If provided (from get_corner_observations), skip re-aligning.
+        corner_map:       Unified corner map (used only when the observations are not precomputed).
 
     Returns per-corner optimal execution recommendations and the potential
     time gain if the driver executes closer to the learned optimal.
@@ -98,7 +101,7 @@ def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None
         obs = precomputed_obs
     else:
         logger.info("racing_line_rl: extracting per-lap corner observations…")
-        obs = _get_per_lap_observations(dfs, df_laps)
+        obs = _get_per_lap_observations(dfs, df_laps, corner_map=corner_map)
 
     if not obs:
         return {"available": False, "reason": "no corner observations extracted"}
@@ -110,6 +113,13 @@ def optimizar_trazada_rl(dfs: list, df_laps, precomputed_obs: dict | None = None
         laps = obs[corner_num]
         if len(laps) < 2:
             continue
+        # Unified corner map: a flat_out / kink corner has no braking point, apex or throttle
+        # application to optimise, so it is not trained (its time loss stays in curvas_sesion).
+        if laps[0].get("kind") in ("flat_out", "kink"):
+            continue
+        # Deltas that could not be measured in a lap (None) count as "similar" (0.0): no information.
+        laps = [{**l, **{k: (0.0 if l.get(k) is None else l[k])
+                         for k in ("brake_delta", "apex_delta", "thtl_delta")}} for l in laps]
 
         agent = _CornerAgent()
 

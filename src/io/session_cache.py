@@ -315,6 +315,90 @@ class FrameCache:
 cache = FrameCache()
 
 
+# ── Corner-map cache ─────────────────────────────────────────────────────────
+class CornerMapCache:
+    """Small LRU (entries + TTL) of unified corner maps (``src/analytics/corner_map.py``).
+
+    Why: the map is built from ALL the flying laps of a session (about 0.4 s for a 21-lap Imola file)
+    and ``analyze-session``, ``stint/analyze``, ``optimal-lap``, ``compare-session-laps`` and the
+    two-file compare endpoints must show the very same corners. The key is built by
+    ``src/analytics/corner_service.py`` from the file SHA-256 (``file_id``) + purpose + venue + lap
+    length + options, so a second endpoint (or a second upload of the same file) reuses the first
+    build. Maps are small plain dicts; callers get a deep copy. Not byte-bounded: ``CORNER_MAP_CACHE_MAX``
+    entries (default 64) and the same TTL as the frame cache. One lock per key: N simultaneous
+    requests build it once. ``builds`` counts real builds (tests assert one build per session).
+    """
+
+    def __init__(self):
+        self._data: "OrderedDict[tuple, tuple[Any, float]]" = OrderedDict()
+        self._mu = threading.Lock()
+        self._key_locks: dict = {}
+        self.hits = 0
+        self.builds = 0
+
+    @property
+    def max_entries(self) -> int:
+        return int(_env_num("CORNER_MAP_CACHE_MAX", 64, 1))
+
+    @property
+    def ttl_s(self) -> float:
+        return _env_num("SESSION_CACHE_TTL_MIN", 60, 0.01) * 60.0
+
+    def _peek(self, key: tuple):
+        with self._mu:
+            item = self._data.get(key)
+            if item is None:
+                return None
+            if time.time() - item[1] > self.ttl_s:
+                self._data.pop(key, None)
+                return None
+            self._data.move_to_end(key)
+            self._data[key] = (item[0], time.time())
+            return item[0]
+
+    def _put(self, key: tuple, value: Any) -> None:
+        with self._mu:
+            self._data[key] = (value, time.time())
+            self._data.move_to_end(key)
+            while len(self._data) > self.max_entries:
+                self._data.popitem(last=False)
+
+    def get_or_build(self, key: tuple, builder: Callable[[], Any]):
+        import copy
+        val = self._peek(key)
+        if val is not None:
+            self.hits += 1
+            return copy.deepcopy(val)
+        with self._mu:
+            lock = self._key_locks.setdefault(key, threading.Lock())
+        try:
+            with lock:
+                val = self._peek(key)
+                if val is None:
+                    self.builds += 1
+                    val = builder()
+                    if val is not None:
+                        self._put(key, val)
+                else:
+                    self.hits += 1
+        finally:
+            with self._mu:
+                if self._key_locks.get(key) is lock and not lock.locked():
+                    self._key_locks.pop(key, None)
+        return copy.deepcopy(val)
+
+    def clear(self) -> None:
+        with self._mu:
+            self._data.clear()
+
+    def stats(self) -> dict:
+        with self._mu:
+            return {"entries": len(self._data), "hits": self.hits, "builds": self.builds}
+
+
+corner_map_cache = CornerMapCache()
+
+
 # ── High level accessors (what the endpoints call) ───────────────────────────
 def raw_frame(sha: str, path: str):
     """Parsed telemetry (``load_telemetry_data``)."""

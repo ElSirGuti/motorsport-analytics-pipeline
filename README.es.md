@@ -384,7 +384,9 @@ La tabla completa de alias es `COLUMN_ALIASES` en `src/io/loaders.py`. Los canal
 4. **Deja la evidencia.** Pon `confidence` en `medium` (una vuelta o un coche) o `high` (varias vueltas y al menos dos archivos o coches), y di en `source` qué logs usaste. Nunca publiques nombres de los que no estés seguro: un nombre equivocado es peor que ninguno.
 5. **Valida.** `python -m pytest tests/test_circuits.py -q` comprueba ids, alias, orden y rangos (`validate_database`). Después sube un log de ese circuito y comprueba que los nombres aparecen en los paneles de curvas.
 
-**Límites que conviene conocer.** Una curva solo se nombra si el detector encuentra un ápice cerca de su posición tabulada (tolerancia del 2.5% de la vuelta, entre 120 y 180 m, o `apex_tolerance_m` por circuito). Una curva que un coche toma **a fondo** no tiene mínimo de velocidad y casi no tiene curvatura, así que no genera ápice y nunca se nombra: por eso Variante Bassa de Imola no está en la tabla (en 26 vueltas de 5 coches la velocidad sigue subiendo ahí). Esas curvas tampoco aparecen en la salida de la herramienta, así que una ausencia en esa lista es información, no un fallo.
+**Curvas a fondo.** Una curva que un coche toma **a fondo** no tiene mínimo de velocidad, así que un detector de telemetría por sí solo nunca la encuentra (Variante Bassa de Imola: en 26 vueltas de 5 coches la velocidad sigue subiendo ahí). El mapa de curvas unificado ([docs/CORNER_DETECTION.es.md](docs/CORNER_DETECTION.es.md)) conserva esas curvas en vez de descartarlas: parte de la geometría de la propia pista y de las curvas de esta tabla, y cuando la telemetría no muestra ápice marca la curva como `kind: "flat_out"` (con nombre, con la pérdida de tiempo de su tramo, pero sin cifras de frenada ni de ápice). Para que una se nombre, añádela a `corners` con `"kind": "flat_out"` y su `apex_fraction`; Variante Bassa es el ejemplo en la entrada de Imola. La herramienta `scripts/circuit_apexes.py` solo lista los ápices que la telemetría puede medir, así que que una curva a fondo falte en su salida es lo esperado.
+
+**Límites que conviene conocer.** Los detectores de telemetría buscan un ápice cerca de cada posición tabulada (tolerancia del 2.5% de la vuelta, entre 120 y 180 m, o `apex_tolerance_m` por circuito). Solo hay nombres para los 7 circuitos con tabla de curvas, y la plantilla de geometría solo existe para los circuitos de `src/data/track_geometry/` (pistas de Assetto Corsa); el resto usa solo el consenso de la telemetría. Con `CORNER_DETECTION=legacy` se vuelve a los detectores anteriores.
 
 ## Temas
 
@@ -401,7 +403,7 @@ Imola (57 MB): primer resultado en unos 2,1 s y todo en unos 2,9 s, en lugar de 
 - **La segmentación de vueltas** es única en todos los endpoints: por canal contador de vueltas (`Session Lap Count`, `Lap`, ...) o, si no existe, por reinicios de distancia. Los segmentos parciales de menos de 30 s se descartan. Si se encuentran menos de 2 vueltas, la API responde con un mensaje de error.
 - **Vueltas de pit y atípicas:** una vuelta se marca como pit si el canal `In Pit` lo indica; las vueltas fuera del 70-115 % de la mediana también se marcan como atípicas y se excluyen de regresiones y proyecciones.
 - **Las ventanas de curva no se solapan:** cada ventana se recorta en el punto medio entre ápices vecinos. El `summary` de la comparación incluye `corners_time_delta_s` (tiempo ganado/perdido dentro de curvas) y `outside_corners_delta_s` (el resto).
-- **El emparejamiento de curvas** entre dos vueltas usa la distancia del ápice, no el índice de curva.
+- **El emparejamiento de curvas** entre dos vueltas usa la distancia del ápice, no el índice de curva. Con el valor por defecto `CORNER_DETECTION=map` no hay emparejamiento: todos los endpoints toman sus curvas (números, nombres, ventanas, marcas `flat_out`) de un único mapa unificado, ver [docs/CORNER_DETECTION.es.md](docs/CORNER_DETECTION.es.md).
 - **Valores no medibles:** `braking_delta_available` y `throttle_delta_available` indican si los deltas de frenada/acelerador se pudieron medir. Un `0.0` con `available = false` significa "no medible", no "sin diferencia".
 - **Canales constantes** (por ejemplo, temperaturas de freno fijas en un valor) devuelven `available: false` con un `reason` en lugar de generar recomendaciones falsas.
 - **Baja confianza:** las proyecciones con muy pocas vueltas llevan `low_confidence`, `confidence` y `reason` (ver "Proyecciones realistas").
@@ -453,7 +455,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (514 recogidos: 491 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (535 recogidos: 512 se ejecutan por defecto, 23 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -499,13 +501,13 @@ Hay 26 endpoints (13 de análisis e informes, 5 de setups, 8 de biblioteca), lis
 | `/api/health` | GET | ninguna | `{status, service, version}` |
 | `/api/files` | POST | `file`: CSV, `.ibt` o `.ld` | `{file_id, filename, size_bytes, format, venue, vehicle, driver, ttl_hours}`; `413` si supera `MAX_UPLOAD_MB`, `400` si está vacío |
 | `/api/files/{file_id}` | GET | id SHA-256 | `{file_id, filename, size_bytes}`, o `410` si el cliente debe volver a subirlo |
-| `/api/analyze-session` | POST | `session_file` o `file_id` | JSON con `laps` (tiempo, banderas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `data_quality`. Si no se puede segmentar ninguna vuelta, `laps` vacío y un `message`. |
-| `/api/stint/analyze` | POST | `laps`: un archivo de sesión, o 3 o más archivos de una vuelta; o `file_id` de una sesión | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `health_summary`, `data_quality` |
-| `/api/optimal-lap` | POST | `session_file` o `file_id`; opcionales `microsector_m` (por defecto 25), `speed_tol_kmh` (por defecto 3) | Vuelta óptima teórica y realista, ganancias, microsectores, zonas, curvas, contribuciones, avisos (ver "Vuelta óptima") |
-| `/api/compare-laps` | POST | `lap_a`, `lap_b` | Comparación básica: `summary`, comparaciones de velocidad/freno/acelerador, `time_delta_series`, `corners`, `track_map`, `metadata`, `text_report`, `setup_advisor` y los resultados de los módulos avanzados cuando estén disponibles |
-| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (o `lap_fast_id`, `lap_slow_id`); query `resolution_m` (por defecto 5) | Pipeline avanzado: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, resultados de neumáticos/frenos/inputs/suspensión/slip, `data_quality` |
-| `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow`; query `resolution_m` | Subconjunto de geometría y time delta: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners` |
-| `/api/compare-session-laps` | POST | `session_file` o `file_id`, `lap_a`, `lap_b` (base 1; `0` = automático: vuelta voladora más rápida y más lenta) | Comparación completa de dos vueltas de una sesión; `metadata` incluye `distance_synthetic`; también `health_summary`, `data_quality` |
+| `/api/analyze-session` | POST | `session_file` o `file_id` | JSON con `laps` (tiempo, banderas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `data_quality`. Si no se puede segmentar ninguna vuelta, `laps` vacío y un `message`. |
+| `/api/stint/analyze` | POST | `laps`: un archivo de sesión, o 3 o más archivos de una vuelta; o `file_id` de una sesión | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `health_summary`, `data_quality` |
+| `/api/optimal-lap` | POST | `session_file` o `file_id`; opcionales `microsector_m` (por defecto 25), `speed_tol_kmh` (por defecto 3) | Vuelta óptima teórica y realista, ganancias, microsectores, zonas, curvas, `corner_map`, contribuciones, avisos (ver "Vuelta óptima") |
+| `/api/compare-laps` | POST | `lap_a`, `lap_b` | Comparación básica: `summary`, comparaciones de velocidad/freno/acelerador, `time_delta_series`, `corners`, `corner_map`, `track_map`, `metadata`, `text_report`, `setup_advisor` y los resultados de los módulos avanzados cuando estén disponibles |
+| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (o `lap_fast_id`, `lap_slow_id`); query `resolution_m` (por defecto 5) | Pipeline avanzado: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `corner_map`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, resultados de neumáticos/frenos/inputs/suspensión/slip, `data_quality` |
+| `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow`; query `resolution_m` | Subconjunto de geometría y time delta: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `corner_map` |
+| `/api/compare-session-laps` | POST | `session_file` o `file_id`, `lap_a`, `lap_b` (base 1; `0` = automático: vuelta voladora más rápida y más lenta) | Comparación completa de dos vueltas de una sesión; `metadata` incluye `distance_synthetic`; también `corner_map`, `health_summary`, `data_quality` |
 | `/api/report/pdf` | POST | `session_file`, `lap_a`, `lap_b` | Adjunto `application/pdf` `report_V{a}_vs_V{b}.pdf` |
 | `/api/report/pdf-from-json` | POST | JSON: un resultado de comparación ya calculado | Adjunto `application/pdf`, sin recalcular |
 | `/api/report/session-pdf-from-json` | POST | JSON: `{session, stint, comparison, metadata}` (`session` con `laps` es obligatorio; el resto opcional) | PDF de sesión `motorsport_<circuito>_<coche>_<fecha>.pdf`, sin recalcular |
@@ -571,7 +573,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 514 recogidos: 491 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 535 recogidos: 512 se ejecutan, 23 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

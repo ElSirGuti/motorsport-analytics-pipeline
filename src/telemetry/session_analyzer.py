@@ -145,14 +145,19 @@ def _dead_reckoning_map(lap_df: pd.DataFrame, n_points: int = 500) -> list:
     ]
 
 
-def analyze_session(df: pd.DataFrame) -> dict:
+def analyze_session(df: pd.DataFrame, laps_out: list | None = None) -> dict:
     """
     Analiza un DataFrame de telemetría de sesión completa.
     Usa segmentar_vueltas_desde_csv para dividir en vueltas individuales,
     luego extrae estadísticas por vuelta y determina la vuelta más rápida.
+
+    ``laps_out``: si se da una lista, se rellena con los DataFrames de las vueltas segmentadas (el
+    llamador los reutiliza para el mapa de curvas sin segmentar otra vez).
     """
     try:
         lap_dfs = segmentar_vueltas_desde_csv(df)
+        if laps_out is not None:
+            laps_out.extend(lap_dfs)
     except ValueError as exc:
         logger.warning("No se pudieron segmentar vueltas: %s", exc)
         return {"laps": [], "fastest_lap": None, "track_map": [], "total_laps": 0,

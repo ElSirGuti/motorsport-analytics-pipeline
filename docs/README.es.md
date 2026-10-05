@@ -19,7 +19,7 @@
 |-----------|-----------|
 | [README principal](../README.es.md) | Inicio rápido, instalación, funciones, formatos, tabla de la API, configuración, tests, arquitectura |
 | [Despliegue](./DEPLOYMENT.es.md) | Local, Docker Compose y Kubernetes (Kustomize); contrato de variables (todas), instalación de Docker/kind en Windows, caché de subida única, qué se verificó en Docker Compose y kind y qué no, solución de problemas del primer despliegue |
-| [Tests](../tests/README.md) | Suites de tests (514 recogidos; 491 se ejecutan por defecto, 23 e2e requieren `E2E=1`), fixtures reales anonimizados, tests del modo comparar dos archivos, tests end-to-end y visuales (en inglés) |
+| [Tests](../tests/README.md) | Suites de tests (535 recogidos; 512 se ejecutan por defecto, 23 e2e requieren `E2E=1`), fixtures reales anonimizados, tests del modo comparar dos archivos, tests end-to-end y visuales (en inglés) |
 | [README del frontend](../frontend/README.md) | Estructura de la UI, sistema de diseño y temas, cliente de API, módulos i18n, build y lint (en inglés, con resumen en español) |
 | [CONTRIBUTING](../CONTRIBUTING.md) | Cómo contribuir: flujo, traducciones por módulo, tests, sin datos personales (en inglés, con resumen en español) |
 | [LICENSE](../LICENSE) | Licencia MIT |

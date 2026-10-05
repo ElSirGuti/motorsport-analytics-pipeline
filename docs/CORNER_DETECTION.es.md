@@ -2,7 +2,7 @@
 
 Módulo: `src/analytics/corner_map.py` (`build_corner_map`). Medición: `scripts/benchmark_corners.py` y `scripts/crossval_corner_map.py`. Informes: `docs/benchmarks/corners_baseline_legacy.*` (antes), `corners_baseline.*`, `corners_after_core.*` (después, con la comparación antes/después y la validación cruzada) y `corners_crossval.json`.
 
-Esta es la etapa 1 (el núcleo y su medición). Los consumidores del análisis (stint, análisis de curvas por sesión, insights, vuelta óptima, línea de carrera, PDF, `main.py`) siguen usando los detectores antiguos; se migran en la etapa 2.
+La etapa 1 es el núcleo y su medición (secciones 1 a 8). La etapa 2a migró al mapa los consumidores del backend (stint, análisis de curvas por sesión, insights, comparación, vuelta óptima, línea de carrera, asesor de setup, PDF, `main.py`): ver la sección 9. La interfaz (etapa 2b) aún tiene que usar los campos nuevos.
 
 ## 1. El problema
 
@@ -118,3 +118,53 @@ python scripts/crossval_corner_map.py CARPETAS... --out docs/benchmarks/corners_
 ```
 
 Los informes de `docs/benchmarks/` se generaron con las carpetas de telemetría del autor más `tests/fixtures`; el archivo `f1_2020_mercedes` se excluyó (`--exclude f1_2020`) para conservar las 81 vueltas de la línea base.
+
+## 9. Integración: el mapa es la única fuente de curvas (etapa 2a)
+
+Desde la etapa 2a todo el análisis toma sus curvas del mapa (interruptor `CORNER_DETECTION=map`, el valor por defecto; `legacy` conserva intactos los detectores anteriores de cada módulo, para comparar o revertir; ver `docs/DEPLOYMENT.es.md`). El mapa se construye **una sola vez por sesión** y se comparte entre endpoints: `src/analytics/corner_service.py` lo construye y `session_cache.corner_map_cache` (LRU pequeño, `CORNER_MAP_CACHE_MAX` entradas, mismo TTL que la caché de tramas) lo guarda con la clave `(propósito, SHA-256 del archivo / file_id, venue, longitud de vuelta, opciones)`. Un segundo endpoint, o una segunda subida de los mismos bytes, reutiliza la primera construcción (unos 0,25 a 0,4 s en un archivo de Imola de 21 vueltas). Un mapa que no se puede construir o que no tiene curvas nunca rompe un análisis: esa petición vuelve al camino legacy.
+
+| Consumidor | Qué cambió |
+|---|---|
+| `analyze-session`, `stint/analyze`, `optimal-lap`, `compare-session-laps`, `/api/report/pdf` | Mapa de sesión con las vueltas voladoras limpias del archivo (`select_map_laps`: sin vueltas de pit/atípicas, la longitud de vuelta habitual ±4 %, las 30 más rápidas). Mismas curvas, números y nombres en todos. |
+| `compare-laps`, `telemetry/analyze`, `telemetry/compare` | Mapa de las dos vueltas comparadas (consenso relajado, plantilla si el circuito se reconoce). `compare-laps` y `telemetry/analyze` comparten una construcción. |
+| `session_corner_analysis` (`curvas_sesion`) | Por vuelta, las métricas se miden dentro de las ventanas `start_m`..`end_m` del mapa frente a la vuelta de referencia (la más rápida) (`src/analytics/corner_metrics.py`) en lugar de detectar curvas y `pair_corners`. |
+| `racing_line_rl`, `setup_sesion` | Mismas observaciones. Las curvas `flat_out` / `kink` no se entrenan ni reciben consejos; un delta no medible en una vuelta cuenta como "similar" para la tabla Q. |
+| `insights.analizar_errores_por_curva`, `lap_comparator.compare_laps` | Aceptan `corner_map=`; curvas, `apexes` y `sectores` (números y nombres) salen del mapa. |
+| `optimal_lap` | El desglose por curva y las zonas principales usan los números y nombres del mapa; las zonas de microsectores son las celdas de Voronoi de los ápices del mapa, como antes. |
+| `circuits.enrich_*` | Con un mapa en el resultado copian número y nombre de él; `annotate_corners_from_map` es el nuevo helper público. Sin mapa no cambió nada. |
+| PDF | Tablas de curvas desde el mapa; las curvas `flat_out` / `kink` llevan una marca ("a fondo" / "flat out", locale `corner_map.*.json`), barra rayada y sin valores de frenada/ápice/gas. |
+
+**Medido en las ventanas.** La ventana de una curva es la que da el mapa (`start_m`..`end_m`, cortada en el punto medio con las vecinas, así que las ventanas no se solapan y las pérdidas por curva nunca suman más que el delta de vuelta). Pérdida de tiempo = tiempo empleado en la ventana frente a la vuelta de referencia (positivo = más lento). Punto de frenada = inicio de la zona de frenada principal hasta 300 m antes del ápice (y después del ápice de la curva anterior); velocidad de ápice = velocidad mínima de la ventana; aplicación de gas = primer gas a fondo tras el ápice (hasta 300 m, antes del ápice siguiente). Las posiciones son fracciones de vuelta, así que vueltas de longitud algo distinta se comparan bien; las vueltas con más de un 4 % de diferencia de longitud (vueltas de salida, parciales) no se comparan en modo sesión.
+
+**Las curvas `flat_out` / `kink`** conservan el tiempo perdido en su ventana pero informan frenada, ápice y gas como no disponibles: los campos existentes valen `0.0` con `braking_available` / `apex_available` / `throttle_available` en `false` (modo comparación: `braking_delta_available`, `throttle_delta_available`, `apex_delta_available`).
+
+### Campos nuevos
+
+* Objeto aditivo `corner_map` en las respuestas de `analyze-session`, `stint/analyze`, `optimal-lap`, `compare-session-laps`, `compare-laps`, `telemetry/analyze`, `telemetry/compare` (ausente con `CORNER_DETECTION=legacy`): `mode`, `circuit` (el resumen de `circuit` o nulo), `method` (`consensus+template` / `consensus`), `params` (los cinco parámetros ajustados y los umbrales del consenso), `n_laps`, `lap_length_m`, `n_corners`, `n_named`, `n_discarded`, `warnings` (por ejemplo "only 2 lap(s): relaxed consensus", "unknown circuit"), `corners` (los campos de curva de la sección 2, con `sub_apexes`, sin series). Las posiciones están en los metros de `lap_length_m`; `apexes` y las curvas de las comparaciones están escalados a la vuelta A.
+* Cada curva de `curvas_sesion.corners`, de `corners` en las comparaciones y de `optimal-lap.corners` recibe `number`, `name` (== `corner_name`), `kind`, `direction`, `min_radius_m`, `flat_out_share`, `confidence`, `is_complex` (sesión y comparación también `start_m`/`end_m` o `start_distance`/`end_distance`). `optimal-lap.top_zones` recibe `corner_kind`. Las curvas de comparación reciben `apex_delta_available`. Las filas de `apexes` reciben `corner_number`, `corner_name`, `kind`, `direction`, `min_radius_m`, `start_m`, `end_m`, `confidence`, `flat_out_share`, `is_complex` junto a `Distance`, `Curvature`, `Speed`, `Throttle`, `Brake`, `Elevation`.
+* No se renombró ni se eliminó nada: la interfaz actual sigue funcionando, pero listará más curvas que antes (Imola: de 7 a 10 en modo sesión).
+
+### Qué cambia, legacy frente a mapa
+
+Mismos archivos, en proceso, `scripts/compare_corner_modes.py`:
+
+| Archivo | Endpoint | Curvas legacy | Curvas mapa | Nombres legacy / mapa |
+|---|---|---|---|---|
+| Imola, 21 vueltas (`cayman_gt4_imola_assetto_corsa.csv`) | stint | 7 | 10 | 7 / 9 (+ Rivazza 2, Variante Bassa a fondo; la curva 7 es una curva `lift` sin nombre) |
+| Imola | compare-session-laps, optimal-lap | 11 | 10 | 8 / 9 |
+| Spa (`porsche_gt4_spa.csv`) | stint | 5 | 13 | 4 / 10 (se añaden Eau Rouge/Raidillon, Malmedy, Rivage, Pouhon, Fagnes y Blanchimont a fondo) |
+| Spa | compare-session-laps, optimal-lap | 14 | 13 | 9 / 10 |
+| Red Bull Ring (`vuelta_rapida.csv` frente a `vuelta_lenta.csv`) | compare-laps, telemetry/analyze | 7 | 8 | sin tabla: ninguno / ninguno (la curva 6 es `flat_out`) |
+
+Todo lo que no es una curva (vueltas, tiempos, degradación, combustible, Monte Carlo, tiempos de la vuelta óptima, series de gráficas, calidad de datos) es idéntico entre los modos a 1e-6 en todos los archivos probados (fixtures, los CSV de Descargas, `.ld` de ACTI y `.ibt`/`.ld` de iRacing), con una excepción que es un efecto de las curvas: en un stint corto con solo dos vueltas de la longitud habitual (`.ibt` de Oran Park South, 4 vueltas, 2 parciales) el módulo de línea de carrera tiene menos de 2 observaciones por curva y se informa "no disponible", lo que además mueve la puntuación de calidad de datos. Velocidad del análisis de Imola: la etapa de curvas cuesta 0,30 s con el mapa (0,25 s de construcción + 0,05 s de medidas) frente a 0,28 s legacy, y el flujo subida + sesión + stint + vuelta óptima tarda 2,84 s con el mapa frente a 2,96 a 2,99 s legacy (`scripts/profile_pipeline.py`, primeras llamadas; la diferencia está dentro del ruido entre ejecuciones, el mapa se construye una vez y luego sale de la caché).
+
+**El mapa tal como llega a la API.** `scripts/benchmark_corners.py` tiene una variante `api_map` (las vueltas voladoras de la sesión segmentada sin filtrar, como las elige `select_map_laps`, opciones por defecto, el mismo venue); `docs/benchmarks/corners_api.md` (13 archivos, 57 vueltas: las carpetas disponibles en esta ejecución, menos que las 81 vueltas de la línea base) da recall 1,00, 0,0 de ruido y 3,68 extras por vuelta, igual que `corner_map` (la tabla va en la plantilla, así que es la cifra circular: las no circulares están en la sección 5). Escribirla destapó un error real en la primera selección de vueltas (un segmento final de 235 m de un archivo de una vuelta se elegía como "vuelta más rápida" y el mapa salía vacío), ya corregido y cubierto por un test.
+
+### Límites propios de la integración
+
+* El mapa de una sesión necesita al menos una vuelta voladora; con 1 o 2 vueltas el consenso se relaja (aviso en `corner_map.warnings`). Dos archivos de una vuelta dan un mapa solo con esas dos vueltas.
+* En las comparaciones las posiciones del mapa se escalan a la longitud de la vuelta A; una vuelta de longitud muy distinta (otro trazado) es otro mapa.
+* Las ventanas de medida son aproximadas (`start_m`/`end_m`); un punto de frenada a más de 300 m del ápice queda censurado ("no disponible"), como antes.
+* `lap_history` (SQLite, `guardar_en_historial`) se indexa por venue y número de curva: las filas guardadas con la numeración anterior no coinciden con los números nuevos.
+* Las curvas del `corner_map` sin una ventana de al menos 10 muestras en la trama alineada (vueltas muy cortas) quedan fuera de `corners` en modo comparación.
+* Los módulos `ml_*` (clusters, potencial) toman las curvas tal cual: las `flat_out` entran con deltas de frenada/ápice/gas a cero.

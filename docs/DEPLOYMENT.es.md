@@ -65,6 +65,7 @@ CORS. En desarrollo el frontend sigue llamando directamente a `http://localhost:
 | `UPLOAD_TTL_HOURS` | backend | `24` | las subidas sin uso durante este tiempo se borran |
 | `SESSION_CACHE_MAX_MB` | backend | `1024` | por proceso; mantenlo por debajo del límite de memoria del pod menos un análisis |
 | `SESSION_CACHE_TTL_MIN` | backend | `60` | minutos de inactividad antes de sacar una sesión de memoria |
+| `CORNER_DETECTION` | backend | `map` | `map` = cada endpoint toma sus curvas del mapa unificado (`docs/CORNER_DETECTION.es.md`); `legacy` = los detectores anteriores de cada módulo, para comparar o revertir. Se lee en cada petición; en `legacy` la respuesta no trae el objeto `corner_map` |
 | `API_HOST` / `API_PORT` / `API_RELOAD` | `python main.py` | `0.0.0.0` / `8000` / `false` | no se usan (el entrypoint arranca uvicorn en 8000); `API_RELOAD=true` solo para desarrollo |
 | `VITE_API_URL` | build del frontend / Vite | `http://localhost:8000/api` | el build de producción usa la ruta relativa `/api` si no está definida |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | `motorsport` / `change-me-local-only` / `motorsport` | la contraseña es **obligatoria** (compose se niega a arrancar sin ella); los valores de ejemplo son solo para uso local |

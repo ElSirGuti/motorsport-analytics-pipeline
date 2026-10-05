@@ -2,7 +2,7 @@
 
 Module: `src/analytics/corner_map.py` (`build_corner_map`). Measurement: `scripts/benchmark_corners.py` and `scripts/crossval_corner_map.py`. Reports: `docs/benchmarks/corners_baseline_legacy.*` (before), `corners_baseline.*`, `corners_after_core.*` (after, with before/after comparison and cross-validation) and `corners_crossval.json`.
 
-This is stage 1 (the core and its measurement). The analysis consumers (stint, per-session corner analysis, insights, optimal lap, racing line, PDF, `main.py`) still use the old detectors; they are migrated in stage 2.
+Stage 1 is the core and its measurement (sections 1 to 8). Stage 2a migrated the backend consumers (stint, per-session corner analysis, insights, comparison, optimal lap, racing line, setup advisor, PDF, `main.py`) to the map: see section 9. The UI (stage 2b) still has to use the new fields.
 
 ## 1. The problem
 
@@ -118,3 +118,53 @@ python scripts/crossval_corner_map.py FOLDERS... --out docs/benchmarks/corners_c
 ```
 
 The reports in `docs/benchmarks/` were produced with the author's telemetry folders plus `tests/fixtures`; the `f1_2020_mercedes` file was excluded (`--exclude f1_2020`) to keep the 81 laps of the baseline.
+
+## 9. Integration: the map is the only source of corners (stage 2a)
+
+Since stage 2a every analysis takes its corners from the map (switch `CORNER_DETECTION=map`, the default; `legacy` keeps the previous per-module detectors untouched, for comparison or rollback; see `docs/DEPLOYMENT.md`). The map is built **once per session** and shared between endpoints: `src/analytics/corner_service.py` builds it and `session_cache.corner_map_cache` (small LRU, `CORNER_MAP_CACHE_MAX` entries, same TTL as the frame cache) stores it under the key `(purpose, file SHA-256 / file_id, venue, lap length, options)`. A second endpoint, or a second upload of the same bytes, reuses the first build (about 0.25 to 0.4 s for a 21-lap Imola file). A map that cannot be built or has no corners never breaks an analysis: that request falls back to the legacy path.
+
+| Consumer | What changed |
+|---|---|
+| `analyze-session`, `stint/analyze`, `optimal-lap`, `compare-session-laps`, `/api/report/pdf` | Session map from the clean flying laps of the file (`select_map_laps`: no pit/outlier laps, the usual lap length +-4 %, the 30 fastest). Same corners, numbers and names in all of them. |
+| `compare-laps`, `telemetry/analyze`, `telemetry/compare` | Map of the two compared laps (relaxed consensus, template if the circuit is recognised). `compare-laps` and `telemetry/analyze` share one build. |
+| `session_corner_analysis` (`curvas_sesion`) | Per lap, the metrics are measured inside the map windows `start_m`..`end_m` against the reference (fastest) lap (`src/analytics/corner_metrics.py`) instead of detecting corners and `pair_corners`. |
+| `racing_line_rl`, `setup_sesion` | Same observations. `flat_out` / `kink` corners are not trained and not coached; a delta not measurable in a lap counts as "similar" for the Q table. |
+| `insights.analizar_errores_por_curva`, `lap_comparator.compare_laps` | Take `corner_map=`; corners, `apexes` and `sectores` (numbers and names) come from the map. |
+| `optimal_lap` | Corner breakdown and top zones use the map numbers and names; the microsector zones are the Voronoi cells of the map apexes as before. |
+| `circuits.enrich_*` | With a map in the result they copy number and name from it; `annotate_corners_from_map` is the new public helper. Without a map nothing changed. |
+| PDF | Corner tables from the map; `flat_out` / `kink` corners get a mark ("flat out" / "a fondo", locale `corner_map.*.json`), a hatched bar and no brake/apex/throttle values. |
+
+**Measured in the windows.** The window of a corner is the one the map gives (`start_m`..`end_m`, cut at the midpoint to the neighbours, so windows never overlap and the corner losses never add up to more than the lap delta). Time loss = time spent in the window against the reference lap (positive = slower). Braking point = start of the main braking zone up to 300 m before the apex (and after the previous corner's apex); apex speed = minimum speed in the window; throttle application = first full throttle after the apex (up to 300 m, before the next apex). Positions are lap fractions, so laps of slightly different length compare cleanly; laps whose length is more than 4 % off (out laps, partial laps) are not compared in session mode.
+
+**`flat_out` / `kink` corners** keep the time lost in their window but report braking, apex and throttle as not available: the existing fields are `0.0` with `braking_available` / `apex_available` / `throttle_available` `false` (comparison mode: `braking_delta_available`, `throttle_delta_available`, `apex_delta_available`).
+
+### New fields
+
+* Additive object `corner_map` in the responses of `analyze-session`, `stint/analyze`, `optimal-lap`, `compare-session-laps`, `compare-laps`, `telemetry/analyze`, `telemetry/compare` (absent with `CORNER_DETECTION=legacy`): `mode`, `circuit` (the `circuit` summary or null), `method` (`consensus+template` / `consensus`), `params` (the five tuned parameters and the consensus thresholds), `n_laps`, `lap_length_m`, `n_corners`, `n_named`, `n_discarded`, `warnings` (for example "only 2 lap(s): relaxed consensus", "unknown circuit"), `corners` (the corner fields of section 2, with `sub_apexes`, without series). Positions are in the metres of `lap_length_m`; `apexes` and the comparison corners are scaled to lap A.
+* Every corner of `curvas_sesion.corners`, of `corners` in comparisons and of `optimal-lap.corners` gets `number`, `name` (== `corner_name`), `kind`, `direction`, `min_radius_m`, `flat_out_share`, `confidence`, `is_complex` (session and comparison also `start_m`/`end_m` or `start_distance`/`end_distance`). `optimal-lap.top_zones` get `corner_kind`. Comparison corners get `apex_delta_available`. `apexes` rows get `corner_number`, `corner_name`, `kind`, `direction`, `min_radius_m`, `start_m`, `end_m`, `confidence`, `flat_out_share`, `is_complex` next to `Distance`, `Curvature`, `Speed`, `Throttle`, `Brake`, `Elevation`.
+* Nothing was renamed or removed: the current UI keeps working, but it will list more corners than before (Imola: 7 to 10 in session mode).
+
+### What changes, legacy against map
+
+Same files, in-process, `scripts/compare_corner_modes.py`:
+
+| File | Endpoint | Corners legacy | Corners map | Names legacy / map |
+|---|---|---|---|---|
+| Imola, 21 laps (`cayman_gt4_imola_assetto_corsa.csv`) | stint | 7 | 10 | 7 / 9 (+ Rivazza 2, Variante Bassa flat out; corner 7 is an unnamed `lift` bend) |
+| Imola | compare-session-laps, optimal-lap | 11 | 10 | 8 / 9 |
+| Spa (`porsche_gt4_spa.csv`) | stint | 5 | 13 | 4 / 10 (Eau Rouge/Raidillon, Malmedy, Rivage, Pouhon, Fagnes, Blanchimont flat out added) |
+| Spa | compare-session-laps, optimal-lap | 14 | 13 | 9 / 10 |
+| Red Bull Ring (`vuelta_rapida.csv` vs `vuelta_lenta.csv`) | compare-laps, telemetry/analyze | 7 | 8 | no table: none / none (corner 6 is `flat_out`) |
+
+Everything that is not a corner (laps, times, degradation, fuel, Monte Carlo, optimal lap times, chart series, data quality) is identical between the modes to 1e-6 on every file tried (fixtures, the Downloads CSV, `.ld` of ACTI and iRacing `.ibt`/`.ld`), with one exception that is a corner effect: in a short stint with only two laps of the usual length (Oran Park South `.ibt`, 4 laps, 2 of them partial) the racing-line module has fewer than 2 observations per corner and reports "unavailable", which also moves the data-quality score. Speed of the Imola analysis: the corner stage costs 0.30 s with the map (0.25 s build + 0.05 s measurements) against 0.28 s legacy, and the flow upload + session + stint + optimal lap takes 2.84 s with the map against 2.96 to 2.99 s legacy (`scripts/profile_pipeline.py`, first calls; the difference is within run-to-run noise, the map is built once and then served from the cache).
+
+**The map as it reaches the API.** `scripts/benchmark_corners.py` has a variant `api_map` (the flying laps of the raw segmented session, as `select_map_laps` picks them, default options, same venue); `docs/benchmarks/corners_api.md` (13 files, 57 laps: the folders available in this run, fewer than the 81 laps of the baseline) gives recall 1.00, 0.0 noise and 3.68 extras per lap, equal to `corner_map` (the table is in the template, so this is the circular figure: the non-circular ones are in section 5). Writing it exposed a real bug in the first lap selection (a 235 m trailing segment of a one-lap file was chosen as the "fastest lap" and the map came out empty), now fixed and covered by a test.
+
+### Limits specific to the integration
+
+* The map of a session needs at least one flying lap; with 1 or 2 laps the consensus is relaxed (warning in `corner_map.warnings`). Two single-lap files give a map from those two laps only.
+* In comparisons the map positions are scaled to the length of lap A; a lap of a very different length (a different layout) is a different map.
+* The measurement windows are approximate (`start_m`/`end_m`); a braking point further than 300 m before the apex is censored ("not available"), as it was.
+* `lap_history` (SQLite, `guardar_en_historial`) is keyed by venue and corner number: rows saved with the old numbering do not match the new numbers.
+* Corners listed in `corner_map` but with no window of at least 10 samples in the aligned frame (very short laps) are left out of `corners` in comparison mode.
+* The `ml_*` modules (clusters, potential) take the corners as given: `flat_out` corners enter them with zero braking/apex/throttle deltas.

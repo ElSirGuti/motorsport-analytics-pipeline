@@ -571,7 +571,9 @@ def _analyse_corners(result: dict, lang: str | None = None) -> list:
 def _corner_priority(result: dict, top_n: int = 8, lang: str | None = None) -> list:
     corners = result.get("corners") or []
     ranked = sorted(
-        [c for c in corners if abs(c.get("time_loss_seconds") or 0) >= 0.005],
+        # flat_out / kink corners (unified corner map) have no braking / apex / throttle phase to coach
+        [c for c in corners if abs(c.get("time_loss_seconds") or 0) >= 0.005
+         and c.get("kind") not in ("flat_out", "kink")],
         key=lambda c: abs(c.get("time_loss_seconds") or 0),
         reverse=True
     )[:top_n]

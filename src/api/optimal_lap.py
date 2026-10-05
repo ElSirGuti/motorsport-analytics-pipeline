@@ -86,14 +86,28 @@ def optimal_lap_endpoint(
         path = inp.path
         df = inp.filtered()  # parsed + filtered once per file (cache); private copy
         synthetic = bool(df.attrs.get("distance_synthetic", False))
+        from src.analytics import corner_service
+        from src.io.loaders import read_motec_metadata
+        try:
+            venue = read_motec_metadata(path).get("venue")
+        except Exception as exc:  # metadata is best-effort
+            logger.warning("optimal-lap: metadata: %s", exc)
+            venue = None
+
+        def _corner_map(dfs, df_laps):  # unified corner map of the session (cached; None in legacy mode)
+            try:
+                return corner_service.session_corner_map(dfs, venue, inp.sha, df_laps)
+            except Exception as exc:  # el mapa nunca debe romper la vuelta óptima
+                logger.warning("optimal-lap: corner map: %s", exc)
+                return None
+
         result = calcular_vuelta_optima_desde_df(
             df, microsector_m=microsector_m, speed_tol_kmh=speed_tol_kmh,
-            lang=lang, distance_synthetic=synthetic,
+            lang=lang, distance_synthetic=synthetic, corner_map=_corner_map,
         )
         try:  # circuito conocido + nombres de curva (aditivo; nunca rompe el análisis)
             from src.analytics.circuits import enrich_optimal_lap
-            from src.io.loaders import read_motec_metadata
-            enrich_optimal_lap(result, read_motec_metadata(path).get("venue"))
+            enrich_optimal_lap(result, venue)
         except Exception as exc:
             logger.warning("optimal-lap: circuits: %s", exc)
         return JSONResponse(content=_sanitize(result))

@@ -113,6 +113,7 @@ from src.analytics.slip_angle import analizar_slip_angle
 from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
 from src.analytics.session_corner_analysis import analizar_curvas_sesion, get_corner_observations
 from src.analytics import circuits as circuits_db  # circuitos conocidos y nombres de curva
+from src.analytics import corner_service  # mapa unificado de curvas (CORNER_DETECTION=map|legacy) + caché
 from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 from src.analytics.tyre_degradation import predecir_degradacion_neumatico
 from src.analytics.racing_line_rl import optimizar_trazada_rl
@@ -420,14 +421,17 @@ def generate_pdf_report(
 
         df_a = laps[lap_a - 1]
         df_b = laps[lap_b - 1]
+        _venue_pdf = read_motec_metadata(path).get("venue")
+        cmap = _session_map(laps, _venue_pdf, corner_service.file_key(path) if corner_service.use_map() else None)
+        cmap_a = _map_for_lap(cmap, df_a)
         df_a_aligned, df_b_aligned = align_pair(df_a, df_b, distance_step=1.0)
-        result = compare_laps(df_a_aligned, df_b_aligned)
+        result = compare_laps(df_a_aligned, df_b_aligned, corner_map=cmap_a)
 
         # Run full advanced pipeline (mirrors compare-session-laps)
         apexes = None
         try:
             df_geo = procesar_geometria_pista_perfecta(df_a)
-            apexes = detectar_apexes_perfectos(df_geo)
+            apexes = _compare_apexes(df_geo, cmap_a)
             canales_extra = [
                 "LateralG", "LongitudinalG", "SteerAngle", "Brake", "Throttle",
                 "TyreTempInnerFL", "TyreTempMiddleFL", "TyreTempOuterFL", "TyreTempCoreFL",
@@ -440,7 +444,7 @@ def generate_pdf_report(
             df_adv = alinear_vueltas_y_calcular_delta(df_a, df_b, paso_metros=1.0, canales_extra=canales_extra)
             df_adv, _lim = calcular_limites_dinamicos(df_adv)
             df_sectores    = resumir_delta_por_sector(df_adv, apexes, lang=lang)
-            insights_curvas = analizar_errores_por_curva(df_adv, apexes, lang=lang)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes, lang=lang, corner_map=cmap_a)
 
             result["corners"]        = insights_curvas
             result["sectores"]       = df_sectores.to_dict(orient="records") if not df_sectores.empty else []
@@ -480,9 +484,10 @@ def generate_pdf_report(
             "distance_synthetic": df.attrs.get("distance_synthetic", False),
         }
         _add_header_meta(result["metadata"], path, session_file.filename)
+        corner_service.attach(result, cmap)   # before enrich_compare: names come from the map
         try:
             circuits_db.enrich_compare(
-                result, read_motec_metadata(path).get("venue"), circuits_db.lap_length_of(df_a_aligned))
+                result, _venue_pdf, circuits_db.lap_length_of(df_a_aligned))
         except Exception as _exc:  # nunca debe romper el informe
             logger.warning("circuits (report/pdf): %s", _exc)
 
@@ -561,7 +566,16 @@ def compare_laps_endpoint(
         df_a_aligned, df_b_aligned = align_pair(df_a, df_b, distance_step=1.0)
 
         logger.info("Paso 4/4: Comparando vueltas...")
-        result = compare_laps(df_a_aligned, df_b_aligned)
+        # Unified corner map of the two laps (relaxed consensus; template if the circuit is recognised)
+        _venue_cl = read_motec_metadata(path_a).get("venue") or read_motec_metadata(path_b).get("venue")
+        cmap = None
+        if corner_service.use_map():
+            try:
+                cmap = corner_service.pair_corner_map(df_a, df_b, _venue_cl, corner_service.pair_key(path_a, path_b))
+            except Exception as _exc:  # el mapa nunca debe romper la comparación
+                logger.warning("corner map (compare-laps): %s", _exc)
+        cmap_a = _map_for_lap(cmap, df_a)
+        result = compare_laps(df_a_aligned, df_b_aligned, corner_map=cmap_a)
 
         # Track map (máximo 500 puntos para optimizar transferencia JSON) — moved here
         # so it's available before advanced pipeline runs
@@ -587,7 +601,7 @@ def compare_laps_endpoint(
         try:
             logger.info("Avanzado 1/5: Geometría y Apexes...")
             df_geo = procesar_geometria_pista_perfecta(df_a)
-            apexes = detectar_apexes_perfectos(df_geo)
+            apexes = _compare_apexes(df_geo, cmap_a)
 
             logger.info("Avanzado 2/5: Alineación avanzada con Delta_Time...")
             canales_extra = [
@@ -611,7 +625,7 @@ def compare_laps_endpoint(
 
             logger.info("Avanzado 4/5: Sectores + Insights por curva...")
             df_sectores    = resumir_delta_por_sector(df_adv, apexes)
-            insights_curvas = analizar_errores_por_curva(df_adv, apexes)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes, corner_map=cmap_a)
 
             logger.info("Avanzado 5/5: Compresión + Anomalías + Módulos avanzados...")
             df_compressed = comprimir_telemetria(df_adv, asegurar_apexes=apexes)
@@ -710,6 +724,7 @@ def compare_laps_endpoint(
             df_b.attrs.get("distance_synthetic", False)
         )
         _add_header_meta(result["metadata"], path_a, lap_a.filename)
+        corner_service.attach(result, cmap)   # before enrich_compare: names come from the map
         for _k in ("vehicle", "driver"):      # a header value only describes the pair if both laps agree
             if _k in result["metadata"] and result["metadata"].get(f"{_k}_a") not in (None, "?") \
                     and result["metadata"].get(f"{_k}_a") != result["metadata"].get(f"{_k}_b"):
@@ -766,15 +781,19 @@ def analyze_session_endpoint(
         df = inp.raw()
 
         logger.info("Paso 2/2: Analizando vueltas...")
-        result = analyze_session(df)
+        _seg_laps: list = []
+        result = analyze_session(df, laps_out=_seg_laps)
         result["metadata"] = read_session_header(path, filename)
+        _venue = None
         try:
-            circuits_db.enrich_session(
-                result, read_motec_metadata(path).get("venue") or result["metadata"].get("venue"))
+            _venue = read_motec_metadata(path).get("venue") or result["metadata"].get("venue")
+            circuits_db.enrich_session(result, _venue)
         except Exception as _exc:  # nunca debe romper el análisis
             logger.warning("circuits (analyze-session): %s", _exc)
         result["data_quality"] = safe_assess_dq(
             df, build_dq_meta(path, filename, "session"), result, lang)
+        if _seg_laps:  # mapa unificado de curvas de la sesión (aditivo; en caché para stint / vuelta óptima / comparar)
+            corner_service.attach(result, _session_map(_seg_laps, _venue, inp.sha))
 
         return JSONResponse(content=_sanitize(result))
 
@@ -791,6 +810,27 @@ def analyze_session_endpoint(
             import shutil
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+
+
+def _session_map(laps: list, venue, key, df_laps=None) -> Optional[dict]:
+    """Unified corner map of a session (cached per file); None in legacy mode or if it cannot be built."""
+    try:
+        return corner_service.session_corner_map(laps, venue, key, df_laps)
+    except Exception as exc:  # el mapa nunca debe romper un análisis
+        logger.warning("corner map: %s", exc)
+        return None
+
+
+def _map_for_lap(cmap: Optional[dict], df_a) -> Optional[dict]:
+    """The map scaled to the length of the lap whose frames the comparison works with."""
+    return corner_service.scale_to_lap(cmap, circuits_db.lap_length_of(df_a)) if cmap else None
+
+
+def _compare_apexes(df_geo, cmap_a: Optional[dict]):
+    """``apexes`` of a comparison: the corners of the map when there is one, else the geometry detector."""
+    if cmap_a:
+        return corner_service.apexes_frame(cmap_a, df_geo)
+    return detectar_apexes_perfectos(df_geo)
 
 
 def _flying_lap_indices(laps: list) -> tuple:
@@ -880,9 +920,15 @@ def compare_session_laps_endpoint(
         logger.info("Paso 3/3: Comparando V%d (%d pts) vs V%d (%d pts)...",
                     lap_a, len(df_a), lap_b, len(df_b))
 
+        # Unified corner map of the whole session (same corners as analyze-session / stint / optimal-lap;
+        # cached per file). None in legacy mode: everything below then uses the previous detectors.
+        _venue_cs = read_motec_metadata(path).get("venue")
+        cmap = _session_map(laps, _venue_cs, inp.sha)
+        cmap_a = _map_for_lap(cmap, df_a)
+
         # Basic alignment + comparison
         df_a_aligned, df_b_aligned = align_pair(df_a, df_b, distance_step=1.0)
-        result = compare_laps(df_a_aligned, df_b_aligned)
+        result = compare_laps(df_a_aligned, df_b_aligned, corner_map=cmap_a)
 
         # Track map from lap A (auto-select horizontal-plane axes)
         coord_ranges = {}
@@ -927,6 +973,8 @@ def compare_session_laps_endpoint(
                         "Apexes: fallback telemetría — %d curvas (geometría detectó < 3)",
                         len(apexes),
                     )
+            if cmap_a:   # unified corner map: the corners are the map's (the detector only picks the curvature source)
+                apexes = corner_service.apexes_frame(cmap_a, df_geo)
 
             logger.info("Paso avanzado 2/5: Alineación avanzada con Delta_Time...")
             canales_extra = [
@@ -957,7 +1005,7 @@ def compare_session_laps_endpoint(
 
             logger.info("Paso avanzado 4/5: Sectores + Insights por curva...")
             df_sectores    = resumir_delta_por_sector(df_adv, apexes, lang=lang)
-            insights_curvas = analizar_errores_por_curva(df_adv, apexes, lang=lang)
+            insights_curvas = analizar_errores_por_curva(df_adv, apexes, lang=lang, corner_map=cmap_a)
 
             logger.info("Paso avanzado 5/5: Compresión + Anomalías + Módulos avanzados...")
             df_compressed = comprimir_telemetria(df_adv, asegurar_apexes=apexes)
@@ -1082,9 +1130,10 @@ def compare_session_laps_endpoint(
             "distance_synthetic":    df.attrs.get("distance_synthetic", False),
         }
         _add_header_meta(result["metadata"], path, filename)
+        corner_service.attach(result, cmap)   # before enrich_compare: names come from the map
         try:
             circuits_db.enrich_compare(
-                result, read_motec_metadata(path).get("venue"), circuits_db.lap_length_of(df_a_aligned))
+                result, _venue_cs, circuits_db.lap_length_of(df_a_aligned))
         except Exception as _exc:  # nunca debe romper el análisis
             logger.warning("circuits (compare-session-laps): %s", _exc)
 
@@ -1154,7 +1203,17 @@ def compare_telemetry_endpoint(
         # 2. Geometría de la pista (usando la vuelta rápida como referencia)
         logger.info("Paso 2/4: Procesando geometría de la pista...")
         df_geo = procesar_geometria_pista_perfecta(df_fast_raw)
-        apexes = detectar_apexes_perfectos(df_geo)
+        # Unified corner map of the two laps (None in legacy mode): corners, apexes and sectors come from it
+        _venue_tc = read_motec_metadata(path_fast).get("venue") or read_motec_metadata(path_slow).get("venue")
+        cmap = None
+        if corner_service.use_map():
+            try:
+                cmap = corner_service.pair_corner_map(df_fast_raw, df_slow_raw, _venue_tc,
+                                                      corner_service.pair_key(path_fast, path_slow))
+            except Exception as _exc:  # el mapa nunca debe romper la comparación
+                logger.warning("corner map (telemetry/compare): %s", _exc)
+        cmap_a = _map_for_lap(cmap, df_fast_raw)
+        apexes = _compare_apexes(df_geo, cmap_a)
 
         # 3. Alineación y Time Delta
         logger.info("Paso 3/4: Calculando Time Delta acumulado...")
@@ -1163,7 +1222,7 @@ def compare_telemetry_endpoint(
         # 4. Sectorización
         logger.info("Paso 4/4: Sectorización del circuito y extracción de Insights...")
         df_sectores = resumir_delta_por_sector(df_alineado, apexes, lang=lang)
-        insights_curvas = analizar_errores_por_curva(df_alineado, apexes, lang=lang)
+        insights_curvas = analizar_errores_por_curva(df_alineado, apexes, lang=lang, corner_map=cmap_a)
 
         # 5. Reducir resolución para la respuesta JSON
         step = max(1, resolution_m)
@@ -1206,6 +1265,7 @@ def compare_telemetry_endpoint(
             "corners":     insights_curvas,
         }
         _add_header_meta(payload["metadata"], path_fast, lap_fast.filename)
+        corner_service.attach(payload, cmap)   # before enrich_compare: names come from the map
         try:
             circuits_db.enrich_compare(
                 payload, payload["metadata"]["venue"], circuits_db.lap_length_of(df_alineado))
@@ -1274,7 +1334,17 @@ def analyze_telemetry_endpoint(
 
         logger.info("Paso 2/7: Procesando geometría de pista y Apexes...")
         df_geo = procesar_geometria_pista_perfecta(df_fast_raw)
-        apexes = detectar_apexes_perfectos(df_geo)
+        # Unified corner map of the two laps (cached by file SHA-256; None in legacy mode)
+        _venue_ta = read_motec_metadata(path_fast).get("venue") or read_motec_metadata(path_slow).get("venue")
+        cmap = None
+        if corner_service.use_map():
+            try:
+                cmap = corner_service.pair_corner_map(df_fast_raw, df_slow_raw, _venue_ta,
+                                                      corner_service.pair_key_sha(in_fast.sha, in_slow.sha))
+            except Exception as _exc:  # el mapa nunca debe romper el análisis
+                logger.warning("corner map (telemetry/analyze): %s", _exc)
+        cmap_a = _map_for_lap(cmap, df_fast_raw)
+        apexes = _compare_apexes(df_geo, cmap_a)
 
         logger.info("Paso 3/7: Alineando vueltas y calculando Time Delta...")
         canales_extra = ["LateralG", "LongitudinalG", "SteerAngle"]
@@ -1299,7 +1369,7 @@ def analyze_telemetry_endpoint(
 
         logger.info("Paso 6/7: Extrayendo insights por curva...")
         df_sectores = resumir_delta_por_sector(df_aligned, apexes, lang=lang)
-        insights_curvas = analizar_errores_por_curva(df_aligned, apexes, lang=lang)
+        insights_curvas = analizar_errores_por_curva(df_aligned, apexes, lang=lang, corner_map=cmap_a)
 
         logger.info("Paso 7/7: Comprimiendo payload con RDP...")
         df_compressed = comprimir_telemetria(df_aligned, asegurar_apexes=apexes)
@@ -1366,6 +1436,7 @@ def analyze_telemetry_endpoint(
             "xgboost_pred":     xgboost_pred,
         }
         _add_header_meta(payload["metadata"], path_fast, fast_name)
+        corner_service.attach(payload, cmap)   # before enrich_compare: names come from the map
         try:
             circuits_db.enrich_compare(
                 payload, meta_dict.get("venue"), circuits_db.lap_length_of(df_aligned))
@@ -1421,12 +1492,14 @@ def analyze_stint_endpoint(
         tmp_dir = tempfile.mkdtemp(prefix="motorsport_stint_")
         dfs = []
         dq_src = None  # full session frame when available (data-quality panel)
+        map_key = None   # cache key of the unified corner map (file SHA-256 / hash of the lap files)
         first_name = laps[0].filename if laps else None
 
         if file_id or len(laps) == 1:
             # Session CSV mode — auto-segment into individual laps (shared with analyze-session via cache)
             inp = resolve_input(laps[0] if laps else None, file_id, lang, into_dir=tmp_dir)
             path, first_name = inp.path, inp.filename
+            map_key = inp.sha
             df_session = inp.raw()
             dq_src = df_session
             logger.info(f"Modo sesión única: segmentando '{first_name}' ({len(df_session)} filas)...")
@@ -1437,10 +1510,14 @@ def analyze_stint_endpoint(
                     status_code=422,
                     detail=_("api_err_min_3_files"),
                 )
+            _lap_paths = []
             for i, lap_file in enumerate(laps):
                 path = os.path.join(tmp_dir, f"lap_{i+1:02d}.csv")
                 _save_upload_sync(lap_file, path)
+                _lap_paths.append(path)
                 dfs.append(load_telemetry_data(path))
+            if corner_service.use_map():
+                map_key = corner_service.file_key(*_lap_paths)
 
         if len(dfs) < 3:
             raise HTTPException(
@@ -1465,9 +1542,16 @@ def analyze_stint_endpoint(
         telemetria_sesion: dict = {"available": False}
         setup_sesion:      dict = {"available": False}
         _corner_obs: dict = {}   # shared observations — computed once, reused by RL
+        cmap = None
         try:
-            _corner_obs   = get_corner_observations(dfs, df_laps)
-            curvas_sesion = analizar_curvas_sesion(dfs, df_laps, lang=lang, precomputed_obs=_corner_obs)
+            _venue = read_motec_metadata(path).get("venue")
+        except Exception:
+            _venue = None
+        try:
+            cmap = _session_map(dfs, _venue, map_key, df_laps)   # unified corner map (None in legacy mode)
+            _corner_obs   = get_corner_observations(dfs, df_laps, corner_map=cmap)
+            curvas_sesion = analizar_curvas_sesion(dfs, df_laps, lang=lang, precomputed_obs=_corner_obs,
+                                                   corner_map=cmap)
         except Exception as _exc:
             logger.warning("session_corner_analysis: %s", _exc)
         try:
@@ -1501,7 +1585,7 @@ def analyze_stint_endpoint(
         racing_line_rl: dict = {"available": False}
         try:
             racing_line_rl = optimizar_trazada_rl(
-                dfs, df_laps, precomputed_obs=_corner_obs or None
+                dfs, df_laps, precomputed_obs=_corner_obs or None, corner_map=cmap
             )
         except Exception as _exc:
             logger.warning("racing_line_rl: %s", _exc)
@@ -1535,11 +1619,12 @@ def analyze_stint_endpoint(
             "racing_line_rl":        racing_line_rl,
             "track_evolution":       track_evolution,
         }
+        corner_service.attach(stint_result, cmap)   # before enrich_stint: names come from the map
         try:
             _flying = df_laps.index[~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()].tolist()
             _len = circuits_db.median_lap_length(
                 circuits_db.lap_length_of(dfs[i]) for i in _flying if i < len(dfs))
-            circuits_db.enrich_stint(stint_result, read_motec_metadata(path).get("venue"), _len)
+            circuits_db.enrich_stint(stint_result, _venue, _len)
         except Exception as _exc:  # nunca debe romper el análisis
             logger.warning("circuits (stint): %s", _exc)
         stint_result["health_summary"] = _build_health_summary(stint_result)

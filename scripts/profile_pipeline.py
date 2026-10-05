@@ -125,10 +125,18 @@ def profile_stages(path: str, with_cprofile: bool):
     with _timer(rows, "stint: montecarlo"):
         st.simular_tiempos_stint(dl, deg)
     obs = {}
+    cmap = None
+    try:   # unified corner map (CORNER_DETECTION=map, the default); None with CORNER_DETECTION=legacy
+        from src.analytics import corner_service
+        from src.io.loaders import read_motec_metadata
+        with _timer(rows, f"stint: corner map build (CORNER_DETECTION={corner_service.mode()})"):
+            cmap = corner_service.session_corner_map(dfs, read_motec_metadata(path).get("venue"), None, dl)
+    except ImportError:   # versions before the unified corner map
+        pass
     with _timer(rows, "stint: corner observations"):
-        obs = get_corner_observations(dfs, dl)
+        obs = get_corner_observations(dfs, dl, corner_map=cmap) if cmap else get_corner_observations(dfs, dl)
     with _timer(rows, "stint: analizar_curvas_sesion"):
-        cs = analizar_curvas_sesion(dfs, dl, lang="en", precomputed_obs=obs)
+        cs = analizar_curvas_sesion(dfs, dl, lang="en", precomputed_obs=obs, corner_map=cmap) if cmap             else analizar_curvas_sesion(dfs, dl, lang="en", precomputed_obs=obs)
     with _timer(rows, "stint: analizar_telemetria_sesion"):
         ts = analizar_telemetria_sesion(dfs, dl)
     with _timer(rows, "stint: setup_sesion"):

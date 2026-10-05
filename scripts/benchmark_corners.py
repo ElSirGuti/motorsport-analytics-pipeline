@@ -20,6 +20,11 @@ y los del mapa de curvas unificado (src/analytics/corner_map.py):
   * ``map_telemetry`` solo consenso de telemetria (sin plantilla): aisla el efecto del consenso
   * ``single_lap``    el mapa completo construido vuelta a vuelta (una sola vuelta cada vez)
   * ``single_lap_no_table``  idem sin inyectar la tabla (no circular)
+  * ``api_map``       el mapa TAL COMO LLEGA A LA API (etapa 2a): las vueltas voladoras de la sesion segmentada
+                      sin filtrar (``corner_service.select_map_laps``: sin pit/atipicas/parciales, las 30 mas
+                      rapidas), opciones por defecto, el mismo ``venue`` de la cabecera. Es lo que muestran
+                      analyze-session, stint, optimal-lap y comparar vueltas. Difiere de ``corner_map`` solo en
+                      la seleccion de vueltas
 
 Metricas nuevas: ``recall_detectable`` (sin las curvas tabuladas con ``kind: flat_out``, comparable con la linea
 base antigua) y ``spurious_per_lap`` (detecciones que no son curva tabulada NI curva geometrica de la pista:
@@ -60,6 +65,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 import numpy as np  # noqa: E402
 
 from src.analytics import circuits as C  # noqa: E402
+from src.analytics import corner_service  # noqa: E402
 from src.analytics.corner_map import build_corner_map  # noqa: E402
 from src.analytics.geometry import detectar_apexes_perfectos, procesar_geometria_pista_perfecta  # noqa: E402
 from src.analytics.stint import segmentar_vueltas_desde_csv  # noqa: E402
@@ -71,7 +77,7 @@ from src.telemetry.metrics import detect_apex_points, segment_corners  # noqa: E
 EXTS = (".csv", ".csv.gz", ".ibt", ".ld")
 BASE_DETECTORS = ("speed", "geometry", "segmenter")
 LEGACY_DETECTORS = BASE_DETECTORS + ("union",)
-MAP_DETECTORS = ("corner_map", "map_no_table", "map_telemetry", "single_lap", "single_lap_no_table")
+MAP_DETECTORS = ("corner_map", "map_no_table", "map_telemetry", "single_lap", "single_lap_no_table", "api_map")
 DETECTORS = LEGACY_DETECTORS + MAP_DETECTORS
 MAP_VARIANT_OPTIONS = {
     "corner_map": {},
@@ -158,8 +164,11 @@ def geo_atoms(circuit: dict, length: float) -> list:
     return [float(a["fraction"]) * length for g in geo["corners"] for a in g.get("sub_apexes") or []]
 
 
-def map_detections(laps: list, venue, options: dict | None = None) -> tuple:
-    """({variante: [[distancias] por vuelta]}, mapa completo) de los detectores del mapa unificado."""
+def map_detections(laps: list, venue, options: dict | None = None, api_laps: list | None = None) -> tuple:
+    """({variante: [[distancias] por vuelta]}, mapa completo) de los detectores del mapa unificado.
+
+    ``api_laps``: las vueltas que la API daria al mapa (``corner_service.select_map_laps`` sobre la sesion
+    segmentada); anade la variante ``api_map``."""
     out: dict = {}
     full = None
     lengths = [float(l["Distance"].iloc[-1] - l["Distance"].iloc[0]) for l in laps]
@@ -176,6 +185,9 @@ def map_detections(laps: list, venue, options: dict | None = None) -> tuple:
     nt = dict(options or {}, use_table=False)
     out["single_lap_no_table"] = [sorted(c["apex_distance_m"] for c in build_corner_map([l], venue, options=nt)["corners"])
                                   for l in laps]
+    if api_laps:
+        res = build_corner_map(api_laps, venue, options=options)
+        out["api_map"] = [sorted(c["fraction"] * n for c in res["corners"]) for n in lengths]
     return out, full
 
 
@@ -304,8 +316,16 @@ def process_file(path: str, options: dict | None = None, load_only: bool = False
             dists, errs, length = detect_all(lap)
             records.append({"dists": dists, "length": length})
             errors.update(errs)
+        try:   # las vueltas que la API daria al mapa: sesion segmentada sin filtrar, voladoras
+            seg = segmentar_vueltas_desde_csv(df)
+        except ValueError:
+            seg = [df]
+        try:
+            api_laps = corner_service.select_map_laps(seg)
+        except Exception:  # noqa: BLE001 - archivo de una vuelta sin metricas de vuelta
+            api_laps = seg
         t0 = time.perf_counter()
-        maps, full = map_detections(laps, venue, options)
+        maps, full = map_detections(laps, venue, options, api_laps=api_laps)
         info["map_seconds"] = round(time.perf_counter() - t0, 2)
         for name, per_lap in maps.items():
             for record, d in zip(records, per_lap):
@@ -405,7 +425,7 @@ def _fmt(v, suffix=""):
 
 DET_LABEL = {"speed": "speed", "geometry": "geometry", "segmenter": "segmenter", "union": "union",
              "corner_map": "corner_map", "map_no_table": "map_no_table", "map_telemetry": "map_telemetry",
-             "single_lap": "single_lap"}
+             "single_lap": "single_lap", "api_map": "api_map"}
 
 
 def to_markdown(r: dict, legacy: dict | None = None, crossval: dict | None = None, title: str | None = None) -> str:
@@ -422,7 +442,8 @@ def to_markdown(r: dict, legacy: dict | None = None, crossval: dict | None = Non
     L.append("Mapa de curvas unificado (`src/analytics/corner_map.py`): `corner_map` (consenso sobre todas las vueltas "
              "limpias del archivo + plantilla de pista + tabla), `map_no_table` (igual pero sin inyectar la tabla: "
              "su recall NO es circular), `map_telemetry` (solo consenso de telemetria, sin plantilla) y `single_lap` "
-             "(el mapa completo construido vuelta a vuelta).")
+             "(el mapa completo construido vuelta a vuelta) y `api_map` (el mapa tal como llega a la API: vueltas voladoras "
+             "de la sesion segmentada, ver `corner_service.select_map_laps`).")
     L.append("")
     L.append("Metricas: **recall** = curvas tabuladas con una deteccion emparejada dentro de tolerancia / curvas "
              "tabuladas (media por vuelta); **recall det.** = lo mismo sin las curvas tabuladas con `kind: flat_out` "

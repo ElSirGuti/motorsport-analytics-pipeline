@@ -23,7 +23,108 @@ logger = logging.getLogger(__name__)
 CORNER_WINDOW_BEFORE_M = 100.0
 CORNER_WINDOW_AFTER_M = 200.0
 
-def analizar_errores_por_curva(df_alineado: pd.DataFrame, df_apexes: pd.DataFrame, lang: str = "es") -> list[dict]:
+def _insights_from_map(df_alineado: pd.DataFrame, corner_map: dict, lang: str = "es") -> list[dict]:
+    """
+    Same report as ``analizar_errores_por_curva`` but for the corners of the unified corner map: the
+    window of each corner is the map's ``start_m`` .. ``end_m`` (disjoint by construction), the number and
+    the name are the map's, and corners of kind flat_out / kink report the time lost in their window but
+    no braking point, apex speed or throttle application (``*_available`` False, values 0.0).
+    All the fields of the classic report are kept; the map fields are added.
+    """
+    from src.analytics.corner_metrics import first_onset, is_flat, neighbours
+    corners = corner_map["corners"]
+    reporte: list[dict] = []
+    if not corners or df_alineado.empty:
+        return reporte
+    has_brake = 'Brake_Fast' in df_alineado.columns and 'Brake_Slow' in df_alineado.columns
+    has_throttle = 'Throttle_Fast' in df_alineado.columns and 'Throttle_Slow' in df_alineado.columns
+    dist_all = df_alineado['Distance'].values
+    bf = bs = tf = ts = None
+    if has_brake:
+        bf = pd.to_numeric(df_alineado['Brake_Fast'], errors='coerce').fillna(0).values
+        bs = pd.to_numeric(df_alineado['Brake_Slow'], errors='coerce').fillna(0).values
+    if has_throttle:
+        tf = pd.to_numeric(df_alineado['Throttle_Fast'], errors='coerce').fillna(0).values
+        ts = pd.to_numeric(df_alineado['Throttle_Slow'], errors='coerce').fillna(0).values
+    delta = df_alineado['Delta_Time'].values
+    sp_f = df_alineado['Speed_Fast'].values
+    sp_s = df_alineado['Speed_Slow'].values
+    for c, (prev_apex, next_apex) in zip(corners, neighbours(corners)):
+        apex = float(c["apex_distance_m"])
+        w_start, w_end = float(c["start_m"]), float(c["end_m"])
+        sel = np.where((dist_all >= w_start) & (dist_all <= w_end))[0]
+        if len(sel) < 10:
+            continue
+        flat = is_flat(c)
+        delta_entrada = float(delta[sel[-1]] - delta[sel[0]])
+        v_delta = float(sp_f[sel].min() - sp_s[sel].min())
+        brake_delta_m, brake_available = 0.0, False
+        throttle_delta_m, throttle_available = 0.0, False
+        if not flat:
+            if has_brake:
+                lo = max(apex - 300.0, prev_apex) if prev_apex is not None else apex - 300.0
+                pos = np.where((dist_all >= lo) & (dist_all <= apex))[0]
+                i_f, i_s = first_onset(bf, pos, 5.0), first_onset(bs, pos, 5.0)
+                if i_f is not None and i_s is not None:
+                    # positive if Slow brakes EARLIER (further from the apex)
+                    brake_delta_m = float((apex - dist_all[i_s]) - (apex - dist_all[i_f]))
+                    brake_available = True
+            if has_throttle:
+                hi = min(apex + 300.0, next_apex) if next_apex is not None else apex + 300.0
+                pos = np.where((dist_all >= apex) & (dist_all <= hi))[0]
+                gf, gs = pos[tf[pos] > 95.0], pos[ts[pos] > 95.0]
+                if len(gf) and len(gs):
+                    # positive if Slow gets back to full throttle LATER
+                    throttle_delta_m = float(dist_all[gs[0]] - dist_all[gf[0]])
+                    throttle_available = True
+        is_loss = delta_entrada > 0.05
+        if flat:
+            if is_loss:
+                diagnostico = t("insight_flat_out_loss", lang=lang, delta=f"{delta_entrada:.3f}")
+            elif delta_entrada < -0.05:
+                diagnostico = t("insight_excellent", lang=lang, delta=f"{abs(delta_entrada):.3f}")
+            else:
+                diagnostico = t("insight_optimal", lang=lang)
+        elif is_loss:
+            if v_delta > 3.0 and brake_delta_m > 10.0:
+                diagnostico = t("insight_brake_early", lang=lang, brake_delta=f"{brake_delta_m:.1f}", v_delta=f"{v_delta:.1f}")
+            elif brake_delta_m < -5.0 and throttle_delta_m > 10.0:
+                diagnostico = t("insight_overdriving", lang=lang, brake_delta=f"{abs(brake_delta_m):.1f}", throttle_delta=f"{throttle_delta_m:.1f}")
+            elif v_delta > 5.0:
+                diagnostico = t("insight_slow_apex", lang=lang, v_delta=f"{v_delta:.1f}")
+            elif throttle_delta_m > 15.0:
+                diagnostico = t("insight_late_throttle", lang=lang, throttle_delta=f"{throttle_delta_m:.1f}")
+            else:
+                diagnostico = t("insight_general_loss", lang=lang, delta=f"{delta_entrada:.3f}")
+        elif delta_entrada < -0.05:
+            diagnostico = t("insight_excellent", lang=lang, delta=f"{abs(delta_entrada):.3f}")
+        else:
+            diagnostico = t("insight_optimal", lang=lang)
+        reporte.append({
+            'corner_number': int(c["number"]),
+            'start_distance': round(w_start, 1),
+            'end_distance': round(w_end, 1),
+            'apex_distance': apex,
+            'time_loss_seconds': round(delta_entrada, 3),
+            'apex_speed_delta_kmh': 0.0 if flat else round(-v_delta, 1),
+            'braking_delta_meters': round(brake_delta_m, 1),
+            'throttle_delta_meters': round(throttle_delta_m, 1),
+            'braking_delta_available': bool(brake_available),
+            'throttle_delta_available': bool(throttle_available),
+            'apex_delta_available': not flat,
+            'description': diagnostico,
+            # unified corner map fields (additive)
+            'number': int(c["number"]), 'name': c.get("name"), 'corner_name': c.get("name"),
+            'kind': c.get("kind"), 'direction': c.get("direction"), 'min_radius_m': c.get("min_radius_m"),
+            'flat_out_share': c.get("flat_out_share"), 'confidence': c.get("confidence"),
+            'is_complex': bool(c.get("is_complex")),
+        })
+    logger.info(f"  ✓ {len(reporte)} insights generados (corner map)")
+    return reporte
+
+
+def analizar_errores_por_curva(df_alineado: pd.DataFrame, df_apexes: pd.DataFrame, lang: str = "es",
+                               corner_map: dict | None = None) -> list[dict]:
     """
     Analiza la telemetría en ventanas alrededor de cada Apex para generar
     diagnósticos técnicos automatizados sobre el rendimiento en cada curva.
@@ -33,10 +134,15 @@ def analizar_errores_por_curva(df_alineado: pd.DataFrame, df_apexes: pd.DataFram
                      Requiere: Distance, Speed_Fast, Speed_Slow, Delta_Time,
                                Brake_Fast, Brake_Slow, Throttle_Fast, Throttle_Slow.
         df_apexes: DataFrame con las ubicaciones de los Apex (Distance, Curvature).
+        corner_map: mapa unificado de curvas (``corner_map.build_corner_map``, con las posiciones ya
+                    escaladas a esta vuelta). Si se da, las curvas, su numeración, nombres y ventanas son
+                    las del mapa (ver ``_insights_from_map``); si no, el camino clásico por apexes.
 
     Returns:
         Lista de diccionarios con los insights y métricas de cada curva.
     """
+    if corner_map and corner_map.get("corners"):
+        return _insights_from_map(df_alineado, corner_map, lang)
     reporte_insights = []
     
     if df_apexes.empty or df_alineado.empty:

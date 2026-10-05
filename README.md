@@ -384,7 +384,9 @@ The complete alias table is `COLUMN_ALIASES` in `src/io/loaders.py`. Missing opt
 4. **Record the evidence.** Set `confidence` to `medium` (one lap or one car) or `high` (several laps and at least two files or cars) and say in `source` which logs you used. Never publish names you are not sure about: a wrong name is worse than none.
 5. **Validate.** `python -m pytest tests/test_circuits.py -q` checks ids, aliases, ordering and ranges (`validate_database`). Then upload a log of that circuit and check that the names appear in the corner panels.
 
-**Limits to know.** A corner is only named if the detector finds an apex near its tabulated position (tolerance 2.5% of the lap, between 120 and 180 m, or `apex_tolerance_m` per circuit). A bend that a car takes **flat out** has no speed minimum and almost no curvature, so it produces no apex and is never named: that is why Variante Bassa at Imola is not in the table (in 26 laps of 5 cars the speed keeps rising there). Such bends do not appear in the helper's output either, so a missing entry in that list is information, not a bug.
+**Flat-out bends.** A bend that a car takes **flat out** has no speed minimum, so a telemetry detector alone never finds it (Variante Bassa at Imola: in 26 laps of 5 cars the speed keeps rising there). The unified corner map ([docs/CORNER_DETECTION.md](docs/CORNER_DETECTION.md)) keeps such bends instead of dropping them: it starts from the track's own geometry and from the corners of this table, and when the telemetry shows no apex it marks the corner `kind: "flat_out"` (named, with time lost over its stretch but no braking or apex figures). To get one named, add it to `corners` with `"kind": "flat_out"` and its `apex_fraction`; Variante Bassa is the example in the Imola entry. The helper `scripts/circuit_apexes.py` only lists apexes that telemetry can measure, so a bend missing from its output is expected for flat-out bends.
+
+**Limits to know.** The telemetry detectors look for an apex near each tabulated position (tolerance 2.5% of the lap, between 120 and 180 m, or `apex_tolerance_m` per circuit). Names only exist for the 7 circuits with a corner table, and the geometry template only for the circuits in `src/data/track_geometry/` (Assetto Corsa tracks); other circuits use the consensus of the telemetry alone. Set `CORNER_DETECTION=legacy` to go back to the previous detectors.
 
 ## Themes
 
@@ -401,7 +403,7 @@ Imola (57 MB): first result about 2.1 s and everything about 2.9 s, instead of a
 - **Lap segmentation** is unified across all endpoints: by lap-counter channel (`Session Lap Count`, `Lap`, ...) or, failing that, by distance resets. Partial segments shorter than 30 s are discarded. If fewer than 2 laps are found the API answers with an error message.
 - **Pit and outlier laps:** a lap is marked as pit if the `In Pit` channel says so; laps outside 70-115 % of the median lap time are also flagged as outliers and excluded from regressions and projections.
 - **Corner windows do not overlap:** each window is trimmed at the midpoint between neighbouring apexes. The comparison `summary` includes `corners_time_delta_s` (time gained/lost inside corners) and `outside_corners_delta_s` (the remainder).
-- **Corner matching** between two laps uses the apex distance, not the corner index.
+- **Corner matching** between two laps uses the apex distance, not the corner index. With the default `CORNER_DETECTION=map` there is no matching: every endpoint takes its corners (numbers, names, windows, `flat_out` marks) from one unified corner map, see [docs/CORNER_DETECTION.md](docs/CORNER_DETECTION.md).
 - **Not-measurable values:** `braking_delta_available` and `throttle_delta_available` flag whether the braking/throttle deltas could be measured. A `0.0` with `available = false` means "not measurable", not "no difference".
 - **Constant channels** (for example brake temperatures fixed at one value) return `available: false` with a `reason` instead of generating false recommendations.
 - **Low confidence:** projections with too few laps carry `low_confidence`, `confidence` and `reason` (see "Realistic projections").
@@ -452,7 +454,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (514 collected: 491 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (535 collected: 512 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -498,13 +500,13 @@ There are 26 endpoints (13 analysis and reports, 5 setups, 8 library), listed be
 | `/api/health` | GET | none | `{status, service, version}` |
 | `/api/files` | POST | `file`: CSV, `.ibt` or `.ld` | `{file_id, filename, size_bytes, format, venue, vehicle, driver, ttl_hours}`; `413` above `MAX_UPLOAD_MB`, `400` if empty |
 | `/api/files/{file_id}` | GET | SHA-256 id | `{file_id, filename, size_bytes}`, or `410` if the client must upload again |
-| `/api/analyze-session` | POST | `session_file` or `file_id` | JSON with `laps` (time, pit/outlier flags), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `data_quality`. If no laps can be segmented, empty `laps` and a `message`. |
-| `/api/stint/analyze` | POST | `laps`: one session file, or 3 or more single-lap files; or `file_id` of a session | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `health_summary`, `data_quality` |
-| `/api/optimal-lap` | POST | `session_file` or `file_id`; optional `microsector_m` (default 25), `speed_tol_kmh` (default 3) | Theoretical and realistic optimal lap, gains, microsectors, zones, corners, contributions, warnings (see "Optimal lap") |
-| `/api/compare-laps` | POST | `lap_a`, `lap_b` | Basic comparison: `summary`, speed/brake/throttle comparisons, `time_delta_series`, `corners`, `track_map`, `metadata`, `text_report`, `setup_advisor` and the advanced module results when available |
-| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (or `lap_fast_id`, `lap_slow_id`); query `resolution_m` (default 5) | Advanced pipeline: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, tyre/brake/inputs/suspension/slip results, `data_quality` |
-| `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow`; query `resolution_m` | Geometry and time-delta subset: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners` |
-| `/api/compare-session-laps` | POST | `session_file` or `file_id`, `lap_a`, `lap_b` (1-based; `0` = auto: fastest and slowest flying lap) | Full comparison of two laps of a session; `metadata` includes `distance_synthetic`; also `health_summary`, `data_quality` |
+| `/api/analyze-session` | POST | `session_file` or `file_id` | JSON with `laps` (time, pit/outlier flags), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `data_quality`. If no laps can be segmented, empty `laps` and a `message`. |
+| `/api/stint/analyze` | POST | `laps`: one session file, or 3 or more single-lap files; or `file_id` of a session | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `health_summary`, `data_quality` |
+| `/api/optimal-lap` | POST | `session_file` or `file_id`; optional `microsector_m` (default 25), `speed_tol_kmh` (default 3) | Theoretical and realistic optimal lap, gains, microsectors, zones, corners, `corner_map`, contributions, warnings (see "Optimal lap") |
+| `/api/compare-laps` | POST | `lap_a`, `lap_b` | Basic comparison: `summary`, speed/brake/throttle comparisons, `time_delta_series`, `corners`, `corner_map`, `track_map`, `metadata`, `text_report`, `setup_advisor` and the advanced module results when available |
+| `/api/telemetry/analyze` | POST | `lap_fast`, `lap_slow` (or `lap_fast_id`, `lap_slow_id`); query `resolution_m` (default 5) | Advanced pipeline: `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `corner_map`, `gg_diagram`, `g_limit`, `dynamic_events`, `anomaly`, `corner_clusters`, `tiempo_potencial`, `xgboost_pred`, tyre/brake/inputs/suspension/slip results, `data_quality` |
+| `/api/telemetry/compare` | POST | `lap_fast`, `lap_slow`; query `resolution_m` | Geometry and time-delta subset: `metadata`, `telemetria`, `curvatura`, `apexes`, `sectores`, `corners`, `corner_map` |
+| `/api/compare-session-laps` | POST | `session_file` or `file_id`, `lap_a`, `lap_b` (1-based; `0` = auto: fastest and slowest flying lap) | Full comparison of two laps of a session; `metadata` includes `distance_synthetic`; also `corner_map`, `health_summary`, `data_quality` |
 | `/api/report/pdf` | POST | `session_file`, `lap_a`, `lap_b` | `application/pdf` attachment `report_V{a}_vs_V{b}.pdf` |
 | `/api/report/pdf-from-json` | POST | JSON: a comparison result already computed | `application/pdf` attachment, no recomputation |
 | `/api/report/session-pdf-from-json` | POST | JSON: `{session, stint, comparison, metadata}` (`session` with `laps` required; others optional) | Session PDF `motorsport_<circuit>_<car>_<date>.pdf`, no recomputation |
@@ -570,7 +572,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 514 collected: 491 run, 23 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 535 collected: 512 run, 23 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

@@ -65,6 +65,7 @@ CORS is involved. In development the frontend still calls `http://localhost:8000
 | `UPLOAD_TTL_HOURS` | backend | `24` | uploads unused for this long are deleted |
 | `SESSION_CACHE_MAX_MB` | backend | `1024` | per process; keep below the pod memory limit minus one analysis |
 | `SESSION_CACHE_TTL_MIN` | backend | `60` | idle time before a parsed session leaves memory |
+| `CORNER_DETECTION` | backend | `map` | `map` = every endpoint takes its corners from the unified corner map (`docs/CORNER_DETECTION.md`); `legacy` = the previous per-module detectors, to compare or to roll back. Read on every request; in `legacy` the response has no `corner_map` object |
 | `API_HOST` / `API_PORT` / `API_RELOAD` | `python main.py` | `0.0.0.0` / `8000` / `false` | not used (the entrypoint starts uvicorn on 8000); `API_RELOAD=true` only for development |
 | `VITE_API_URL` | frontend build / Vite | `http://localhost:8000/api` | the production build uses the relative `/api` when it is unset |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | compose | `motorsport` / `change-me-local-only` / `motorsport` | the password is **required** (compose refuses to start without it); example values are for local use only |

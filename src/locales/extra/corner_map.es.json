@@ -1,0 +1,8 @@
+{
+  "sess_flat_out": "a fondo, {loss} s en la ventana de la curva (sin fase de frenada, apex ni gas que optimizar)",
+  "insight_flat_out_loss": "Curva a fondo: {delta}s perdidos dentro de su ventana. No hay punto de frenada ni apex que trabajar: revisa la trazada, la marcha y la velocidad en la recta anterior.",
+  "pdf_kind_flat_out": "a fondo",
+  "pdf_kind_kink": "quiebro",
+  "pdf_read_flat_out": "A fondo: solo se mide el tiempo perdido en la ventana de la curva.",
+  "pdf_read_kink": "Quiebro tomado a fondo: solo se mide el tiempo perdido en la ventana."
+}

@@ -552,6 +552,7 @@ def _corners_session(ctx: Ctx) -> list[dict]:
             "brake": c.get("braking_delta_meters") if c.get("braking_available", True) else None,
             "apex": c.get("apex_speed_delta_kmh") if c.get("apex_available", True) else None,
             "throttle": c.get("throttle_delta_meters") if c.get("throttle_available", True) else None,
+            "kind": c.get("kind"),
         })
     return sorted([c for c in out if c["n"] is not None], key=lambda c: c["n"])
 
@@ -562,8 +563,9 @@ def _corners_compare(ctx: Ctx) -> list[dict]:
         out.append({
             "n": c.get("corner_number"), "name": c.get("corner_name"), "loss": c.get("time_loss_seconds"), "sigma": None,
             "brake": c.get("braking_delta_meters") if c.get("braking_delta_available", True) else None,
-            "apex": c.get("apex_speed_delta_kmh"),
+            "apex": c.get("apex_speed_delta_kmh") if c.get("apex_delta_available", True) else None,
             "throttle": c.get("throttle_delta_meters") if c.get("throttle_delta_available", True) else None,
+            "kind": c.get("kind"),
         })
     return sorted([c for c in out if c["n"] is not None], key=lambda c: c["n"])
 
@@ -603,7 +605,14 @@ _PHASE_FOCUS = {
 }
 
 
+_FLAT_KINDS = ("flat_out", "kink")   # unified corner map: nothing to brake, no apex, no throttle phase
+_KIND_MARK = {"flat_out": "pdf_kind_flat_out", "kink": "pdf_kind_kink"}
+_KIND_READING = {"flat_out": "pdf_read_flat_out", "kink": "pdf_read_kink"}
+
+
 def _corner_reading(c: dict, with_sigma: bool = True) -> str:
+    if c.get("kind") in _FLAT_KINDS:
+        return t(_KIND_READING[c["kind"]])
     parts = []
     if _fin(c.get("brake")) and abs(c["brake"]) >= 2:
         parts.append(t("pdf_read_brake_later" if c["brake"] > 0 else "pdf_read_brake_earlier",
@@ -1008,7 +1017,8 @@ def _section_corners(ctx: Ctx, corners: list[dict], kind: str) -> list:
         ylabel = t("pdf_chart_loss_cmp", a=ctx.la, b=ctx.lb)
         intro = t("pdf_intro_corners_compare", a=esc(ctx.la), b=esc(ctx.lb))
     el.append(Paragraph(esc(intro), S["caption"]))
-    ch = charts.chart_corner_bars([{"n": c["n"], "loss": c["loss"], "sigma": c.get("sigma")} for c in corners],
+    ch = charts.chart_corner_bars([{"n": c["n"], "loss": c["loss"], "sigma": c.get("sigma"),
+                                    "flat": c.get("kind") in _FLAT_KINDS} for c in corners],
                                   ylabel, h=4.4 if ctx.compact else 5.6)
     if ch:
         el.append(_img(ch))
@@ -1030,7 +1040,7 @@ def _section_corners(ctx: Ctx, corners: list[dict], kind: str) -> list:
             N(c.get("brake"), 0, True) if _fin(c.get("brake")) and abs(c["brake"]) >= 0.5 else "—",
             N(c.get("apex"), 1, True) if _fin(c.get("apex")) and abs(c["apex"]) >= 0.05 else "—",
             N(c.get("throttle"), 0, True) if _fin(c.get("throttle")) and abs(c["throttle"]) >= 0.5 else "—",
-            esc(t(ph)) if ph else "—",
+            esc(t(ph)) if ph else (esc(t(_KIND_MARK[c["kind"]])) if c.get("kind") in _FLAT_KINDS else "—"),
             esc(_corner_reading(c, with_sigma=use_sigma)),
         ]
         rows.append([full[i] for i in cols])

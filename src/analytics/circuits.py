@@ -391,6 +391,19 @@ def annotate_corners(circuit_info: Optional[dict], corners: list, distance_key: 
     return corners
 
 
+def annotate_corners_from_map(corner_map: Optional[dict], corners: list, number_key: str = "corner_number") -> list:
+    """
+    Map path of ``annotate_corners``: `corner_name` of every corner dict from the unified corner map
+    (``corner_map.build_corner_map`` result or the API ``corner_map`` object), looked up by corner NUMBER.
+    No distance matching: the numbers and the names were assigned together when the map was built.
+    """
+    names = {c.get("number"): c.get("name") for c in (corner_map or {}).get("corners", []) if isinstance(c, dict)}
+    for c in corners or []:
+        if isinstance(c, dict):
+            c["corner_name"] = names.get(c.get(number_key))
+    return corners
+
+
 def name_for_distance(circuit_info: Optional[dict], distance_m, lap_length_m: Optional[float] = None) -> Optional[str]:
     """Name of the tabulated corner closest to a distance (None if outside tolerance)."""
     if distance_m is None or not circuit_info or not circuit_info.get("matched"):
@@ -416,15 +429,54 @@ def _numeric_distances(rows: list, key: str) -> list:
     return [(i, r.get(key)) for i, r in enumerate(rows) if isinstance(r, dict) and r.get(key) is not None]
 
 
+def _map_names(result: dict) -> Optional[dict]:
+    """{corner number: name or None} of the unified corner map attached to a result (None without a map)."""
+    cm = result.get("corner_map") if isinstance(result, dict) else None
+    if not isinstance(cm, dict) or not cm.get("corners"):
+        return None
+    return {c.get("number"): c.get("name") for c in cm["corners"] if isinstance(c, dict)}
+
+
+def _enrich_compare_from_map(result: dict, names: dict) -> None:
+    """Names / numbers of apexes, corners and sectors straight from the unified corner map (no re-matching)."""
+    apexes = result.get("apexes")
+    apexes = apexes if isinstance(apexes, list) else []
+    for i, a in enumerate(apexes):
+        if isinstance(a, dict):
+            if a.get("corner_number") is None:
+                a["corner_number"] = i + 1
+            a["corner_name"] = names.get(a["corner_number"])
+    for c in result.get("corners") or []:
+        if isinstance(c, dict):
+            c["corner_name"] = names.get(c.get("corner_number"))
+    sectors = result.get("sectores")
+    if apexes and isinstance(sectors, list):
+        n = len(apexes)
+        for s_ in sectors:
+            if not isinstance(s_, dict) or not isinstance(s_.get("sector"), int):
+                continue
+            k = s_["sector"]            # sector k runs from apex k-1 to apex k (1-based apexes)
+            frm, to = k - 1, k
+            s_["from_corner_number"] = apexes[frm - 1].get("corner_number") if 1 <= frm <= n else None
+            s_["to_corner_number"] = apexes[to - 1].get("corner_number") if 1 <= to <= n else None
+            s_["from_corner_name"] = names.get(s_["from_corner_number"])
+            s_["to_corner_name"] = names.get(s_["to_corner_number"])
+
+
 def enrich_compare(result: dict, venue, lap_length_m: Optional[float] = None) -> dict:
     """
     Pairwise comparison payloads (compare-laps, compare-session-laps, telemetry/*).
 
     Adds result['circuit'], `corner_name` on every corner and on every detected apex
     (plus `corner_number`), and from/to corner numbers + names on the sector rows.
+    With a unified corner map in ``result['corner_map']`` the numbers and names come from the map.
     """
     info = recognize(venue, lap_length_m)
     result["circuit"] = info
+    map_names = _map_names(result)
+    if map_names is not None:
+        _enrich_compare_from_map(result, map_names)
+        return result
     entry = get_circuit(info["id"]) if info["matched"] else None
     length = lap_length_m or info.get("length_m")
 
@@ -491,6 +543,13 @@ def enrich_stint(result: dict, venue, lap_length_m: Optional[float]) -> dict:
     result["circuit"] = info
     cs = result.get("curvas_sesion")
     by_number: dict = {}
+    map_names = _map_names(result)
+    if map_names is not None:
+        # unified corner map: curvas_sesion and racing_line_rl already carry the map's numbers; names too
+        for blk in (cs, result.get("racing_line_rl")):
+            if isinstance(blk, dict) and isinstance(blk.get("corners"), list):
+                annotate_corners_from_map(result["corner_map"], blk["corners"])
+        return result
     if isinstance(cs, dict) and isinstance(cs.get("corners"), list):
         annotate_corners(info, cs["corners"], "apex_distance", lap_length_m)
         by_number = {c.get("corner_number"): c.get("corner_name") for c in cs["corners"]
@@ -517,9 +576,14 @@ def enrich_optimal_lap(result: dict, venue) -> dict:
     info = recognize(venue, L)
     result["circuit"] = info
     corners = result.get("corners") or []
-    annotate_corners(info, corners, "apex_distance", L)
-    by_number = {c.get("corner_number"): c.get("corner_name") for c in corners
-                 if isinstance(c, dict) and c.get("corner_name")}
+    map_names = _map_names(result)
+    if map_names is not None:
+        annotate_corners_from_map(result["corner_map"], corners)
+        by_number = {k: v for k, v in map_names.items() if v}
+    else:
+        annotate_corners(info, corners, "apex_distance", L)
+        by_number = {c.get("corner_number"): c.get("corner_name") for c in corners
+                     if isinstance(c, dict) and c.get("corner_name")}
     for z in result.get("top_zones") or []:
         if isinstance(z, dict):
             z["corner_name"] = by_number.get(z.get("corner_number"))

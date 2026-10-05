@@ -90,9 +90,24 @@ def _status(gap_s: float) -> str:
 
 # ── Capa 1 + 2: Historial por curva ──────────────────────────────────────────
 
+def _corner_scheme() -> str:
+    """Esquema de numeración de curvas que genera el análisis actual: 'map' (mapa unificado) o 'legacy'.
+
+    El historial se indexa por (circuito, número de curva). El mapa unificado numera distinto que los
+    detectores antiguos (más curvas, p. ej. Imola 7 -> 10), así que mezclar filas de ambos esquemas
+    atribuiría tiempos a otra curva. Cada fila guarda el esquema con el que se numeró y las consultas
+    por curva solo usan filas del esquema vigente.
+    """
+    return "legacy" if os.getenv("CORNER_DETECTION", "map").strip().lower() == "legacy" else "map"
+
+
+def _has_scheme_column(conn: sqlite3.Connection) -> bool:
+    return any(row[1] == "corner_scheme" for row in conn.execute("PRAGMA table_info(lap_history)"))
+
+
 def _get_hist_by_corner(corners: list[dict], metadata: dict) -> dict:
     """
-    Carga del SQLite el historial de time_loss_s por corner_number (filtrado por venue).
+    Carga del SQLite el historial de time_loss_s por corner_number (filtrado por venue y esquema).
 
     Returns:
         {corner_number: {p10, p25, mean, std, consistency_pct, n_samples}}
@@ -107,14 +122,19 @@ def _get_hist_by_corner(corners: list[dict], metadata: dict) -> dict:
     if not corner_numbers:
         return {}
 
+    scheme = _corner_scheme()
     conn = sqlite3.connect(str(DB_PATH))
     try:
         placeholders = ",".join("?" * len(corner_numbers))
-        df = pd.read_sql(
-            f"SELECT * FROM lap_history WHERE venue=? AND corner_number IN ({placeholders})",
-            conn,
-            params=[venue] + corner_numbers,
-        )
+        sql = f"SELECT * FROM lap_history WHERE venue=? AND corner_number IN ({placeholders})"
+        params = [venue] + corner_numbers
+        if _has_scheme_column(conn):
+            sql += " AND corner_scheme=?"
+            params.append(scheme)
+        elif scheme != "legacy":
+            # BD anterior al versionado: todas sus filas usan la numeración antigua
+            return {}
+        df = pd.read_sql(sql, conn, params=params)
     finally:
         conn.close()
 
@@ -256,10 +276,11 @@ def guardar_en_historial(
         return 0
 
     cursor = conn.cursor()
+    scheme = _corner_scheme()
     cursor.executemany(
-        f"INSERT OR IGNORE INTO lap_history ({', '.join(HISTORY_FEATURES)}) "
-        f"VALUES ({', '.join(['?'] * len(HISTORY_FEATURES))})",
-        [tuple(r[f] for f in HISTORY_FEATURES) for r in rows],
+        f"INSERT OR IGNORE INTO lap_history ({', '.join(HISTORY_FEATURES)}, corner_scheme) "
+        f"VALUES ({', '.join(['?'] * len(HISTORY_FEATURES))}, ?)",
+        [tuple(r[f] for f in HISTORY_FEATURES) + (scheme,) for r in rows],
     )
     conn.commit()
     inserted = cursor.rowcount
@@ -412,6 +433,10 @@ def _init_db(conn: sqlite3.Connection) -> None:
             created_at TEXT DEFAULT (datetime('now'))
         )
     """)
+    # Migración: las bases creadas antes del versionado no tienen la columna. Sus filas existentes
+    # se leen con el valor por defecto 'legacy' (numeración de los detectores antiguos), sin perder datos.
+    if not _has_scheme_column(conn):
+        conn.execute("ALTER TABLE lap_history ADD COLUMN corner_scheme TEXT DEFAULT 'legacy'")
     conn.commit()
 
 

@@ -60,12 +60,61 @@ def _corner_parts(brake, apex, throttle, std: float, lang: str = "es") -> str:
     return ", ".join(parts)
 
 
-def get_corner_observations(dfs: list, df_laps) -> dict:
+def _observations_from_map(dfs: list, df_laps, corner_map: dict) -> dict:
+    """
+    Per-lap observations measured inside the windows of the unified corner map (no detection, no
+    ``pair_corners``). Same shape as the legacy observations, keyed by the map's corner NUMBER, plus
+    ``kind``; a delta that cannot be measured is None (always so for flat_out / kink corners, which keep
+    their time loss). See src/analytics/corner_metrics.py.
+    """
+    from src.analytics import corner_metrics as cm
+    from src.analytics.corner_map import _prepare_lap
+
+    flying_mask = ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
+    flying = df_laps[flying_mask]
+    if len(flying) < 2:
+        return {}
+    corners = corner_map["corners"]
+    L = float(corner_map["summary"]["lap_length_m"])
+    ref_idx = int(flying["lap_time_s"].idxmin())
+
+    def _metrics(i):
+        lap = _prepare_lap(dfs[i], [], i)
+        if lap is None or abs(lap["length"] / L - 1.0) > 0.04:
+            return None      # partial lap / other layout: its corners are not at the map's fractions
+        return cm.lap_metrics(lap, corners, L)
+
+    ref = _metrics(ref_idx)
+    if ref is None:
+        return {}
+    obs: dict = defaultdict(list)
+    for idx in flying.index:
+        if idx == ref_idx:
+            continue
+        try:
+            cur = _metrics(idx)
+            if cur is None:
+                continue
+            for c, mr, ml in zip(corners, ref, cur):
+                d = cm.delta_vs_reference(mr, ml)
+                d.update({"ref_apex_distance": float(c["apex_distance_m"]), "kind": c.get("kind")})
+                obs[c["number"]].append(d)
+        except Exception as exc:
+            logger.debug("get_corner_observations(map): idx=%d: %s", idx, exc)
+    return dict(obs)
+
+
+def get_corner_observations(dfs: list, df_laps, corner_map: dict | None = None) -> dict:
     """
     Extract per-lap, per-corner raw observations without aggregating.
     Returns {corner_idx: [{time_loss, brake_delta, apex_delta, thtl_delta}]}
     Exposed so the RL module can reuse alignments already computed here.
+
+    With ``corner_map`` (unified corner map, CORNER_DETECTION=map) the corners are the map's and the
+    metrics are measured in its windows; without it the previous detectors are used (legacy).
     """
+    if corner_map and corner_map.get("corners"):
+        return _observations_from_map(dfs, df_laps, corner_map)
     from src.processing.alignment import align_pair, align_by_distance
     from src.telemetry.lap_comparator import _estimate_corner_time_loss
     from src.telemetry.metrics import segment_corners, pair_corners
@@ -115,9 +164,34 @@ def get_corner_observations(dfs: list, df_laps) -> dict:
     return dict(obs)
 
 
+def _map_fields(mc: dict, loss: float, std: float, lang: str, base: dict) -> dict:
+    """Fields the unified corner map adds to a session corner (additive: nothing is renamed or removed)."""
+    from src.analytics.corner_metrics import is_flat
+    extra = {
+        "number": mc["number"], "name": mc.get("name"), "corner_name": mc.get("name"),
+        "kind": mc.get("kind"), "direction": mc.get("direction"),
+        "min_radius_m": mc.get("min_radius_m"), "flat_out_share": mc.get("flat_out_share"),
+        "confidence": mc.get("confidence"), "is_complex": bool(mc.get("is_complex")),
+        "start_m": mc.get("start_m"), "end_m": mc.get("end_m"),
+        "apex_distance": round(float(mc["apex_distance_m"]), 1),
+    }
+    parts = base["description_parts"]
+    if is_flat(mc):
+        # nothing to optimise in braking / apex / throttle: only the time lost inside the window is real
+        extra.update({"braking_available": False, "apex_available": False, "throttle_available": False,
+                      "braking_delta_meters": 0.0, "apex_speed_delta_kmh": 0.0, "throttle_delta_meters": 0.0})
+        parts = t("sess_flat_out", lang=lang, loss=f"{loss:+.3f}")
+        if std > 0.08:
+            parts += ", " + t("sess_inconsistent", lang=lang, std=f"{std:.3f}")
+        extra["description_parts"] = parts
+    extra["description"] = describe_with_name(mc["number"], parts, mc.get("name"), lang)
+    return extra
+
+
 def analizar_curvas_sesion(
     dfs: list, df_laps, lang: str = "es",
     precomputed_obs: dict | None = None,
+    corner_map: dict | None = None,
 ) -> dict:
     """
     Compare each non-pit flying lap against the fastest (reference) lap.
@@ -127,6 +201,9 @@ def analizar_curvas_sesion(
         df_laps:          Lap metrics DataFrame.
         lang:             Language code for description strings.
         precomputed_obs:  If provided (from get_corner_observations), skip re-aligning.
+        corner_map:       Unified corner map. With it every corner carries the map's number, name,
+                          kind, direction, radius and confidence, and flat_out / kink corners report
+                          their time loss but no braking / apex / throttle (``*_available`` False).
     """
     flying_mask = ~df_laps["is_pit_lap"] & df_laps["lap_time_s"].notna()
     flying = df_laps[flying_mask]
@@ -153,7 +230,8 @@ def analizar_curvas_sesion(
 
     # ── Use pre-computed or compute fresh (single implementation: get_corner_observations)
     if precomputed_obs is None:
-        precomputed_obs = get_corner_observations(dfs, df_laps)
+        precomputed_obs = get_corner_observations(dfs, df_laps, corner_map=corner_map)
+    map_by_num = {c["number"]: c for c in (corner_map or {}).get("corners", [])}
     corner_data: dict = defaultdict(list)
     for cnum, laps in precomputed_obs.items():
         for lap in laps:
@@ -214,6 +292,9 @@ def analizar_curvas_sesion(
             # text without the "Corner N" prefix, so the circuit module can re-title it
             "description_parts": _corner_parts(mean_brake, mean_apex, mean_throttle, std_loss, lang),
         })
+        mc = map_by_num.get(corner_num)
+        if mc is not None:
+            corners_agg[-1].update(_map_fields(mc, mean_loss, std_loss, lang, corners_agg[-1]))
 
     total_loss = sum(max(0.0, c["time_loss_seconds"]) for c in corners_agg)
 

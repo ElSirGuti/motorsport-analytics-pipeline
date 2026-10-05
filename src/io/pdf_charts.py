@@ -241,7 +241,8 @@ def chart_lap_times(laps: Sequence[dict], trend: Optional[dict] = None,
 @_safe
 def chart_corner_bars(corners: Sequence[dict], ylabel: str,
                       w: float = 17.4, h: float = 5.6) -> Optional[Chart]:
-    """corners: dicts with n, loss (s), sigma (optional). Drawn strictly in corner order."""
+    """corners: dicts with n, loss (s), sigma (optional), flat (optional: flat-out corner of the unified
+    corner map, drawn hatched). Drawn strictly in corner order."""
     rows = [c for c in corners if c.get("loss") is not None and math.isfinite(c["loss"])]
     if not rows:
         return None
@@ -250,7 +251,11 @@ def chart_corner_bars(corners: Sequence[dict], ylabel: str,
     x = np.arange(len(rows))
     vals = np.array([c["loss"] for c in rows])
     cols = [BAD if v > 0.02 else OK if v < -0.02 else INK_3 for v in vals]
-    ax.bar(x, vals, color=cols, width=0.62, zorder=3, edgecolor="white", linewidth=0.5)
+    bars = ax.bar(x, vals, color=cols, width=0.62, zorder=3, edgecolor="white", linewidth=0.5)
+    flat = [bool(c.get("flat")) for c in rows]
+    for b, is_flat in zip(bars, flat):
+        if is_flat:
+            b.set_hatch("////")
     sig = np.array([c.get("sigma") if c.get("sigma") is not None else np.nan for c in rows], dtype=float)
     if np.isfinite(sig).any():
         ax.errorbar(x, vals, yerr=np.where(np.isfinite(sig), sig, 0), fmt="none",
@@ -275,6 +280,8 @@ def chart_corner_bars(corners: Sequence[dict], ylabel: str,
     if np.isfinite(sig).any():
         handles.append(plt.Line2D([0], [0], color=INK_2, lw=0.9, marker="_", ms=5,
                                   label=t("pdf_chart_sigma")))
+    if any(flat):
+        handles.append(mpatches.Patch(facecolor="white", edgecolor=INK_2, hatch="////", label=t("pdf_kind_flat_out")))
     fig.legend(handles=handles, loc="outside lower center", ncol=len(handles), fontsize=7, frameon=False)
     return _finish(fig)
 
