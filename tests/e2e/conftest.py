@@ -41,7 +41,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 # ── i18n: leer textos de frontend/src/i18n por clave (resistente a cambios de copy) ──
-_EXTRAS = ("_init", "cornerMap", "data_quality", "formats", "incidents", "library", "optimalLap", "pdf", "setups", "theme")
+_EXTRAS = ("_init", "cornerMap", "data_quality", "formats", "incidents", "tyreGrip", "settings", "library", "optimalLap", "pdf", "setups", "theme")
 _I18N_FILES = {lg: [f"{lg}.js"] + [f"extra/{n}.{lg}.js" for n in _EXTRAS] for lg in ("en", "es")}
 _i18n_cache: dict = {}
 
@@ -128,6 +128,7 @@ def servers(tmp_path_factory):
     back_env = {**os.environ,
                 "CORS_ORIGINS": f"http://127.0.0.1:{web_port}",
                 "DATABASE_URL": f"sqlite:///{db_path.as_posix()}",
+                "SETTINGS_FILE": str(work / "settings.json"),
                 "PYTHONUTF8": "1", "LOG_LEVEL": "WARNING"}
     web_env = {**os.environ, "VITE_API_URL": f"http://127.0.0.1:{api_port}/api"}
 

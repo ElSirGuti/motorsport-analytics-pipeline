@@ -1,0 +1,6 @@
+{
+  "tyre_grip_none": "The simulator reports no change in tyre grip over {n} laps (wear is effectively off).",
+  "tyre_grip_minimal": "The simulator does model tyre wear{rate}, but only {loss}% of grip was lost over {n} laps ({per_lap}% per lap): too little to move the lap time. A longer run or a higher wear rate would show it.",
+  "tyre_grip_measured": "The simulator measured a real grip loss: {loss}% over {n} laps ({per_lap}% per lap){rate}. Lap times do not show it reliably (fuel burn, track evolution, traffic or mistakes hide it), so trust this figure.",
+  "tyre_incident_laps_excluded": "Laps {laps} were left out of the pace trend because of a spin or an off-track."
+}

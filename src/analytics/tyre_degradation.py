@@ -100,7 +100,7 @@ def _lap_features(df) -> dict:
 _WEAR_RATE_CHANNELS = ['AID Tire Wear Rate', 'AID Tyre Wear Rate', 'Tire Wear Rate', 'Tyre Wear Rate',
                        'TyreWearRate', 'TireWearRate']
 _WEAR_STATE_PREFIXES = ('tire rubber grip', 'tyre rubber grip', 'tire wear', 'tyre wear',
-                        'tirewear', 'tyrewear', 'tire life', 'tyre life', 'tirelife', 'tyrelife')
+                        'tirewear', 'tyrewear', 'tire life', 'tyre life', 'tirelife', 'tyrelife', 'tyregrip')
 _WEAR_CONST_RANGE = 0.05   # channel range below this over the whole session == constant
 MIN_LAPS_FOR_FACTORS = 6   # correlations / thermal trends need at least this many laps
 
@@ -140,6 +140,74 @@ def detect_wear_tracking(dfs: list) -> dict:
     return {"active": None, "evidence": "no wear channel in the data"}
 
 
+_GRIP_LEVELS = ((0.02, "none"), (0.15, "minimal"), (0.5, "moderate"))
+
+
+def measure_rubber_grip(dfs: list) -> dict:
+    """
+    Wear measured by the simulator itself: the rubber-grip channel (% of the tyre grip left) per lap and
+    tyre. Independent of lap times, so spins, traffic or fuel burn cannot hide it.
+    ``{"available": False}`` when the log has no such channel or it never varies.
+    """
+    import pandas as pd
+    names = {w: (f"TyreGrip{w}", f"Tire Rubber Grip {w}", f"Tyre Rubber Grip {w}") for w in ("FL", "FR", "RL", "RR")}
+    per_lap, firsts, lasts = [], {}, {}
+    for i, df in enumerate(dfs):
+        row = {"lap": i + 1}
+        for w, cands in names.items():
+            col = next((c for c in cands if c in df.columns), None)
+            if col is None:
+                continue
+            v = pd.to_numeric(df[col], errors="coerce").dropna()
+            if v.empty:
+                continue
+            if float(v.max()) <= 1.5:
+                v = v * 100.0
+            row[w] = float(v.mean())
+            firsts.setdefault(w, float(v.iloc[0]))
+            lasts[w] = float(v.iloc[-1])
+        if len(row) > 1:
+            per_lap.append(row)
+    if len(per_lap) < 2 or not firsts:
+        return {"available": False}
+    tyres = sorted(firsts)
+    mean_lap = np.array([np.mean([r[w] for w in tyres if w in r]) for r in per_lap])
+    laps = np.array([r["lap"] for r in per_lap], dtype=float)
+    start = float(np.mean([firsts[w] for w in tyres]))
+    end = float(np.mean([lasts[w] for w in tyres]))
+    loss = start - end
+    per_lap_loss = float(-np.polyfit(laps, mean_lap, 1)[0]) if len(laps) >= 3 else loss / max(1.0, laps[-1] - laps[0] + 1)
+    if float(np.ptp(mean_lap)) < 1e-4 and abs(loss) < 1e-4:
+        return {"available": False}
+    level = "high"
+    for limit, name in _GRIP_LEVELS:
+        if per_lap_loss < limit:
+            level = name
+            break
+    return {"available": True, "start_pct": round(start, 2), "end_pct": round(end, 2), "loss_pct": round(loss, 2),
+            "loss_pct_per_lap": round(per_lap_loss, 3), "n_laps": len(per_lap), "level": level,
+            "per_tyre": {w: {"start_pct": round(firsts[w], 2), "end_pct": round(lasts[w], 2),
+                             "loss_pct": round(firsts[w] - lasts[w], 2)} for w in tyres},
+            "laps": [{"lap": int(l), "grip_pct": round(float(g), 3)} for l, g in zip(laps, mean_lap)]}
+
+
+def _wear_rate_value(dfs: list):
+    import pandas as pd
+    for df in dfs:
+        for c in df.columns:
+            if c in _WEAR_RATE_CHANNELS:
+                v = pd.to_numeric(df[c], errors="coerce").dropna()
+                if len(v):
+                    return round(float(v.max()), 2)
+    return None
+
+
+def _grip_reason(grip: dict, wear_rate) -> str:
+    key = {"none": "tyre_grip_none", "minimal": "tyre_grip_minimal"}.get(grip["level"], "tyre_grip_measured")
+    return _tr(key, loss=grip["loss_pct"], per_lap=grip["loss_pct_per_lap"], n=grip["n_laps"],
+               rate=("" if wear_rate is None else f" (x{wear_rate:g})"))
+
+
 def predecir_degradacion_neumatico(dfs: list, df_laps) -> dict:
     """
     Tyre degradation estimate, consistent with the stint trend (analizar_degradacion_stint).
@@ -160,12 +228,23 @@ def predecir_degradacion_neumatico(dfs: list, df_laps) -> dict:
         return {"available": False, "wear_tracking": False, "reason_code": "wear_inactive",
                 "reason": _tr("tyre_wear_inactive"), "wear_evidence": wear["evidence"]}
 
+    grip = measure_rubber_grip(dfs)
+    wear_rate = _wear_rate_value(dfs)
+    excluded = ([int(x) for x in df_laps.loc[df_laps["is_incident_lap"].fillna(False).astype(bool), "lap_number"]]
+                if "is_incident_lap" in df_laps.columns else [])
+
     valid = _projection_laps(df_laps)
     n = len(valid)
     if n < MIN_LAPS_FOR_TREND:
+        reason = _tr("tyre_insufficient_laps", n=n, min=MIN_LAPS_FOR_TREND)
+        if excluded:
+            reason += " " + _tr("tyre_incident_laps_excluded", laps=", ".join(str(x) for x in excluded))
+        if grip.get("available"):
+            reason += " " + _grip_reason(grip, wear_rate)
         return {"available": False, "wear_tracking": wear["active"], "low_confidence": True,
                 "confidence": "low", "n_laps_used": n, "reason_code": "insufficient_sample",
-                "reason": _tr("tyre_insufficient_laps", n=n, min=MIN_LAPS_FOR_TREND)}
+                "reason": reason, "grip_measured": grip, "wear_rate": wear_rate,
+                "incident_laps_excluded": excluded}
 
     st = analizar_degradacion_stint(df_laps)
     if not st.get("available"):
@@ -270,12 +349,21 @@ def predecir_degradacion_neumatico(dfs: list, df_laps) -> dict:
         reason_code, reason = None, None
     else:
         reason_code, reason = "no_detectable_degradation", _tr("tyre_no_degradation")
+        if grip.get("available"):
+            reason += " " + _grip_reason(grip, wear_rate)
+            if grip["level"] in ("moderate", "high"):
+                reason_code = "wear_measured_not_in_times"
+        if excluded:
+            reason += " " + _tr("tyre_incident_laps_excluded", laps=", ".join(str(x) for x in excluded))
 
     logger.info("tyre_degradation: deg=%.4f s/lap reliable=%s n=%d", deg, reliable, n)
     return {
         "available":                    True,
         "wear_tracking":                wear["active"],
         "wear_evidence":                wear["evidence"],
+        "grip_measured":                grip,
+        "wear_rate":                    wear_rate,
+        "incident_laps_excluded":       excluded,
         "wear_pct":                     wear_pct,
         "remaining_laps":               remaining_laps,
         "current_delta_s":              round(current_delta, 3),

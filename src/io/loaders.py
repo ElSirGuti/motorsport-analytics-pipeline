@@ -158,6 +158,7 @@ COLUMN_ALIASES = {
     "WindSpeed":  ["Wind Speed", "WindVel"],
     "WindDir":    ["Wind Direction", "WindDir"],
     "SurfaceGrip": ["Surface Grip"],
+    "TireWearRate": ["AID Tire Wear Rate", "AID Tyre Wear Rate", "Tire Wear Rate", "Tyre Wear Rate"],
     "VerticalG":  ["CG Accel Vertical", "VertAccel"],
     "TCActive":   ["TC Active"],
     "ABSActive":  ["ABS Active"],

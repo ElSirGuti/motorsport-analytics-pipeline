@@ -57,7 +57,8 @@ CORS is involved. In development the frontend still calls `http://localhost:8000
 | `TEMP_DIR` | backend | `./tmp` | `/tmp/motorsport-analytics` (tmpfs / emptyDir) |
 | `DATABASE_URL` | backend (library/DB features) | `sqlite:///data/motorsport.db` | `postgresql+psycopg://user:pass@postgres:5432/motorsport` |
 | `STORAGE_DIR` | backend | `./data/storage` | `/app/data/storage` (volume / PVC) |
-| `AC_SETUPS_DIR` | backend | Assetto Corsa setups folder | usually unset; optional read-only bind mount |
+| `AC_SETUPS_DIR` | backend | Assetto Corsa setups folder | usually unset; optional read-only bind mount; a folder set in the Settings view wins over it |
+| `SETTINGS_FILE` | backend | JSON file where the Settings view saves folders | default `STORAGE_DIR/settings.json`; keep it on a writable volume |
 | `LAPTIME_HISTORY_DB` | backend | `<STORAGE_DIR>/laptime_history.db` if `STORAGE_DIR` is set, else `./data/laptime_history.db` | unset: the lap-history SQLite file lives in the `storage` volume. Set it only to put it elsewhere (the folder is created on demand and must be writable) |
 | `UVICORN_WORKERS` | container entrypoint | n/a | `1` |
 | `RUN_MIGRATIONS` | container entrypoint | n/a | `1` in compose runs `alembic upgrade head` on start |

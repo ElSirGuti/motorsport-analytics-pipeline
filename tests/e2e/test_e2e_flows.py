@@ -434,3 +434,29 @@ def test_incidents_panel_shows_spin_and_cause(page, spin_csv, lang):
     assert panel.locator("svg.recharts-surface").count() >= 2        # the two small charts around the incident
     _no_errors(page)
 
+
+@pytest.mark.parametrize("lang", ["en", "es"])
+def test_settings_view_saves_and_clears_a_setups_folder(page, tmp_path, lang):
+    """Settings view: check, save and reset the setups folder; an invalid path shows the backend message."""
+    folder = tmp_path / "my setups"
+    (folder / "some_car").mkdir(parents=True)
+    open_app(page, lang)
+    page.get_by_role("button", name=i18n(lang, "libNavSettings"), exact=True).click()
+    box = page.locator("[data-testid=path-ac_setups_dir]")
+    box.wait_for(timeout=15000)
+    box.fill(str(folder))
+    page.get_by_role("button", name=i18n(lang, "setCheck")).first.click()
+    page.get_by_text(i18n(lang, "setValid")).wait_for(timeout=10000)
+    page.get_by_role("button", name=i18n(lang, "setSave")).first.click()
+    page.get_by_text(i18n(lang, "setSaved")).wait_for(timeout=10000)
+    status = page.locator("[data-testid=status-ac_setups_dir]")
+    assert str(folder) in status.inner_text()
+    assert i18n(lang, "setSource_settings") in status.inner_text()
+    page.get_by_role("button", name=i18n(lang, "setUseAuto")).first.click()
+    page.get_by_text(i18n(lang, "setReset")).wait_for(timeout=10000)
+    assert str(folder) not in page.locator("[data-testid=status-ac_setups_dir]").inner_text()
+    box.fill("relative/path")
+    page.get_by_role("button", name=i18n(lang, "setCheck")).first.click()
+    page.get_by_role("alert").filter(has_text="ruta completa" if lang == "es" else "full path").first.wait_for(timeout=10000)
+    assert all("400" in e for e in page.errors), page.errors      # only the deliberate invalid-path request
+

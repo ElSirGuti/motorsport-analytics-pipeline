@@ -183,6 +183,9 @@ app.include_router(library_router)
 from src.api import setups as setups_api  # integración de setups de Assetto Corsa
 app.include_router(setups_api.router)
 
+from src.api import settings as settings_api  # carpetas configurables desde la interfaz
+app.include_router(settings_api.router)
+
 from src.api import optimal_lap as optimal_lap_api  # vuelta óptima por microsectores
 app.include_router(optimal_lap_api.router)
 
@@ -1530,6 +1533,13 @@ def analyze_stint_endpoint(
 
         logger.info(f"Paso 1/4: {len(dfs)} vueltas cargadas. Extrayendo métricas...")
         df_laps = extraer_metricas_por_vuelta(dfs)
+        try:   # laps with a spin / off-track are left out of the tyre-degradation pace trend
+            _inc0 = detect_incidents(dfs)
+            _bad = {e["lap"] for e in _inc0.get("events", [])
+                    if e["kind"] == "spin" or e["severity"] == "major" or (e.get("lap_delta_s") or 0) >= 1.5}
+            df_laps["is_incident_lap"] = [(i + 1) in _bad for i in range(len(df_laps))]
+        except Exception as _exc:
+            logger.warning("incident laps: %s", _exc)
 
         logger.info("Paso 2/4: Analizando degradación...")
         degradacion = analizar_degradacion_stint(df_laps)

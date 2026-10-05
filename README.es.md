@@ -297,7 +297,7 @@ Módulo `src/analytics/ac_setups.py`, router `src/api/setups.py`, interfaz `Setu
 
 Orden de búsqueda:
 
-1. `<Documentos>\Assetto Corsa\setups\<coche>\<pista>\*.ini` (coche y pista salen de la cabecera de la telemetría; `AC_SETUPS_DIR` sustituye la carpeta). Si hay varios eliges cuál usaste.
+1. `<Documentos>\Assetto Corsa\setups\<coche>\<pista>\*.ini` (coche y pista salen de la cabecera de la telemetría). La carpeta es, por orden: la que definiste en la vista **Ajustes**, `AC_SETUPS_DIR` o la detección automática. Si hay varios setups eliges cuál usaste.
 2. `<coche>\generic\last.ini`, solo tras confirmar que fue el setup usado en esa sesión.
 3. Subida manual de un archivo `.ini` (siempre disponible).
 
@@ -459,7 +459,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (555 recogidos: 527 se ejecutan por defecto, 28 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (569 recogidos: 539 se ejecutan por defecto, 30 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -517,6 +517,14 @@ Hay 26 endpoints (13 de análisis e informes, 5 de setups, 8 de biblioteca), lis
 | `/api/report/pdf-from-json` | POST | JSON: un resultado de comparación ya calculado | Adjunto `application/pdf`, sin recalcular |
 | `/api/report/session-pdf-from-json` | POST | JSON: `{session, stint, comparison, metadata}` (`session` con `laps` es obligatorio; el resto opcional) | PDF de sesión `motorsport_<circuito>_<coche>_<fecha>.pdf`, sin recalcular |
 
+### Ajustes (`/api/settings`)
+
+| Endpoint | Método | Entrada | Devuelve |
+|---|---|---|---|
+| `/api/settings/paths` | GET | ninguna | `paths.ac_setups_dir` y `paths.ac_install_dir`: `configured`, `env`, `effective`, `exists`, `source` (`settings`, `env`, `auto`), `details` (coches encontrados...) y `settings_file` |
+| `/api/settings/paths/check` | POST | JSON `{key, path}`, query `lang` | Valida una carpeta sin guardarla: `ok`, `path`, `details`; `400` con el motivo traducido si no es una carpeta existente |
+| `/api/settings/paths` | PUT | JSON `{ac_setups_dir?, ac_install_dir?}` (null o vacío = vuelve a automático) | El mismo objeto que GET; `400` con el motivo traducido si la ruta no es válida |
+
 ### Setups de Assetto Corsa (`/api/setups`)
 
 | Endpoint | Método | Entrada | Devuelve |
@@ -566,7 +574,8 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 | `UPLOAD_TTL_HOURS` | `24` | Las subidas sin uso durante este tiempo se borran |
 | `SESSION_CACHE_MAX_MB` | `1024` | Memoria máxima de la caché de sesiones parseadas por proceso |
 | `SESSION_CACHE_TTL_MIN` | `60` | Minutos sin uso antes de sacar una sesión de la caché |
-| `AC_SETUPS_DIR` | automático (`<Documentos>\Assetto Corsa\setups`) | Carpeta explícita de setups de Assetto Corsa |
+| `AC_SETUPS_DIR` | automático (`<Documentos>\Assetto Corsa\setups`) | Carpeta explícita de setups de Assetto Corsa (una carpeta definida en la vista **Ajustes** tiene prioridad) |
+| `SETTINGS_FILE` | `STORAGE_DIR/settings.json` si `STORAGE_DIR` está definido, si no `./data/settings.json` | Dónde se guardan las carpetas definidas en la vista Ajustes |
 | `VITE_API_URL` | `http://localhost:8000/api` | URL de la API que usa el frontend en desarrollo (la lee Vite en build/dev; los contenedores de producción usan `/api` relativo) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `motorsport` / `change-me-local-only` / `motorsport` | Solo Compose. Valores de ejemplo para una máquina local, nunca para producción |
 | `FRONTEND_PORT` / `BACKEND_DEV_PORT` | `8080` / `8010` | Puertos del host en Compose (UI; backend con `--profile dev`) |
@@ -578,7 +587,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 555 recogidos: 527 se ejecutan, 28 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 569 recogidos: 539 se ejecutan, 30 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

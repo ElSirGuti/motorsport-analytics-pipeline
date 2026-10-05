@@ -1,0 +1,10 @@
+{
+  "settings_err_empty": "Enter a folder path.",
+  "settings_err_invalid": "That is not a valid path.",
+  "settings_err_not_absolute": "Use the full path, for example C:\\Users\\you\\Documents\\Assetto Corsa\\setups.",
+  "settings_err_not_found": "The server cannot find that folder. If the app runs in Docker, the folder must be mounted into the container and you must enter the path as the container sees it.",
+  "settings_err_not_a_dir": "That path is a file, not a folder.",
+  "settings_err_no_permission": "The server has no permission to read that folder.",
+  "settings_err_not_writable": "The setting could not be saved: the server cannot write to its data folder.",
+  "settings_err_unknown_key": "Unknown setting: {name}."
+}

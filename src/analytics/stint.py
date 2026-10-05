@@ -329,6 +329,8 @@ def _projection_laps(df_laps: pd.DataFrame) -> pd.DataFrame:
     (standing/rolling start on cold tyres).
     """
     valid = df_laps[_racing_laps_mask(df_laps)]
+    if "is_incident_lap" in valid.columns:           # spins / off-tracks distort the pace trend
+        valid = valid[~valid["is_incident_lap"].fillna(False).astype(bool)]
     if "is_pit_lap" in df_laps.columns and len(valid) > MIN_LAPS_FOR_TREND:
         pit_nums = set(df_laps.loc[df_laps["is_pit_lap"], "lap_number"].astype(int))
         out_laps = {n + 1 for n in pit_nums}

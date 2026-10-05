@@ -297,7 +297,7 @@ Module `src/analytics/ac_setups.py`, router `src/api/setups.py`, UI `SetupSelect
 
 Lookup order:
 
-1. `<Documents>\Assetto Corsa\setups\<car>\<track>\*.ini` (car and track come from the telemetry header; `AC_SETUPS_DIR` overrides the folder). If several exist you choose which one you used.
+1. `<Documents>\Assetto Corsa\setups\<car>\<track>\*.ini` (car and track come from the telemetry header). The folder is, in order: the one you set in the **Settings** view, `AC_SETUPS_DIR`, or the automatic detection. If several setups exist you choose which one you used.
 2. `<car>\generic\last.ini`, only after you confirm it was the setup used in that session.
 3. Manual upload of a `.ini` file (always available).
 
@@ -458,7 +458,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (555 collected: 527 run by default, 28 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (569 collected: 539 run by default, 30 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -516,6 +516,14 @@ There are 26 endpoints (13 analysis and reports, 5 setups, 8 library), listed be
 | `/api/report/pdf-from-json` | POST | JSON: a comparison result already computed | `application/pdf` attachment, no recomputation |
 | `/api/report/session-pdf-from-json` | POST | JSON: `{session, stint, comparison, metadata}` (`session` with `laps` required; others optional) | Session PDF `motorsport_<circuit>_<car>_<date>.pdf`, no recomputation |
 
+### Settings (`/api/settings`)
+
+| Endpoint | Method | Input | Returns |
+|---|---|---|---|
+| `/api/settings/paths` | GET | none | `paths.ac_setups_dir` and `paths.ac_install_dir`: `configured`, `env`, `effective`, `exists`, `source` (`settings`, `env`, `auto`), `details` (cars found...), and `settings_file` |
+| `/api/settings/paths/check` | POST | JSON `{key, path}`, query `lang` | Validates a folder without saving it: `ok`, `path`, `details`; `400` with a translated reason if it is not an existing folder |
+| `/api/settings/paths` | PUT | JSON `{ac_setups_dir?, ac_install_dir?}` (null or empty = back to automatic) | The same object as GET; `400` with a translated reason on an invalid path |
+
 ### Assetto Corsa setups (`/api/setups`)
 
 | Endpoint | Method | Input | Returns |
@@ -565,7 +573,8 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 | `UPLOAD_TTL_HOURS` | `24` | Stored uploads unused for this long are deleted |
 | `SESSION_CACHE_MAX_MB` | `1024` | Maximum memory of the parsed-session cache per process |
 | `SESSION_CACHE_TTL_MIN` | `60` | Minutes without use before a session leaves the cache |
-| `AC_SETUPS_DIR` | auto (`<Documents>\Assetto Corsa\setups`) | Explicit Assetto Corsa setups folder |
+| `AC_SETUPS_DIR` | auto (`<Documents>\Assetto Corsa\setups`) | Explicit Assetto Corsa setups folder (a folder set in the **Settings** view takes priority) |
+| `SETTINGS_FILE` | `STORAGE_DIR/settings.json` if `STORAGE_DIR` is set, else `./data/settings.json` | Where the folders set in the Settings view are saved |
 | `VITE_API_URL` | `http://localhost:8000/api` | API URL used by the frontend in dev (read by Vite at build/dev time; production containers use the relative `/api`) |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | `motorsport` / `change-me-local-only` / `motorsport` | Compose only. Example values for a local machine, never for production |
 | `FRONTEND_PORT` / `BACKEND_DEV_PORT` | `8080` / `8010` | Compose host ports (UI; backend with `--profile dev`) |
@@ -577,7 +586,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 555 collected: 527 run, 28 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 569 collected: 539 run, 30 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

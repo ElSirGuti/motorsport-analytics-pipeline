@@ -1,0 +1,6 @@
+{
+  "tyre_grip_none": "El simulador no reporta cambio en el agarre de los neumáticos en {n} vueltas (el desgaste está prácticamente desactivado).",
+  "tyre_grip_minimal": "El simulador sí modela el desgaste{rate}, pero solo se perdió un {loss}% de agarre en {n} vueltas ({per_lap}% por vuelta): muy poco para mover el tiempo por vuelta. Una tanda más larga o un mayor ritmo de desgaste lo mostraría.",
+  "tyre_grip_measured": "El simulador midió una pérdida real de agarre: {loss}% en {n} vueltas ({per_lap}% por vuelta){rate}. Los tiempos por vuelta no lo muestran con fiabilidad (el consumo de combustible, la evolución de la pista, el tráfico o los errores lo tapan), así que confía en esta cifra.",
+  "tyre_incident_laps_excluded": "Las vueltas {laps} se dejaron fuera de la tendencia de ritmo por un trompo o una salida de pista."
+}

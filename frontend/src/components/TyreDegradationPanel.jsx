@@ -58,6 +58,42 @@ function TrendCard({ label, value, warn, sub }) {
   );
 }
 
+const LEVEL_TONE = { none: undefined, minimal: 'ok', moderate: 'warn', high: 'bad' };
+
+/** Wear as measured by the simulator (rubber grip per lap): independent of lap times. */
+function GripMeasured({ grip }) {
+  const { t } = useLanguage();
+  if (!grip?.available) return null;
+  const rows = grip.laps || [];
+  return (
+    <div style={{ marginTop: 16 }} data-testid="grip-measured">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+        <strong>{t.tdGripTitle}</strong>
+        <Badge tone={LEVEL_TONE[grip.level]}>{t[`tdGripLevel_${grip.level}`]}</Badge>
+        <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--ink-3)' }}>{t.tdGripSub}</span>
+      </div>
+      <div className={s.kpis}>
+        <Stat label={t.tdGripNow} value={`${grip.end_pct.toFixed(2)} %`} hint={t.tdGripFrom(grip.start_pct.toFixed(2))} />
+        <Stat label={t.tdGripLoss} value={`${grip.loss_pct.toFixed(2)} %`} hint={t.tdGripOverLaps(grip.n_laps)} />
+        <Stat label={t.tdGripPerLap} value={`${grip.loss_pct_per_lap.toFixed(3)} %`} hint={t.tdGripPerLapHint} />
+      </div>
+      {rows.length > 2 && (
+        <div style={{ height: 150, marginTop: 8 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={rows} margin={{ top: 4, right: 24, left: 0, bottom: 4 }}>
+              <CartesianGrid stroke="var(--line)" strokeDasharray="2 4" vertical={false} />
+              <XAxis dataKey="lap" tick={AXIS} axisLine={{ stroke: 'var(--line-strong)' }} tickLine={false} />
+              <YAxis domain={['auto', 'auto']} tick={AXIS} axisLine={false} tickLine={false} width={46} tickFormatter={(v) => `${v.toFixed(1)}`} />
+              <Tooltip formatter={(v) => `${Number(v).toFixed(3)} %`} labelFormatter={(l) => t.tdLap(l)} />
+              <Line type="monotone" dataKey="grip_pct" name={t.tdGripNow} stroke="var(--accent)" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TyreDegradationPanel({ data }) {
   const { t } = useLanguage();
   if (!data) return null;
@@ -71,6 +107,7 @@ export default function TyreDegradationPanel({ data }) {
           <div>{data.reason}</div>
           {data.wear_evidence && <div style={{ marginTop: 6, fontSize: 'var(--fs-xs)', color: 'var(--ink-3)' }}>{data.wear_evidence}</div>}
         </EmptyState>
+        <GripMeasured grip={data.grip_measured} />
       </Panel>
     );
   }
@@ -120,6 +157,10 @@ export default function TyreDegradationPanel({ data }) {
         {low_confidence && <Badge tone="warn" title={reason}>{t.tdLowConfidence}</Badge>}
       </div>
 
+      {noDegradation && reason && (
+        <p style={{ margin: '0 0 12px', fontSize: 'var(--fs-sm)', color: 'var(--ink-2)', lineHeight: 1.5 }}>{reason}</p>
+      )}
+
       <div className={s.pitBar}>
         {wear_pct != null ? <WearGauge pct={wear_pct} /> : null}
         <div className={s.kpis} style={{ flex: 1, minWidth: 260 }}>
@@ -153,6 +194,8 @@ export default function TyreDegradationPanel({ data }) {
           </LineChart>
         </ResponsiveContainer>
       </div>
+
+      <GripMeasured grip={data.grip_measured} />
 
       {tyre_temps_available && (
         <div className={s.section}>

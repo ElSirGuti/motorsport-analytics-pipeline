@@ -41,7 +41,7 @@ It does **not** fit a machine-learning model. Earlier versions of this document 
 Before any maths, the module checks whether the simulator was actually modelling tyre wear. It scans every column of every lap DataFrame:
 
 - **Wear-rate channels** (exact names): `AID Tire Wear Rate`, `AID Tyre Wear Rate`, `Tire Wear Rate`, `Tyre Wear Rate`, `TyreWearRate`, `TireWearRate`. The maximum absolute value is recorded.
-- **Wear/grip state channels** (case-insensitive prefix): `tire/tyre rubber grip`, `tire/tyre wear`, `tirewear`, `tyrewear`, `tire/tyre life`, `tirelife`, `tyrelife`. The min and max over the whole session are recorded per channel.
+- **Wear/grip state channels** (case-insensitive prefix): `tire/tyre rubber grip`, `tire/tyre wear`, `tirewear`, `tyrewear`, `tire/tyre life`, `tirelife`, `tyrelife`, `tyregrip` (the loader name of `Tire Rubber Grip FL..RR`). The min and max over the whole session are recorded per channel. Since the loaders keep `Tire Rubber Grip *` (as `TyreGrip*`) and `AID Tire Wear Rate` (as `TireWearRate`) for `.ld` files too, ACTI logs are now recognised (before, the channels were dropped and the answer was `active = None`).
 
 Decision, in this order:
 
@@ -161,6 +161,12 @@ Channels used by the feature step: tyre core temperature per corner, tyre pressu
 There is no `scikit-learn` dependency in this module; it needs `numpy` and `pandas`, plus `scipy` through `stint.py`.
 
 ---
+
+### 2.8 Wear measured by the simulator (`measure_rubber_grip`)
+
+Independent of lap times: the mean rubber grip (% left) of each tyre per lap, the loss between the first and the last sample and its slope per lap. `level`: `none` (< 0.02 %/lap), `minimal` (< 0.15), `moderate` (< 0.5), `high`. It is returned as `grip_measured` (`start_pct`, `end_pct`, `loss_pct`, `loss_pct_per_lap`, `n_laps`, `level`, `per_tyre`, `laps`) with `wear_rate` (the `AID Tire Wear Rate` multiplier). When the pace trend finds nothing, the `reason` quotes this figure: minimal wear means "the simulator models wear but the loss is too small to move the lap time"; moderate or high means "the grip really fell, the lap times just do not show it" (`reason_code: wear_measured_not_in_times`).
+
+Laps with a spin, a major incident or one that cost 1.5 s or more (see [18](./18_incidents.md)) are left out of the pace trend and listed in `incident_laps_excluded`; if fewer than 5 laps remain the answer is `insufficient_sample` with that explanation, instead of a trend drawn from distorted laps.
 
 ## 4. Output Schema
 

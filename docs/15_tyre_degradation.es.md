@@ -41,7 +41,7 @@ El módulo cuantifica cuánto rendimiento (tiempo por vuelta) ha perdido un jueg
 Antes de cualquier cálculo, el módulo comprueba si el simulador modelaba realmente el desgaste. Recorre todas las columnas de todos los DataFrames de vuelta:
 
 - **Canales de tasa de desgaste** (nombres exactos): `AID Tire Wear Rate`, `AID Tyre Wear Rate`, `Tire Wear Rate`, `Tyre Wear Rate`, `TyreWearRate`, `TireWearRate`. Se registra el máximo del valor absoluto.
-- **Canales de estado de desgaste/agarre** (prefijo, sin distinguir mayúsculas): `tire/tyre rubber grip`, `tire/tyre wear`, `tirewear`, `tyrewear`, `tire/tyre life`, `tirelife`, `tyrelife`. Se registran el mínimo y el máximo de toda la sesión por canal.
+- **Canales de estado de desgaste/agarre** (prefijo, sin distinguir mayúsculas): `tire/tyre rubber grip`, `tire/tyre wear`, `tirewear`, `tyrewear`, `tire/tyre life`, `tirelife`, `tyrelife`, `tyregrip` (el nombre en el loader de `Tire Rubber Grip FL..RR`). Se registran el mínimo y el máximo de toda la sesión por canal.
 
 Decisión, en este orden:
 
@@ -161,6 +161,12 @@ Canales usados en el paso de características: temperatura del núcleo del neum�
 Este módulo no depende de `scikit-learn`; necesita `numpy` y `pandas`, más `scipy` a través de `stint.py`.
 
 ---
+
+### 2.8 Desgaste medido por el simulador (`measure_rubber_grip`)
+
+Independiente de los tiempos por vuelta: el agarre medio de la goma (% restante) de cada neumático por vuelta, la pérdida entre la primera y la última muestra y su pendiente por vuelta. `level`: `none` (< 0,02 %/vuelta), `minimal` (< 0,15), `moderate` (< 0,5), `high`. Se devuelve como `grip_measured` (`start_pct`, `end_pct`, `loss_pct`, `loss_pct_per_lap`, `n_laps`, `level`, `per_tyre`, `laps`) junto con `wear_rate` (el multiplicador `AID Tire Wear Rate`). Cuando la tendencia de ritmo no encuentra nada, la `reason` cita esta cifra: desgaste mínimo significa "el simulador modela el desgaste pero la pérdida es demasiado pequeña para mover el tiempo"; moderado o alto significa "el agarre sí cayó, los tiempos simplemente no lo muestran" (`reason_code: wear_measured_not_in_times`).
+
+Las vueltas con un trompo, un incidente grave o que costaron 1,5 s o más (ver [18](./18_incidents.es.md)) se dejan fuera de la tendencia de ritmo y se listan en `incident_laps_excluded`; si quedan menos de 5 vueltas la respuesta es `insufficient_sample` con esa explicación, en lugar de una tendencia dibujada con vueltas distorsionadas.
 
 ## 4. Esquema de Salida
 

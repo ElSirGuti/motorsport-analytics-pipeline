@@ -1,0 +1,10 @@
+{
+  "settings_err_empty": "Escribe la ruta de una carpeta.",
+  "settings_err_invalid": "Esa ruta no es válida.",
+  "settings_err_not_absolute": "Usa la ruta completa, por ejemplo C:\\Users\\tu_usuario\\Documents\\Assetto Corsa\\setups.",
+  "settings_err_not_found": "El servidor no encuentra esa carpeta. Si la app corre en Docker, la carpeta debe estar montada en el contenedor y debes escribir la ruta tal como la ve el contenedor.",
+  "settings_err_not_a_dir": "Esa ruta es un archivo, no una carpeta.",
+  "settings_err_no_permission": "El servidor no tiene permiso para leer esa carpeta.",
+  "settings_err_not_writable": "No se pudo guardar el ajuste: el servidor no puede escribir en su carpeta de datos.",
+  "settings_err_unknown_key": "Ajuste desconocido: {name}."
+}

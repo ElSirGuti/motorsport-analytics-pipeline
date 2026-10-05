@@ -225,6 +225,9 @@ export default function SetupSelector({ file, onChange }) {
         <div className={s.explain}>
           <div className={s.explainTitle}>{t.acsNoAccessTitle}</div>
           <p>{t.acsNoAccessBody}</p>
+          <button type="button" className="ui-btn ui-btn--sm" onClick={() => window.dispatchEvent(new CustomEvent('open-settings'))}>
+            {t.acsConfigure}
+          </button>
         </div>
       )}
 

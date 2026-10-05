@@ -57,7 +57,8 @@ CORS. En desarrollo el frontend sigue llamando directamente a `http://localhost:
 | `TEMP_DIR` | backend | `./tmp` | `/tmp/motorsport-analytics` (tmpfs / emptyDir) |
 | `DATABASE_URL` | backend (biblioteca/BD) | `sqlite:///data/motorsport.db` | `postgresql+psycopg://user:pass@postgres:5432/motorsport` |
 | `STORAGE_DIR` | backend | `./data/storage` | `/app/data/storage` (volumen / PVC) |
-| `AC_SETUPS_DIR` | backend | carpeta de setups de Assetto Corsa | normalmente sin definir; bind-mount opcional de solo lectura |
+| `AC_SETUPS_DIR` | backend | carpeta de setups de Assetto Corsa | normalmente sin definir; bind-mount opcional de solo lectura; una carpeta definida en la vista Ajustes tiene prioridad |
+| `SETTINGS_FILE` | backend | archivo JSON donde la vista Ajustes guarda las carpetas | por defecto `STORAGE_DIR/settings.json`; mantenlo en un volumen escribible |
 | `LAPTIME_HISTORY_DB` | backend | `<STORAGE_DIR>/laptime_history.db` si hay `STORAGE_DIR`, si no `./data/laptime_history.db` | sin definir: el SQLite del historial de vueltas vive en el volumen `storage`. Defínela solo para ponerlo en otro sitio (la carpeta se crea si falta y debe ser escribible) |
 | `UVICORN_WORKERS` | entrypoint del contenedor | n/a | `1` |
 | `RUN_MIGRATIONS` | entrypoint del contenedor | n/a | `1` en compose ejecuta `alembic upgrade head` al arrancar |

@@ -42,6 +42,7 @@ import { Icon, Panel, Stat, Badge } from './components/ui';
 import SaveToLibrary from './components/library/SaveToLibrary';
 import LibraryView from './components/library/LibraryView';
 import CompareSessionsView from './components/library/CompareSessionsView';
+import SettingsView from './components/SettingsView';
 import { restoreResults } from './api/library';
 import FormatBadge from './components/FormatBadge';
 import CircuitBadge from './components/CircuitBadge';
@@ -639,6 +640,11 @@ export default function App() {
 
   // Biblioteca de sesiones: vista activa, sesion restaurada y pareja preseleccionada para comparar
   const [view, setView] = useState('analysis');
+  useEffect(() => {   // the setups panel links here when it cannot find the folder
+    const open = () => setView('settings');
+    window.addEventListener('open-settings', open);
+    return () => window.removeEventListener('open-settings', open);
+  }, []);
   const [savedSession, setSavedSession] = useState(null);
   const [compareSeed, setCompareSeed] = useState(null);
 
@@ -1012,6 +1018,7 @@ export default function App() {
           <button type="button" className="ui-seg__item" aria-pressed={view === 'analysis'} onClick={() => setView('analysis')}>{t.libNavAnalysis}</button>
           <button type="button" className="ui-seg__item" aria-pressed={view === 'library'} onClick={() => setView('library')}>{t.libNavLibrary}</button>
           <button type="button" className="ui-seg__item" aria-pressed={view === 'compare'} onClick={() => { setCompareSeed(null); setView('compare'); }}>{t.libNavCompare}</button>
+          <button type="button" className="ui-seg__item" aria-pressed={view === 'settings'} onClick={() => setView('settings')}>{t.libNavSettings}</button>
         </nav>
         <div className="shell-appbar__spacer" />
         <div className="shell-appbar__tools">
@@ -1036,6 +1043,11 @@ export default function App() {
               onCompare={(a, b) => { setCompareSeed({ a, b, k: Date.now() }); setView('compare'); }}
               openedId={savedSession?.id}
             />
+          </main>
+        )}
+        {view === 'settings' && (
+          <main className="shell-main">
+            <SettingsView />
           </main>
         )}
         {view === 'compare' && (

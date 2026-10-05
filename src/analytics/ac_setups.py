@@ -105,11 +105,12 @@ def documents_candidates() -> list[Path]:
 def resolve_setups_dir() -> tuple[Optional[Path], bool]:
     """
     Returns (path, exists).
-    ``AC_SETUPS_DIR`` is an explicit override. Otherwise the first existing
+    The folder set in the UI (user_settings) or ``AC_SETUPS_DIR`` is an explicit override. Otherwise the first existing
     ``<Documents>/Assetto Corsa/setups`` wins; if none exists the first expected
     location is returned with exists=False (None when there is no candidate at all).
     """
-    override = os.environ.get("AC_SETUPS_DIR", "").strip()
+    from src.analytics import user_settings
+    override = user_settings.get("ac_setups_dir") or os.environ.get("AC_SETUPS_DIR", "").strip()
     if override:
         p = Path(override).expanduser()
         return p, p.is_dir()
@@ -283,6 +284,10 @@ def _label(base: str, wheel: Optional[str], lang: str) -> str:
 
 def _ac_roots() -> list[Path]:
     roots: list[Path] = []
+    from src.analytics import user_settings
+    configured = user_settings.get("ac_install_dir")
+    if configured:
+        roots.append(Path(configured))
     for env in ("AC_ROOT", "AC_INSTALL_DIR"):
         v = os.environ.get(env, "").strip()
         if v:
