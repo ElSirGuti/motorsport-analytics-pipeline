@@ -43,3 +43,5 @@
 .chipFeature { color: var(--ink-1); font-family: var(--font-sans); font-weight: 600; }
 
 .desc { font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.5; padding-top: 8px; border-top: 1px solid var(--line); }
+.dim { opacity: .8; border-style: dashed; }
+.head > div:first-child { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

@@ -1,6 +1,9 @@
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon } from './ui';
 import { cornerLabel } from '../utils/cornerLabel';
+import { cornerMapIndex, withMapInfo, hasPhase, isNoPhase } from '../utils/cornerKind';
+import { CornerTags, CornerMapNotice, NoPhaseNote } from './CornerMeta';
+import { isDim } from '../utils/cornerTips';
 import styles from './CornerReport.module.css';
 
 const SEV_MAP = { leve: 'severityLeve', media: 'severityMedia', critico: 'severityCritico' };
@@ -8,7 +11,7 @@ const SEV_TONE = { leve: 'ok', media: 'warn', critico: 'bad' };
 
 const toneClass = (tone) => (tone === 'good' ? styles.good : tone === 'bad' ? styles.bad : styles.neutral);
 
-const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cornerClusters, xgboostPred }) => {
+const CornerReport = ({ corners: rawCorners, onCornerClick, activeCorner, dynamicEvents, cornerClusters, xgboostPred, cornerMap }) => {
   const { t } = useLanguage();
 
   const CLUSTER_TONE = {
@@ -20,7 +23,9 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
     [t.clusterConsistent]:   'accent',
   };
 
-  if (!corners || corners.length === 0) return null;
+  if (!rawCorners || rawCorners.length === 0) return null;
+  const mapIdx = cornerMapIndex(cornerMap);
+  const corners = rawCorners.map((c) => withMapInfo(c, mapIdx));
 
   const eventsByCorner = {};
   if (dynamicEvents && dynamicEvents.length > 0) {
@@ -49,6 +54,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
       actions={activeCorner != null && <Badge tone="accent">{t.cornerReportSelected(activeCorner)}{activeName ? ` · ${activeName}` : ''}</Badge>}
       className="fade-up fade-up--d4"
     >
+      <CornerMapNotice cornerMap={cornerMap} />
       <div className={styles.grid}>
         {[...corners].sort((a, b) => a.corner_number - b.corner_number).map((corner) => {
           const isLoss   = corner.time_loss_seconds > 0.01;
@@ -59,6 +65,10 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
           const status = isLoss ? styles.loss : isGain ? styles.gain : '';
           const deltaTone = isLoss ? styles.bad : isGain ? styles.good : styles.neutral;
 
+          const noPhase = isNoPhase(corner);
+          const brakeOk = hasPhase(corner, 'braking');
+          const apexOk = hasPhase(corner, 'apex');
+          const throttleOk = hasPhase(corner, 'throttle');
           const brakeDelta = corner.braking_delta_meters;
           const apexDelta  = corner.apex_speed_delta_kmh;
           const throttleDelta = corner.throttle_delta_meters;
@@ -70,7 +80,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
           return (
             <div
               key={corner.corner_number}
-              className={`${styles.card} ${status} ${hasZoom ? styles.clickable : ''} ${isActive ? styles.active : ''}`}
+              className={`${styles.card} ${status} ${hasZoom ? styles.clickable : ''} ${isActive ? styles.active : ''} ${isDim(corner) ? styles.dim : ''}`}
               onClick={() => {
                 if (!onCornerClick || !hasZoom) return;
                 onCornerClick(
@@ -88,6 +98,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
               <div className={styles.head}>
                 <div>
                   <div className={styles.name}>{cornerLabel(t, corner.corner_number, corner.corner_name)}</div>
+                  <CornerTags corner={corner} />
                   {corner.start_distance != null && (
                     <div className={styles.zone}>
                       {corner.start_distance.toFixed(0)} – {corner.end_distance.toFixed(0)} m
@@ -107,11 +118,12 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                 </div>
               </div>
 
+              {noPhase ? <NoPhaseNote corner={corner} /> : (
               <dl className={styles.metrics}>
                 <div className={styles.metric}>
                   <dt>{t.cornerReportBrakePoint}</dt>
-                  <dd className={toneClass(brakeDelta < -2 ? 'bad' : brakeDelta > 2 ? 'good' : 'n')}>
-                    {brakeDelta < 0
+                  <dd className={toneClass(brakeOk && brakeDelta < -2 ? 'bad' : brakeOk && brakeDelta > 2 ? 'good' : 'n')} title={brakeOk ? undefined : t.cmNoPhaseTip}>
+                    {!brakeOk ? '—' : brakeDelta < 0
                       ? t.cornerReportBefore(Math.abs(brakeDelta).toFixed(0))
                       : brakeDelta > 0
                       ? t.cornerReportAfter(brakeDelta.toFixed(0))
@@ -120,14 +132,14 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                 </div>
                 <div className={styles.metric}>
                   <dt>{t.cornerReportApexSpeed}</dt>
-                  <dd className={toneClass(apexDelta < -1 ? 'bad' : apexDelta > 1 ? 'good' : 'n')}>
-                    {apexDelta > 0 ? '+' : ''}{apexDelta.toFixed(1)} km/h
+                  <dd className={toneClass(apexOk && apexDelta < -1 ? 'bad' : apexOk && apexDelta > 1 ? 'good' : 'n')} title={apexOk ? undefined : t.cmNoPhaseTip}>
+                    {apexOk ? `${apexDelta > 0 ? '+' : ''}${apexDelta.toFixed(1)} km/h` : '—'}
                   </dd>
                 </div>
                 <div className={styles.metric}>
                   <dt>{t.cornerReportAcceleration}</dt>
-                  <dd className={toneClass(throttleDelta > 2 ? 'bad' : throttleDelta < -2 ? 'good' : 'n')}>
-                    {throttleDelta > 0
+                  <dd className={toneClass(throttleOk && throttleDelta > 2 ? 'bad' : throttleOk && throttleDelta < -2 ? 'good' : 'n')} title={throttleOk ? undefined : t.cmNoPhaseTip}>
+                    {!throttleOk ? '—' : throttleDelta > 0
                       ? t.cornerReportAfter(throttleDelta.toFixed(0))
                       : throttleDelta < 0
                       ? t.cornerReportBefore(Math.abs(throttleDelta).toFixed(0))
@@ -135,6 +147,7 @@ const CornerReport = ({ corners, onCornerClick, activeCorner, dynamicEvents, cor
                   </dd>
                 </div>
               </dl>
+              )}
 
               {(eventsByCorner[corner.corner_number] || cluster) && (
                 <div className={styles.badges}>

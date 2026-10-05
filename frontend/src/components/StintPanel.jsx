@@ -262,6 +262,7 @@ export default function StintPanel() {
                 corners: result.curvas_sesion.corners,
                 setup_advisor: result.setup_sesion,
               }}
+              cornerMap={result.corner_map}
               metadata={{
                 label_a: `${t.timelineLap} ${result.curvas_sesion.reference_lap} (${t.anomalyReference})`,
                 label_b: t.avgOfLaps(result.curvas_sesion.n_laps_compared),

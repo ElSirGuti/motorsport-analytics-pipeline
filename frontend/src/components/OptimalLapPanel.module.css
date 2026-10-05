@@ -39,3 +39,5 @@
   .contribRow { grid-template-columns: 1fr; gap: 4px; }
   .contribTxt { text-align: left; }
 }
+.cornerCell { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.chartNote { font-size: var(--fs-xs); color: var(--ink-3); margin: 2px 0 4px; }

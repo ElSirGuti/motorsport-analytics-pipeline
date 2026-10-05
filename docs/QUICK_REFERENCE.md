@@ -186,7 +186,7 @@ Recommendations then show **Current -> Suggested**. Units appear only where they
 | Projection confidence | Always low below 8 valid laps; fallback to recent pace below 5 |
 | Circuits | 19 recognised; 7 with corner names (Imola, Spa, Silverstone GP, Le Mans, Monaco = high confidence; Mugello, Brands Hatch GP = medium) |
 | Two-file compare | 2 files with one lap each: first = reference, second = compared; warns if the cars differ |
-| Tests | `python -m pytest tests -q`: 535 collected, 512 run, 23 e2e skipped without `E2E=1` |
+| Tests | `python -m pytest tests -q`: 538 collected, 512 run, 26 e2e skipped without `E2E=1` |
 
 ---
 

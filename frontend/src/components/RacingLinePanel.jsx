@@ -2,6 +2,9 @@ import { Fragment, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon } from './ui';
 import { cornerLabel } from '../utils/cornerLabel';
+import { cornerMapIndex, withMapInfo, isNoPhase, hasPhase } from '../utils/cornerKind';
+import { CornerTags, NoPhaseNote } from './CornerMeta';
+import { isDim } from '../utils/cornerTips';
 import s from './RecPanels.module.css';
 
 
@@ -65,15 +68,18 @@ function CornerCard({ corner }) {
   const { t } = useLanguage();
   const { corner_number, corner_name, n_laps, mean_time_loss_s, potential_gain_s,
     current_execution, optimal_execution, already_optimal, recommendations } = corner;
+  const noPhase = isNoPhase(corner);
+  const brakeOk = hasPhase(corner, 'braking');
 
   const tone = already_optimal ? 'ok' : potential_gain_s > 0.15 ? 'bad' : potential_gain_s > 0.05 ? 'warn' : 'ok';
   const cls = { bad: s.high, warn: s.med, ok: s.low }[tone];
 
   return (
-    <div className={`${s.card} ${cls}`}>
+    <div className={`${s.card} ${cls}${isDim(corner) ? ` ${s.dim}` : ''}`}>
       <div className={s.cardHead}>
-        <div>
+        <div className={s.cardTitleBox}>
           <div className={s.cardTitle}>{cornerLabel(t, corner_number, corner_name)}</div>
+          <CornerTags corner={corner} />
           <div className={s.cardSub}>{t.rlLapsAvgLoss(n_laps)} <span className={s.mono}>{mean_time_loss_s > 0 ? '+' : ''}{mean_time_loss_s.toFixed(3)} s</span></div>
         </div>
         <div style={{ textAlign: 'right' }}>
@@ -84,11 +90,13 @@ function CornerCard({ corner }) {
         </div>
       </div>
 
-      <div className={s.stack} style={{ gap: 4 }}>
-        <PhaseTag phase="brake" value={current_execution.brake} optimal={optimal_execution.brake} />
-        <PhaseTag phase="apex" value={current_execution.apex} optimal={optimal_execution.apex} />
-        <PhaseTag phase="exit" value={current_execution.exit} optimal={optimal_execution.exit} />
-      </div>
+      {noPhase ? <NoPhaseNote corner={corner} /> : (
+        <div className={s.stack} style={{ gap: 4 }}>
+          {brakeOk && <PhaseTag phase="brake" value={current_execution.brake} optimal={optimal_execution.brake} />}
+          <PhaseTag phase="apex" value={current_execution.apex} optimal={optimal_execution.apex} />
+          <PhaseTag phase="exit" value={current_execution.exit} optimal={optimal_execution.exit} />
+        </div>
+      )}
 
       {!already_optimal && recommendations?.length > 0 && (
         <ul className={s.actions}>
@@ -108,12 +116,14 @@ function CornerCard({ corner }) {
   );
 }
 
-export default function RacingLinePanel({ data }) {
+export default function RacingLinePanel({ data, cornerMap }) {
   const { t } = useLanguage();
   const [sortBy, setSortBy] = useState('corner');
   if (!data?.available) return null;
 
-  const { corners, total_potential_gain_s, n_corners } = data;
+  const { total_potential_gain_s, n_corners } = data;
+  const mapIdx = cornerMapIndex(cornerMap);
+  const corners = data.corners.map((c) => withMapInfo(c, mapIdx));
   const sorted = sortBy === 'corner'
     ? [...corners].sort((a, b) => a.corner_number - b.corner_number)
     : [...corners].sort((a, b) => b.potential_gain_s - a.potential_gain_s);

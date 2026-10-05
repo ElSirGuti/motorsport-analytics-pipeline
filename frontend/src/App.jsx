@@ -5,6 +5,7 @@ import BrakeThrottleChart from './components/BrakeThrottleChart';
 import TimeDeltaChart from './components/TimeDeltaChart';
 import SummaryCard from './components/SummaryCard';
 import CornerReport from './components/CornerReport';
+import { markerCorners } from './utils/cornerKind';
 import TrackMap from './components/TrackMap';
 import OptimalLapPanel from './components/OptimalLapPanel';
 import { StageProgress, StintSkeleton } from './components/PerfProgress';
@@ -321,6 +322,8 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
               trackData={result.track_map}
               fixedDistance={fixedDistance}
               onClearFixed={onClearFixed}
+              corners={markerCorners({ corners: result.corners, cornerMap: result.corner_map }).items}
+              cornerLengthM={markerCorners({ corners: result.corners, cornerMap: result.corner_map }).lengthM}
             />
           </div>
         )}
@@ -364,6 +367,7 @@ function ComparisonSection({ result, rawTimeDelta, comparingLaps, onCornerClick,
           corners={result.corners}
           onCornerClick={onCornerClick}
           activeCorner={activeCorner}
+          cornerMap={result.corner_map}
         />
 
         {result.dynamic_events && result.dynamic_events.length > 0 && (
@@ -1258,7 +1262,11 @@ export default function App() {
 
                 {sessionResult.track_map?.length > 0 && (
                   <div className="shell-gap">
-                    <TrackMap trackData={sessionResult.track_map} />
+                    <TrackMap
+                      trackData={sessionResult.track_map}
+                      corners={markerCorners({ cornerMap: sessionResult.corner_map }).items}
+                      cornerLengthM={markerCorners({ cornerMap: sessionResult.corner_map }).lengthM}
+                    />
                   </div>
                 )}
 
@@ -1322,6 +1330,7 @@ export default function App() {
                           corners: stintResult.curvas_sesion.corners,
                           setup_advisor: stintResult.setup_sesion,
                         }}
+                        cornerMap={stintResult.corner_map}
                         metadata={{
                           label_a: `${t.timelineLap} ${stintResult.curvas_sesion.reference_lap} (${t.anomalyReference})`,
                           label_b: t.avgOfLaps(stintResult.curvas_sesion.n_laps_compared),
@@ -1355,7 +1364,7 @@ export default function App() {
                   )}
                   {stintResult.racing_line_rl?.available && (
                     <div className="shell-gap">
-                      <RacingLinePanel data={stintResult.racing_line_rl} />
+                      <RacingLinePanel data={stintResult.racing_line_rl} cornerMap={stintResult.corner_map} />
                     </div>
                   )}
                 </section>

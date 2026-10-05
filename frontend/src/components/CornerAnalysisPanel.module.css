@@ -31,3 +31,16 @@
 .phaseVal { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-1); }
 .focus { padding: 6px 10px; border-left: 2px solid var(--accent); background: var(--accent-soft); border-radius: var(--radius-sm); font-size: var(--fs-xs); color: var(--ink-1); font-weight: 600; }
 .desc { margin: 0; font-size: var(--fs-xs); color: var(--ink-3); line-height: 1.5; }
+.tipKind { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); color: var(--ink-3); font-size: var(--fs-xs); max-width: 260px; line-height: 1.45; }
+.tipHead { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.swHatch { background: repeating-linear-gradient(45deg, var(--ink-2) 0 2px, transparent 2px 4px); border: 1px solid var(--ink-3); }
+.dim { opacity: .78; border-style: dashed; }
+.cardTitle { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.allWrap { margin-top: 18px; }
+.tableScroll { overflow-x: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: var(--radius-md); }
+.tableScroll .ui-table { margin: 0; }
+.cornerCell { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.cornerName { color: var(--ink-1); font-weight: 600; }
+.muted { color: var(--ink-3); }
+.dimRow { opacity: .78; }
+.tableScroll td.is-num, .tableScroll th.is-num { white-space: nowrap; }

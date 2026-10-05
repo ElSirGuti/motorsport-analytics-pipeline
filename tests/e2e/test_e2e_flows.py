@@ -344,3 +344,74 @@ def test_compare_two_single_lap_files_different_cars(page, single_laps, lang):
     assert "undefined" not in msg
     assert "cayman" in msg and "maserati" in msg
     _no_errors(page)
+
+
+# ── mapa de curvas unificado: curvas a fondo, sin cifras de frenada, modo legacy ─────────────
+_NEW_CORNER_KEYS = {"kind", "direction", "min_radius_m", "flat_out_share", "confidence", "is_complex",
+                    "sub_apexes", "start_m", "end_m", "number", "name", "braking_available",
+                    "apex_available", "throttle_available", "apex_delta_available",
+                    "braking_delta_available", "throttle_delta_available", "corner_kind"}
+
+
+def _strip_new_fields(o):
+    """Simula la respuesta con CORNER_DETECTION=legacy: sin `corner_map` ni campos nuevos."""
+    if isinstance(o, dict):
+        return {k: _strip_new_fields(v) for k, v in o.items() if k != "corner_map" and k not in _NEW_CORNER_KEYS}
+    if isinstance(o, list):
+        return [_strip_new_fields(v) for v in o]
+    return o
+
+
+def _corner_rows(pg):
+    """Filas de la tabla 'todas las curvas' como listas de celdas."""
+    t = pg.locator("[data-testid=all-corners]")
+    t.wait_for(timeout=60000)
+    return [[c.strip() for c in r.locator("td").all_inner_texts()] for r in t.locator("tbody tr").all()]
+
+
+@pytest.mark.parametrize("lang", ["en", "es"])
+def test_flat_out_corner_named_and_without_braking_figures(page, imola_csv, lang):
+    open_app(page, lang)
+    upload_and_analyze(page, imola_csv)
+    flat = i18n(lang, "cmKind_flat_out")
+    table = page.locator("[data-testid=all-corners]")
+    table.scroll_into_view_if_needed()
+    row = table.locator("tbody tr").filter(has_text="Variante Bassa")
+    assert row.count() == 1
+    assert flat in row.inner_text()
+    cells = [c.strip() for c in row.locator("td").all_inner_texts()]
+    assert cells[2:] == ["—", "—", "—"], f"flat-out corner must not show braking/apex/throttle figures: {cells}"
+    # ninguna curva sin frenada medida (a fondo o ligera) muestra 0 m en esa columna
+    for r in _corner_rows(page):
+        if "—" in r[2]:
+            assert not re.search(r"\b0(\.0)?\s*m\b", r[2]), r
+    # marcas sobre el mapa de pista: circulos numerados con el nombre al pasar el cursor
+    markers = page.locator("[data-testid=corner-markers] g[role=img]")
+    assert markers.count() >= 9
+    named = page.locator("[data-testid=corner-markers] g[role=img][aria-label*='Variante Bassa']")
+    assert named.count() >= 1
+    named.first.hover()
+    assert page.locator("[data-testid=corner-markers] text", has_text="Variante Bassa").count() >= 1
+    _no_errors(page)
+
+
+def test_legacy_corner_detection_ui_still_works(page, imola_csv):
+    """Con CORNER_DETECTION=legacy no hay corner_map ni campos nuevos: la UI sigue igual, sin errores."""
+    import json as _json
+
+    def handler(route):
+        resp = route.fetch()
+        try:
+            body = _strip_new_fields(resp.json())
+        except Exception:
+            return route.fulfill(response=resp)
+        route.fulfill(response=resp, body=_json.dumps(body), headers={**resp.headers, "content-type": "application/json"})
+
+    page.route(re.compile(r".*/api/(analyze-session|stint/analyze|optimal-lap)"), handler)
+    open_app(page, "en")
+    upload_and_analyze(page, imola_csv)
+    rows = _corner_rows(page)
+    assert len(rows) >= 7
+    assert all("—" not in r[2] for r in rows), "legacy corners have braking figures"
+    assert page.locator("[data-testid=corner-map-notice]").count() == 0
+    _no_errors(page)

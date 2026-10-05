@@ -1,0 +1,20 @@
+.tags { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; vertical-align: middle; }
+.dir { display: inline-flex; align-items: center; color: var(--ink-3); }
+.conf { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; cursor: help; box-sizing: border-box; }
+.confMid { background: transparent; border: 1.5px solid var(--ink-3); }
+.confLow { background: var(--warn); border: 1.5px solid var(--warn); }
+.note { margin: 0; font-size: var(--fs-xs); color: var(--ink-3); line-height: 1.5; }
+
+.notice { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.noticeRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: var(--fs-xs); color: var(--ink-3); }
+.noticeTitle { font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: .06em; }
+.noticeTxt { color: var(--ink-3); }
+.warn {
+  display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px;
+  border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  background: var(--surface-2); border-radius: var(--radius-sm);
+  font-size: var(--fs-xs); color: var(--ink-2); line-height: 1.45;
+}
+.warn svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+.warnTone { border-left-color: var(--warn); }
+.warnTone svg { color: var(--warn); }

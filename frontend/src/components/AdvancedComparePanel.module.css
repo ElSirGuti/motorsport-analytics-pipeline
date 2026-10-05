@@ -63,3 +63,4 @@
   .slot { flex-wrap: wrap; }
   .slotLabel { min-width: 0; }
 }
+.cornerCell { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }

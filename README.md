@@ -454,7 +454,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (535 collected: 512 run by default, 23 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (538 collected: 512 run by default, 26 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -572,7 +572,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 535 collected: 512 run, 23 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 538 collected: 512 run, 26 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

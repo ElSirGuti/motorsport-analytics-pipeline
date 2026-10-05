@@ -3,6 +3,7 @@ import { getCursorDistance } from '../api/cursorStore';
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Icon } from './ui';
 import { COLOR } from './chartTheme';
+import CornerMarkers from './CornerMarkers';
 import styles from './TrackMap.module.css';
 
 const PADDING = 32;
@@ -33,7 +34,7 @@ function getInterpolatedPosition(points, distances, targetDist) {
   };
 }
 
-const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
+const TrackMap = ({ trackData, fixedDistance, onClearFixed, corners, cornerLengthM }) => {
   const { t } = useLanguage();
   const { points, distances, viewBox } = useMemo(() => {
     if (!trackData || trackData.length < 2) return { points: [], distances: [], viewBox: '0 0 400 300' };
@@ -71,6 +72,18 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
     () => getInterpolatedPosition(points, distances, fixedDistance),
     [points, distances, fixedDistance],
   );
+  // Numbered corner markers: apex distance (metres of the corner map) -> point on the line.
+  const markers = useMemo(() => {
+    if (!corners?.length || !points.length) return [];
+    const maxD = distances[distances.length - 1] || 0;
+    const k = cornerLengthM && maxD ? maxD / cornerLengthM : 1;
+    return corners
+      .map((c) => {
+        const p = getInterpolatedPosition(points, distances, c.distance * k);
+        return p ? { ...c, x: p.x, y: p.y } : null;
+      })
+      .filter(Boolean);
+  }, [corners, cornerLengthM, points, distances]);
   const cursorRingRef = useRef(null);
   const cursorDotRef = useRef(null);
   const cursorLabelRef = useRef(null);
@@ -160,6 +173,8 @@ const TrackMap = ({ trackData, fixedDistance, onClearFixed }) => {
               />
             );
           })()}
+
+          <CornerMarkers items={markers} width={600} />
 
           {/* Fixed position marker */}
           {fixedPos && (

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, ReferenceLine,
+  ResponsiveContainer, ReferenceLine, Cell,
 } from 'recharts';
 import { useLanguage } from '../context/LanguageContext';
 import { analyzeOptimalLap, isCancelled } from '../api/optimalLap';
@@ -10,6 +10,9 @@ import { Panel, Stat, Badge, EmptyState, Icon } from './ui';
 import { ChartTooltip, SeriesLegend } from './chartKit';
 import { COLOR, TICK, AXIS_LINE, GRID_PROPS, CURSOR, fmtDist } from './chartTheme';
 import { cornerLabel, cornerNameMap } from '../utils/cornerLabel';
+import { isNoPhase, kindOf } from '../utils/cornerKind';
+import { CornerTags } from './CornerMeta';
+import CornerMarkers from './CornerMarkers';
 import css from './OptimalLapPanel.module.css';
 
 const MICRO_SIZES = [10, 25, 50, 100];
@@ -63,11 +66,22 @@ function TrackHeat({ data, active, onHover, hovered }) {
     const pts = track.map((p) => ({ x: offX + (p.x - xMin) * scale, y: offY + (yMax - p.y) * scale }));
     const gains = data.microsectors.map((m) => m.gain_realistic_s).filter((g) => g > 0).sort((a, b) => a - b);
     const max = gains.length ? gains[Math.min(gains.length - 1, Math.floor(gains.length * 0.95))] : 0.001;
-    return { pts, max: Math.max(max, 0.001), W, H };
+    // Numbered corner markers: apex distance -> point inside the microsector that contains it.
+    const markers = (data.corners || []).map((c) => {
+      const d = c.apex_distance;
+      if (d == null) return null;
+      const m = data.microsectors.find((x) => d >= x.d_start && d < x.d_end);
+      if (!m || !pts[m.index]) return null;
+      const a = pts[m.index];
+      const b = pts[m.index + 1] || a;
+      const f = m.d_end > m.d_start ? (d - m.d_start) / (m.d_end - m.d_start) : 0;
+      return { number: c.corner_number, name: c.corner_name ?? null, kind: kindOf(c), x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    }).filter(Boolean);
+    return { pts, markers, max: Math.max(max, 0.001), W, H };
   }, [data]);
 
   if (!geom) return <EmptyState icon="map">{t.optLapNoTrack}</EmptyState>;
-  const { pts, max, W, H } = geom;
+  const { pts, markers, max, W, H } = geom;
   const micro = data.microsectors;
   const inZone = (m) => active && m.d_end > active.d_start && m.d_start < active.d_end;
   const info = hovered != null ? micro[hovered] : null;
@@ -86,6 +100,7 @@ function TrackHeat({ data, active, onHover, hovered }) {
               onMouseEnter={() => onHover(m.index)} onMouseLeave={() => onHover(null)} />
           ))}
         </g>
+        <CornerMarkers items={markers} width={W} />
         <circle cx={pts[0].x} cy={pts[0].y} r="5" fill={COLOR.ok} stroke="var(--map-halo)" strokeWidth="2" />
         <text x={pts[0].x + 9} y={pts[0].y + 4} fill={COLOR.ok} className={css.mapLabel}>S/F</text>
       </svg>
@@ -183,8 +198,11 @@ function CornersChart({ data }) {
   const { t } = useLanguage();
   const nameOf = cornerNameMap(data.corners);
   const rows = data.corners.map((c) => ({
-    name: c.corner_number, real: c.gain_realistic_s, theo: c.gain_theoretical_s,
+    name: c.corner_number, real: c.gain_realistic_s, theo: c.gain_theoretical_s, flat: isNoPhase(c),
   }));
+  const kindByNum = {};
+  data.corners.forEach((c) => { kindByNum[c.corner_number] = kindOf(c); });
+  const anyFlat = rows.some((r) => r.flat);
   if (!rows.length) return null;
   const names = { real: t.optLapSerRealistic, theo: t.optLapSerTheoretical };
   return (
@@ -194,19 +212,32 @@ function CornersChart({ data }) {
         { key: 'real', color: COLOR.accent, label: t.optLapSerRealistic },
         { key: 'theo', color: COLOR.warn, label: t.optLapSerTheoretical },
       ]} />
+      {anyFlat && <div className={css.chartNote}>{t.cmLegendNoPhases}</div>}
       <div className={css.chartSm}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={rows} margin={{ top: 6, right: 12, left: 0, bottom: 4 }}>
+            <defs>
+              <pattern id="olc-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                <rect width="6" height="6" fill="var(--accent)" fillOpacity="0.2" />
+                <rect width="3" height="6" fill="var(--accent)" fillOpacity="0.9" />
+              </pattern>
+            </defs>
             <CartesianGrid {...GRID_PROPS} />
-            <XAxis dataKey="name" tick={TICK} axisLine={AXIS_LINE} tickLine={false} height={26} />
+            <XAxis dataKey="name" tick={TICK} axisLine={AXIS_LINE} tickLine={false} height={26} interval={0} />
             <YAxis tick={TICK} axisLine={false} tickLine={false} width={44} tickFormatter={(v) => v.toFixed(1)} />
             <Tooltip
               content={<ChartTooltip nameMap={names} valueFormatter={(v) => `${v.toFixed(3)} s`}
-                labelFormatter={(l) => cornerLabel(t, l, nameOf[l])} />}
+                labelFormatter={(l) => {
+                  const k = kindByNum[l];
+                  const base = cornerLabel(t, l, nameOf[l]);
+                  return k && k !== 'braking' ? `${base} (${t[`cmKind_${k}`]})` : base;
+                }} />}
               cursor={{ fill: COLOR.line, fillOpacity: 0.5 }}
             />
             <Bar dataKey="theo" fill={COLOR.warn} fillOpacity={0.45} radius={[2, 2, 0, 0]} maxBarSize={18} isAnimationActive={false} />
-            <Bar dataKey="real" fill={COLOR.accent} radius={[2, 2, 0, 0]} maxBarSize={18} isAnimationActive={false} />
+            <Bar dataKey="real" fill={COLOR.accent} radius={[2, 2, 0, 0]} maxBarSize={18} isAnimationActive={false}>
+              {rows.map((r) => <Cell key={r.name} fill={r.flat ? 'url(#olc-hatch)' : COLOR.accent} />)}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -214,8 +245,10 @@ function CornersChart({ data }) {
   );
 }
 
-function ZonesTable({ zones, active, onActive }) {
+function ZonesTable({ zones, corners, active, onActive }) {
   const { t } = useLanguage();
+  const byNum = {};
+  (corners || []).forEach((c) => { byNum[c.corner_number] = c; });
   if (!zones.length) return <EmptyState icon="check">{t.optLapNoZones}</EmptyState>;
   return (
     <div className={css.tableWrap}>
@@ -241,7 +274,14 @@ function ZonesTable({ zones, active, onActive }) {
             >
               <td className="num">{z.rank}</td>
               <td className={`num ${css.nowrap}`}>{z.d_start.toFixed(0)} - {z.d_end.toFixed(0)} m</td>
-              <td className={css.nowrap}>{z.corner_number != null ? <Badge>{cornerLabel(t, z.corner_number, z.corner_name)}</Badge> : (z.corner_label ? <Badge>{z.corner_label}</Badge> : '-')}</td>
+              <td className={css.nowrap}>
+                {z.corner_number != null ? (
+                  <span className={css.cornerCell}>
+                    <Badge>{cornerLabel(t, z.corner_number, z.corner_name)}</Badge>
+                    <CornerTags corner={{ ...byNum[z.corner_number], kind: z.corner_kind ?? byNum[z.corner_number]?.kind }} />
+                  </span>
+                ) : (z.corner_label ? <Badge>{z.corner_label}</Badge> : '-')}
+              </td>
               <td className="is-num" style={{ color: 'var(--bad)' }}>{secs(z.loss_realistic_s)} s</td>
               <td className="is-num" style={{ color: 'var(--ink-3)' }}>{secs(z.loss_theoretical_s)} s</td>
               <td className={css.nowrap}><Badge tone="accent">{fmt(t.optLapKpiBestHint, { n: z.donor_lap })}</Badge></td>
@@ -338,7 +378,7 @@ function Body({ data }) {
 
       <div className={css.section}>
         <div className="ui-eyebrow">{t.optLapZonesTitle}</div>
-        <ZonesTable zones={data.top_zones} active={zone} onActive={setZone} />
+        <ZonesTable zones={data.top_zones} corners={data.corners} active={zone} onActive={setZone} />
       </div>
 
       <div className={`${css.grid} ${css.section}`}>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import FileUploader from './FileUploader';
 import TrackMap from './TrackMap';
+import { markerCorners } from '../utils/cornerKind';
 import { analyzeSession } from '../api/telemetry';
 import { useLanguage } from '../context/LanguageContext';
 import { Icon, Panel, Stat, Badge } from './ui';
@@ -100,7 +101,7 @@ const SessionTab = () => {
           </Panel>
 
           {results.track_map && results.track_map.length > 0 && (
-            <TrackMap trackData={results.track_map} />
+            <TrackMap trackData={results.track_map} corners={markerCorners({ cornerMap: results.corner_map }).items} cornerLengthM={markerCorners({ cornerMap: results.corner_map }).lengthM} />
           )}
 
           {results.laps && results.laps.length > 0 && (

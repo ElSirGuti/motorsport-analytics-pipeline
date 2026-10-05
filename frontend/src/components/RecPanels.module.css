@@ -31,7 +31,7 @@
 .recCat { font-size: var(--fs-xs); color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
 .recText { margin: 0; font-size: var(--fs-sm); color: var(--ink-1); line-height: 1.45; }
 .recGain { text-align: right; flex-shrink: 0; min-width: 76px; }
-.recGainVal { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 600; color: var(--accent); }
+.recGainVal { white-space: nowrap; font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: var(--fs-md); font-weight: 600; color: var(--accent); }
 .recGainLbl { font-size: var(--fs-xs); color: var(--ink-3); }
 .chev { color: var(--ink-3); transition: transform .15s; }
 .chevOpen { transform: rotate(90deg); }
@@ -126,3 +126,5 @@
   .gain { align-items: flex-start; }
   .recHead { flex-wrap: wrap; }
 }
+.dim { opacity: .8; border-style: dashed; }
+.cardTitleBox { display: flex; flex-direction: column; gap: 4px; min-width: 0; }

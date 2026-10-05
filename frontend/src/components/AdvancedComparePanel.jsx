@@ -15,7 +15,9 @@ import { LAP_COLORS, clean } from './chartTheme';
 import styles from './AdvancedComparePanel.module.css';
 import FormatBadge from './FormatBadge';
 import CircuitBadge from './CircuitBadge';
-import { cornerShort } from '../utils/cornerLabel';
+import { cornerShort, cornerLabel, cornerNameMap } from '../utils/cornerLabel';
+import { CornerTags } from './CornerMeta';
+import { isDim } from '../utils/cornerTips';
 import { isSupportedFile, ACCEPT_ATTR, MAX_FILE_MB } from '../utils/formats';
 
 function FileSlot({ label, color, file, onChange, t }) {
@@ -100,12 +102,14 @@ function ApexTable({ apexes, t }) {
           </thead>
           <tbody>
             {apexes.map((a, i) => {
-              const radio = a.Curvature > 0 ? 1 / a.Curvature : Infinity;
+              const radio = typeof a.min_radius_m === 'number' ? a.min_radius_m : (a.Curvature > 0 ? 1 / a.Curvature : Infinity);
               const tipo = radio > 90 ? t.advCornerTypeFast : radio > 40 ? t.advCornerTypeMedium : t.advCornerTypeSlow;
               const tone = radio > 90 ? 'ok' : radio > 40 ? 'warn' : 'bad';
               return (
-                <tr key={i}>
-                  <td className={styles.muted}>{cornerShort(i + 1, a.corner_name)}</td>
+                <tr key={a.corner_number ?? i} style={isDim(a) ? { opacity: 0.78 } : undefined}>
+                  <td className={styles.muted}>
+                    <span className={styles.cornerCell}>{cornerShort(a.corner_number ?? i + 1, a.corner_name)} <CornerTags corner={a} /></span>
+                  </td>
                   <td className="is-num">{a.Distance?.toFixed(0)} m</td>
                   <td className="is-num">{a.Speed?.toFixed(1)} km/h</td>
                   <td className="is-num">{a.Throttle?.toFixed(1)} %</td>
@@ -275,6 +279,7 @@ const AdvancedComparePanel = () => {
             activeCorner={activeCorner}
             dynamicEvents={results.dynamic_events}
             cornerClusters={results.corner_clusters}
+            cornerMap={results.corner_map}
             xgboostPred={results.xgboost_pred}
           />
 
@@ -293,7 +298,7 @@ const AdvancedComparePanel = () => {
                   <li key={i} className={styles.event} style={{ borderLeftColor: `var(--${SEV_TONE[ev.severidad] || 'warn'})` }}>
                     <div className={styles.eventHead}>
                       <strong>{ev.tipo === 'subviraje' ? t.eventSub : t.eventOver}</strong>
-                      <span className={styles.muted}>{t.eventCorner(ev.curva)}</span>
+                      <span className={styles.muted}>{cornerNameMap(results.corners)[ev.curva] ? cornerLabel(t, ev.curva, cornerNameMap(results.corners)[ev.curva]) : t.eventCorner(ev.curva)}</span>
                       <span className={styles.mono}>{ev.distancia?.toFixed(0)} m</span>
                       <Badge tone={SEV_TONE[ev.severidad]}>{ev.severidad?.toUpperCase()}</Badge>
                     </div>
