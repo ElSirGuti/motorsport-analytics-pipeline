@@ -459,7 +459,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (569 recogidos: 539 se ejecutan por defecto, 30 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (571 recogidos: 541 se ejecutan por defecto, 30 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -523,6 +523,8 @@ Hay 26 endpoints (13 de análisis e informes, 5 de setups, 8 de biblioteca), lis
 |---|---|---|---|
 | `/api/settings/paths` | GET | ninguna | `paths.ac_setups_dir` y `paths.ac_install_dir`: `configured`, `env`, `effective`, `exists`, `source` (`settings`, `env`, `auto`), `details` (coches encontrados...) y `settings_file` |
 | `/api/settings/paths/check` | POST | JSON `{key, path}`, query `lang` | Valida una carpeta sin guardarla: `ok`, `path`, `details`; `400` con el motivo traducido si no es una carpeta existente |
+| `/api/settings/capabilities` | GET | ninguna | `{folder_picker}`: si el explorador nativo de carpetas está disponible (backend en tu propio escritorio, no en un contenedor) |
+| `/api/settings/pick-folder` | POST | JSON `{key, path?}` | Abre el explorador de carpetas del sistema en la máquina que ejecuta el servidor; `{path, cancelled}`. `501` sin escritorio (Docker, Kubernetes), `403` si la petición no viene del mismo equipo |
 | `/api/settings/paths` | PUT | JSON `{ac_setups_dir?, ac_install_dir?}` (null o vacío = vuelve a automático) | El mismo objeto que GET; `400` con el motivo traducido si la ruta no es válida |
 
 ### Setups de Assetto Corsa (`/api/setups`)
@@ -587,7 +589,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 569 recogidos: 539 se ejecutan, 30 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 571 recogidos: 541 se ejecutan, 30 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

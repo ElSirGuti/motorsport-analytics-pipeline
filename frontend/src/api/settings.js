@@ -28,6 +28,23 @@ export async function checkPath(key, path, lang = 'en') {
   }
 }
 
+export async function getCapabilities() {
+  try {
+    return (await client.get('/capabilities')).data;
+  } catch {
+    return { folder_picker: false };
+  }
+}
+
+/** Opens the native folder dialog on the machine running the server; resolves {path|null, cancelled}. */
+export async function pickFolder(key, path, lang = 'en') {
+  try {
+    return (await client.post('/pick-folder', { key, path }, { params: { lang }, timeout: 660000 })).data;
+  } catch (e) {
+    throw fail(e);
+  }
+}
+
 /** Saves one folder; an empty value goes back to automatic detection. */
 export async function savePath(key, path, lang = 'en') {
   try {

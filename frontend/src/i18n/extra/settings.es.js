@@ -8,6 +8,7 @@ export default {
   setInstallTitle: 'Carpeta de instalación de Assetto Corsa',
   setInstallHelp: 'La carpeta del juego (la que tiene content\\cars y content\\tracks). Da los rangos de setup de cada coche y la geometría de las pistas.',
   setFolder: 'Ruta de la carpeta',
+  setBrowse: 'Examinar…',
   setCheck: 'Comprobar',
   setSave: 'Guardar',
   setUseAuto: 'Usar detección automática',

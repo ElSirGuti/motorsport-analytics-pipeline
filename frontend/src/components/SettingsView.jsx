@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Panel, Badge, Icon } from './ui';
-import { getPaths, checkPath, savePath } from '../api/settings';
+import { getPaths, checkPath, savePath, getCapabilities, pickFolder } from '../api/settings';
 import css from './SettingsView.module.css';
 
 const FIELDS = [
@@ -11,7 +11,7 @@ const FIELDS = [
 
 const SOURCE_TONE = { settings: 'accent', env: undefined, auto: 'ok' };
 
-function PathRow({ field, status, onChanged }) {
+function PathRow({ field, status, onChanged, canPick }) {
   const { t, lang } = useLanguage();
   const [value, setValue] = useState(status?.configured || '');
   const [busy, setBusy] = useState(false);
@@ -44,6 +44,14 @@ function PathRow({ field, status, onChanged }) {
     onChanged(data);
     setMsg({ tone: 'ok', text: t.setSaved });
   });
+  const onBrowse = () => run(async () => {
+    const r = await pickFolder(field.key, value, lang);
+    if (r.cancelled || !r.path) return;
+    setValue(r.path);
+    const data = await savePath(field.key, r.path, lang);   // chosen on purpose: validate and remember it
+    onChanged(data);
+    setMsg({ tone: 'ok', text: t.setSaved });
+  });
   const onReset = () => run(async () => {
     const data = await savePath(field.key, '', lang);
     onChanged(data);
@@ -62,12 +70,18 @@ function PathRow({ field, status, onChanged }) {
             value={value}
             placeholder={field.example}
             onChange={(e) => setValue(e.target.value)}
+            onClick={() => { if (canPick && !value.trim() && !busy) onBrowse(); }}
             spellCheck={false}
             autoComplete="off"
             data-testid={`path-${field.key}`}
           />
         </label>
         <div className={css.actions}>
+          {canPick && (
+            <button type="button" className="ui-btn ui-btn--sm" onClick={onBrowse} disabled={busy} data-testid={`browse-${field.key}`}>
+              <Icon name="folder" size={14} /> {t.setBrowse}
+            </button>
+          )}
           <button type="button" className="ui-btn ui-btn--sm" onClick={onCheck} disabled={busy || !value.trim()}>{t.setCheck}</button>
           <button type="button" className="ui-btn ui-btn--sm ui-btn--primary" onClick={onSave} disabled={busy || !value.trim()}>{t.setSave}</button>
           <button type="button" className="ui-btn ui-btn--sm" onClick={onReset} disabled={busy || !status?.configured}>{t.setUseAuto}</button>
@@ -97,12 +111,14 @@ export default function SettingsView() {
   const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [canPick, setCanPick] = useState(false);
 
   useEffect(() => {
     let alive = true;
     getPaths()
       .then((d) => { if (alive) setData(d); })
       .catch((e) => { if (alive) setError(e.message); });
+    getCapabilities().then((c) => { if (alive) setCanPick(!!c.folder_picker); });
     return () => { alive = false; };
   }, []);
 
@@ -114,7 +130,7 @@ export default function SettingsView() {
       </div>
       {error && <div className={`${css.msg} ${css.bad}`} role="alert"><Icon name="alert" size={14} /><span>{error}</span></div>}
       {FIELDS.map((f) => (
-        <PathRow key={`${f.key}:${data ? 'ready' : 'loading'}`} field={f} status={data?.paths?.[f.key]} onChanged={setData} />
+        <PathRow key={`${f.key}:${data ? 'ready' : 'loading'}`} field={f} status={data?.paths?.[f.key]} onChanged={setData} canPick={canPick} />
       ))}
       <p className={css.note}>{t.setDockerNote}</p>
       {data?.settings_file && <p className={css.note}>{t.setStoredIn}: <code>{data.settings_file}</code></p>}

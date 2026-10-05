@@ -6,5 +6,9 @@
   "settings_err_not_a_dir": "Esa ruta es un archivo, no una carpeta.",
   "settings_err_no_permission": "El servidor no tiene permiso para leer esa carpeta.",
   "settings_err_not_writable": "No se pudo guardar el ajuste: el servidor no puede escribir en su carpeta de datos.",
-  "settings_err_unknown_key": "Ajuste desconocido: {name}."
+  "settings_err_unknown_key": "Ajuste desconocido: {name}.",
+  "settings_err_picker_unavailable": "El selector de carpetas solo está disponible cuando la app corre en tu propio equipo (no en Docker). Escribe la ruta.",
+  "settings_err_picker_remote": "El selector de carpetas solo funciona desde el mismo equipo que ejecuta el servidor. Escribe la ruta.",
+  "settings_pick_title_ac_setups_dir": "Elige tu carpeta de setups de Assetto Corsa",
+  "settings_pick_title_ac_install_dir": "Elige la carpeta de instalación de Assetto Corsa"
 }

@@ -129,7 +129,7 @@ Si el circuito de la cabecera del archivo es conocido, la interfaz muestra una i
 
 ### Ajustes: tus carpetas
 
-Abre **Ajustes** en la barra superior una sola vez y escribe la carpeta de tus setups de Assetto Corsa (por ejemplo `C:\Users\tu_usuario\Documents\Assetto Corsa\setups`) y, si quieres, la carpeta del juego (la que tiene `content\cars`, por ejemplo `D:\SteamLibrary\steamapps\common\assettocorsa`). **Comprobar** valida la carpeta y te dice cuántos coches contiene, **Guardar** la recuerda en el servidor y **Usar detección automática** vuelve a lo predeterminado. A partir de ahí la app encuentra tus setups sin preguntar. El mismo acceso aparece en el panel de setups cuando no se encuentra la carpeta. En Docker la carpeta debe estar montada antes en el contenedor (ver la guía de despliegue).
+Abre **Ajustes** en la barra superior una sola vez y escribe la carpeta de tus setups de Assetto Corsa (por ejemplo `C:\Users\tu_usuario\Documents\Assetto Corsa\setups`) y, si quieres, la carpeta del juego (la que tiene `content\cars`, por ejemplo `D:\SteamLibrary\steamapps\common\assettocorsa`). Haz clic en el campo o en **Examinar...** para elegir la carpeta en el explorador de Windows (disponible cuando la app corre en tu propio equipo; en Docker escribe la ruta). **Comprobar** valida la carpeta y te dice cuántos coches contiene, **Guardar** la recuerda en el servidor y **Usar detección automática** vuelve a lo predeterminado. A partir de ahí la app encuentra tus setups sin preguntar. El mismo acceso aparece en el panel de setups cuando no se encuentra la carpeta. En Docker la carpeta debe estar montada antes en el contenedor (ver la guía de despliegue).
 
 ### Trompos y salidas de pista
 

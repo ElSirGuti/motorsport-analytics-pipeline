@@ -5,7 +5,10 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
+import subprocess
+import sys
+
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from src.analytics import ac_setups as ac
 from src.analytics import user_settings as us
@@ -70,9 +73,71 @@ def _fail(exc: us.SettingsError, lang: str):
     return HTTPException(status_code=400, detail=_l(lang, f"settings_err_{exc.code}", **exc.kw))
 
 
+_PICKER = "; ".join([
+    "import sys, tkinter as tk",
+    "from tkinter import filedialog",
+    "r = tk.Tk()",
+    "r.withdraw()",
+    "r.attributes('-topmost', True)",
+    "print(filedialog.askdirectory(initialdir=sys.argv[1] or None, title=sys.argv[2], mustexist=True) or '')",
+])
+_LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def _in_container() -> bool:
+    return os.path.exists("/.dockerenv") or bool(os.environ.get("KUBERNETES_SERVICE_HOST"))
+
+
+def picker_available() -> bool:
+    """A native folder dialog only makes sense when the backend runs on the user's own desktop."""
+    if _in_container():
+        return False
+    if sys.platform in ("win32", "darwin"):
+        return True
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
+def pick_folder_dialog(initial: str, title: str) -> str:
+    """Opens the OS folder dialog in a child process (Tk must not run inside the server's threads)."""
+    proc = subprocess.run([sys.executable, "-c", _PICKER, initial or "", title],
+                          capture_output=True, text=True, timeout=600)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or "").strip()[-200:] or "dialog failed")
+    out = (proc.stdout or "").strip()
+    return str(Path(out)) if out else ""
+
+
+@router.post("/pick-folder")
+def pick_folder(request: Request, payload: dict = Body(...), lang: str = Query("en")):
+    """Native "choose folder" dialog on the machine running the backend. 501 when there is no desktop
+    (Docker, Kubernetes, headless), 403 when the request does not come from the same computer."""
+    lang = _lang(lang)
+    key = payload.get("key")
+    if key not in us.KEYS:
+        raise HTTPException(status_code=400, detail=_l(lang, "settings_err_unknown_key", name=key))
+    if not picker_available():
+        raise HTTPException(status_code=501, detail=_l(lang, "settings_err_picker_unavailable"))
+    host = request.client.host if request.client else ""
+    if host not in _LOOPBACK or request.headers.get("x-forwarded-for"):
+        raise HTTPException(status_code=403, detail=_l(lang, "settings_err_picker_remote"))
+    start = str(payload.get("path") or "") or (us.get(key) or "")
+    if not start or not os.path.isdir(start):
+        start = ""
+    try:
+        chosen = pick_folder_dialog(start, _l(lang, f"settings_pick_title_{key}"))
+    except (RuntimeError, OSError, subprocess.SubprocessError):
+        raise HTTPException(status_code=501, detail=_l(lang, "settings_err_picker_unavailable"))
+    return {"path": chosen or None, "cancelled": not chosen}
+
+
 @router.get("/paths")
 def get_paths():
     return _all()
+
+
+@router.get("/capabilities")
+def capabilities():
+    return {"folder_picker": picker_available()}
 
 
 @router.post("/paths/check")

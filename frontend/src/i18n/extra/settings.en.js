@@ -8,6 +8,7 @@ export default {
   setInstallTitle: 'Assetto Corsa install folder',
   setInstallHelp: 'The game folder (the one with content\\cars and content\\tracks). It gives the setup ranges of each car and the track geometry.',
   setFolder: 'Folder path',
+  setBrowse: 'Browse…',
   setCheck: 'Check',
   setSave: 'Save',
   setUseAuto: 'Use automatic detection',

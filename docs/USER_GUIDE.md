@@ -129,7 +129,7 @@ If the circuit in the file header is known, the interface shows a badge with its
 
 ### Settings: your folders
 
-Open **Settings** in the top bar once and type the folder of your Assetto Corsa setups (for example `C:\Users\you\Documents\Assetto Corsa\setups`) and, if you want, the game folder (the one with `content\cars`, for example `D:\SteamLibrary\steamapps\common\assettocorsa`). **Check** validates the folder and tells you how many cars it contains, **Save** remembers it on the server, and **Use automatic detection** goes back to the default. From then on the app finds your setups without asking. The same shortcut appears in the setups panel when the folder cannot be found. In Docker the folder has to be mounted into the container first (see the deployment guide).
+Open **Settings** in the top bar once and type the folder of your Assetto Corsa setups (for example `C:\Users\you\Documents\Assetto Corsa\setups`) and, if you want, the game folder (the one with `content\cars`, for example `D:\SteamLibrary\steamapps\common\assettocorsa`). Click the field or **Browse...** to pick the folder in the Windows folder dialog (available when the app runs on your own computer; in Docker type the path). **Check** validates the folder and tells you how many cars it contains, **Save** remembers it on the server, and **Use automatic detection** goes back to the default. From then on the app finds your setups without asking. The same shortcut appears in the setups panel when the folder cannot be found. In Docker the folder has to be mounted into the container first (see the deployment guide).
 
 ### Spins and off-track excursions
 

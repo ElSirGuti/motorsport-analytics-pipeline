@@ -6,5 +6,9 @@
   "settings_err_not_a_dir": "That path is a file, not a folder.",
   "settings_err_no_permission": "The server has no permission to read that folder.",
   "settings_err_not_writable": "The setting could not be saved: the server cannot write to its data folder.",
-  "settings_err_unknown_key": "Unknown setting: {name}."
+  "settings_err_unknown_key": "Unknown setting: {name}.",
+  "settings_err_picker_unavailable": "The folder picker is only available when the app runs on your own computer (not in Docker). Type the path instead.",
+  "settings_err_picker_remote": "The folder picker only works from the same computer that runs the server. Type the path instead.",
+  "settings_pick_title_ac_setups_dir": "Choose your Assetto Corsa setups folder",
+  "settings_pick_title_ac_install_dir": "Choose your Assetto Corsa install folder"
 }

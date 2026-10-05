@@ -458,7 +458,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (569 collected: 539 run by default, 30 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (571 collected: 541 run by default, 30 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -522,6 +522,8 @@ There are 26 endpoints (13 analysis and reports, 5 setups, 8 library), listed be
 |---|---|---|---|
 | `/api/settings/paths` | GET | none | `paths.ac_setups_dir` and `paths.ac_install_dir`: `configured`, `env`, `effective`, `exists`, `source` (`settings`, `env`, `auto`), `details` (cars found...), and `settings_file` |
 | `/api/settings/paths/check` | POST | JSON `{key, path}`, query `lang` | Validates a folder without saving it: `ok`, `path`, `details`; `400` with a translated reason if it is not an existing folder |
+| `/api/settings/capabilities` | GET | none | `{folder_picker}`: whether the native folder dialog is available (backend on your own desktop, not in a container) |
+| `/api/settings/pick-folder` | POST | JSON `{key, path?}` | Opens the OS folder dialog on the machine running the server; `{path, cancelled}`. `501` without a desktop (Docker, Kubernetes), `403` if the request is not from the same computer |
 | `/api/settings/paths` | PUT | JSON `{ac_setups_dir?, ac_install_dir?}` (null or empty = back to automatic) | The same object as GET; `400` with a translated reason on an invalid path |
 
 ### Assetto Corsa setups (`/api/setups`)
@@ -586,7 +588,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 569 collected: 539 run, 30 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 571 collected: 541 run, 30 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

@@ -79,3 +79,39 @@ def test_check_does_not_save_and_describes_the_install(client, tmp_path):
 def test_spanish_error_text(client):
     r = client.put("/api/settings/paths?lang=es", json={"ac_setups_dir": "relative"})
     assert "ruta completa" in r.json()["detail"]
+
+
+def _local_client():
+    return TestClient(main.app, client=("127.0.0.1", 50000))
+
+
+def test_pick_folder_returns_the_chosen_path(tmp_path, monkeypatch):
+    from src.api import settings as api
+    monkeypatch.setenv("SETTINGS_FILE", str(tmp_path / "s.json"))
+    monkeypatch.setattr(api, "picker_available", lambda: True)
+    seen = {}
+
+    def fake(initial, title):
+        seen.update(initial=initial, title=title)
+        return str(tmp_path)
+    monkeypatch.setattr(api, "pick_folder_dialog", fake)
+    r = _local_client().post("/api/settings/pick-folder?lang=es", json={"key": "ac_setups_dir"})
+    assert r.status_code == 200 and r.json() == {"path": str(tmp_path), "cancelled": False}
+    assert "setups" in seen["title"]
+    monkeypatch.setattr(api, "pick_folder_dialog", lambda i, t: "")
+    assert _local_client().post("/api/settings/pick-folder", json={"key": "ac_setups_dir"}).json() == {"path": None, "cancelled": True}
+
+
+def test_pick_folder_unavailable_in_containers_and_for_remote_clients(tmp_path, monkeypatch):
+    from src.api import settings as api
+    monkeypatch.setattr(api, "picker_available", lambda: False)
+    r = _local_client().post("/api/settings/pick-folder", json={"key": "ac_setups_dir"})
+    assert r.status_code == 501 and "Docker" in r.json()["detail"]
+    assert TestClient(main.app).get("/api/settings/capabilities").json() == {"folder_picker": False}
+    monkeypatch.setattr(api, "picker_available", lambda: True)
+    remote = TestClient(main.app, client=("10.0.0.5", 1234))
+    assert remote.post("/api/settings/pick-folder", json={"key": "ac_setups_dir"}).status_code == 403
+    proxied = _local_client().post("/api/settings/pick-folder", json={"key": "ac_setups_dir"},
+                                   headers={"x-forwarded-for": "8.8.8.8"})
+    assert proxied.status_code == 403
+    assert _local_client().post("/api/settings/pick-folder", json={"key": "nope"}).status_code == 400
