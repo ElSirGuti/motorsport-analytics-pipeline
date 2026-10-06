@@ -40,6 +40,8 @@ import Sidebar from './components/Sidebar';
 import { sectionLabel } from './components/navSections';
 import { Icon, Panel, Stat, Badge } from './components/ui';
 import SaveToLibrary from './components/library/SaveToLibrary';
+import SavedMatchNotice from './components/library/SavedMatchNotice';
+import { useSavedMatch } from './components/library/useSavedMatch';
 import LibraryView from './components/library/LibraryView';
 import CompareSessionsView from './components/library/CompareSessionsView';
 import SettingsView from './components/SettingsView';
@@ -667,6 +669,7 @@ export default function App() {
   }, [comparingLaps, sessionResult]);
 
   const isSessionMode = files.length === 1;
+  const savedMatches = useSavedMatch(isSessionMode ? files[0] : null, view === 'analysis');
 
   const addFiles = useCallback((incoming) => {
     const csvs = [...incoming].filter(isSupportedFile);
@@ -1160,6 +1163,10 @@ export default function App() {
                   </ul>
                 )}
 
+                {isSessionMode && !hasResults && (
+                  <SavedMatchNotice items={savedMatches} onOpen={handleOpenSaved} busy={loading} />
+                )}
+
                 {error && (
                   <Alert tone="bad" role="alert" title={t.errorTitle}>{error}</Alert>
                 )}
@@ -1230,6 +1237,9 @@ export default function App() {
                   </span>
                 )}
               </div>
+              {isSessionMode && sessionResult && !savedSession && !loading && savedMatches.length > 0 && (
+                <SavedMatchNotice items={savedMatches} afterAnalysis />
+              )}
               {isSessionMode && sessionResult && !savedSession && !loading && (
                 <SaveToLibrary file={files[0]} sessionResult={sessionResult} stintResult={stintResult} />
               )}
@@ -1372,7 +1382,7 @@ export default function App() {
                   )}
                   {stintResult.setup_sesion?.available && (
                     <div className="shell-gap">
-                      <SetupSection file={files[0]} setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} savedSetup={!files[0] ? (savedSession?.extras?.setup ?? null) : null} nLaps={stintResult.n_laps ?? 0} savedChanges={!files[0] ? (savedSession?.extras?.setup_changes ?? null) : null} />
+                      <SetupSection file={files[0]} setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} savedSetup={!files[0] ? (savedSession?.extras?.setup ?? null) : null} nLaps={stintResult.n_laps ?? 0} laps={stintResult.laps} savedChanges={!files[0] ? (savedSession?.extras?.setup_changes ?? null) : null} />
                     </div>
                   )}
                   {(stintResult.degradacion_neumatico?.available || stintResult.degradacion_neumatico?.reason) && (

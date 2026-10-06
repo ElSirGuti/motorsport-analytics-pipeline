@@ -41,7 +41,7 @@ const sortChanges = (list) => [...list].sort((a, b) => a.fromLap - b.fromLap);
  * With `nLaps` the user can say the setup changed at some lap: each range of laps is analysed on its own.
  * Without a file the advisor renders exactly as before.
  */
-export default function SetupSection({ file, setup_advisor, source, isPilotMode, savedSetup = null, nLaps = 0, savedChanges = null }) {
+export default function SetupSection({ file, setup_advisor, source, isPilotMode, savedSetup = null, nLaps = 0, laps = null, savedChanges = null }) {
   const { lang, t } = useLanguage();
   const [sel, setSel] = useState({ file: null, setup: null });
   const [annot, setAnnot] = useState(null);
@@ -152,6 +152,7 @@ export default function SetupSection({ file, setup_advisor, source, isPilotMode,
               key={String(editing)}
               file={file}
               nLaps={nLaps}
+              laps={laps}
               initial={editing === 'new' ? null : changes[editing]}
               onSave={onSaveChange}
               onCancel={() => setEditing(null)}

@@ -47,6 +47,9 @@ export const patchLibrarySession = (id, patch, lang = 'en') =>
 export const deleteLibrarySession = (id, lang = 'en') =>
   call(() => client.delete(`/${id}`, { params: { lang } }));
 
+/** Saved sessions that come from the same file (SHA-256 = the file_id of POST /api/files). */
+export const lookupLibrary = (sha, partial) => call(() => client.get('/lookup', { params: { sha, partial } }));
+
 export const libraryFacets = () => call(() => client.get('/facets'));
 
 export const compareLibrarySessions = (a, b, force = false, lang = 'en') =>

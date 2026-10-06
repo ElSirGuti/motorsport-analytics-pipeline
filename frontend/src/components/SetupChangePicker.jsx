@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import { Icon } from './ui';
 import { detectSessionMeta, fetchSetupCandidates, fetchSetupById, uploadSetup } from '../api/setups';
@@ -12,10 +12,32 @@ const fmtDate = (mtime, lang) => (mtime ? new Date(mtime * 1000).toLocaleString(
  * (one saved by the game for this car and track, or an uploaded .ini).
  * onSave({ fromLap, setup }) | onCancel()
  */
-export default function SetupChangePicker({ file, nLaps, initial, onSave, onCancel }) {
+const fmtLap = (s) => {
+  if (s == null || !Number.isFinite(Number(s))) return '';
+  const m = Math.floor(Number(s) / 60);
+  return `${m}:${(Number(s) % 60).toFixed(3).padStart(6, '0')}`;
+};
+
+/** Laps 2..n the user can pick (the first lap cannot start a change), with time and pit / best marks. */
+function lapOptions(laps, nLaps) {
+  const byNum = new Map((laps || []).map((l) => [Number(l.lap_number), l]));
+  const times = (laps || []).filter((l) => !l.is_pit_lap && l.lap_time_s).map((l) => Number(l.lap_time_s));
+  const best = times.length ? Math.min(...times) : null;
+  return Array.from({ length: Math.max(0, nLaps - 1) }, (_, i) => {
+    const n = i + 2;
+    const l = byNum.get(n);
+    return { n, time: l?.lap_time_s ?? null, pit: !!l?.is_pit_lap, best: best != null && l && Number(l.lap_time_s) === best,
+             afterPit: !!byNum.get(n - 1)?.is_pit_lap };
+  });
+}
+
+export default function SetupChangePicker({ file, nLaps, laps, initial, onSave, onCancel }) {
   const { t, lang } = useLanguage();
   const groupId = useId();
-  const [lap, setLap] = useState(initial?.fromLap ? String(initial.fromLap) : '');
+  const lapList = useMemo(() => lapOptions(laps, nLaps), [laps, nLaps]);
+  // Setups are changed in the pits: suggest the lap that starts right after the first pit stop.
+  const suggested = lapList.find((o) => o.afterPit)?.n;
+  const [lap, setLap] = useState(initial?.fromLap ? String(initial.fromLap) : (suggested ? String(suggested) : ''));
   const [meta, setMeta] = useState(null);
   const [cand, setCand] = useState(null);
   const [pick, setPick] = useState(null);
@@ -78,16 +100,20 @@ export default function SetupChangePicker({ file, nLaps, initial, onSave, onCanc
     <div className={s.card} data-testid="setup-change-form">
       <label style={{ display: 'flex', flexDirection: 'column', gap: 4, maxWidth: 260 }}>
         <span className={s.barLabel}>{t.ssFromLap}</span>
-        <input
-          type="number"
-          min={2}
-          max={nLaps}
+        <select
           value={lap}
           onChange={(e) => setLap(e.target.value)}
-          placeholder={t.ssFromLapHint(nLaps)}
           data-testid="setup-change-lap"
           style={{ padding: '8px 10px', font: 'inherit', background: 'var(--surface-1)', color: 'var(--ink-1)', border: '1px solid var(--line-strong)', borderRadius: 'var(--radius-sm)' }}
-        />
+        >
+          <option value="">{t.ssChooseLap}</option>
+          {lapList.map((o) => (
+            <option key={o.n} value={String(o.n)}>
+              {t.ssLapOption(o.n, fmtLap(o.time), [o.pit && t.ssTagPit, o.best && t.ssTagBest, o.afterPit && t.ssTagAfterPit].filter(Boolean))}
+            </option>
+          ))}
+        </select>
+        {suggested && <span className={s.optMeta}>{t.ssSuggested(suggested)}</span>}
       </label>
 
       {options.length > 0 ? (

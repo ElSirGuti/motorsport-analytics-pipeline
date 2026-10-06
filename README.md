@@ -305,7 +305,7 @@ Notes: the setups folder is only readable when the backend runs on the same mach
 
 ### Setup changes during a session
 
-**Changing the setup mid-session.** In the setups panel, **Add a setup change** asks for the lap where the new setup starts and which setup it is (one saved by the game for that car and track, or an uploaded `.ini`). Up to 8 changes. `POST /api/stint/segments` (`src/analytics/setup_segments.py`) then analyses each range of laps on its own: pace (median, best, consistency; pit laps and laps with a spin or a big incident are left out), the difference with the previous range, and its own Setup Advisor run (corners, telemetry and degradation of that range only) so the recommendations are not an average of two cars. The UI also lists which parameters changed between setups. The comparison between ranges is informative only (fuel burn, track evolution and tyre wear also move the pace). The changes are remembered in the browser for that file and saved with the session in the library. A range needs at least 3 valid laps to get recommendations.
+**Changing the setup mid-session.** In the setups panel, **Add a setup change** asks for the lap where the new setup starts (picked from a list of laps with their times, marking pit laps and the best lap, and suggesting the first lap after a pit stop) and which setup it is (one saved by the game for that car and track, or an uploaded `.ini`). Up to 8 changes. `POST /api/stint/segments` (`src/analytics/setup_segments.py`) then analyses each range of laps on its own: pace (median, best, consistency; pit laps and laps with a spin or a big incident are left out), the difference with the previous range, and its own Setup Advisor run (corners, telemetry and degradation of that range only) so the recommendations are not an average of two cars. The UI also lists which parameters changed between setups. The comparison between ranges is informative only (fuel burn, track evolution and tyre wear also move the pace). The changes are remembered in the browser for that file and saved with the session in the library. A range needs at least 3 valid laps to get recommendations.
 
 ### Session library and session comparison
 
@@ -462,7 +462,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (582 collected: 550 run by default, 32 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (585 collected: 551 run by default, 34 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -547,6 +547,7 @@ There are 26 endpoints (13 analysis and reports, 5 setups, 8 library), listed be
 |---|---|---|---|
 | `/api/library` | POST | JSON: metadata (`title`, `vehicle`, `venue`, `driver`, `notes`, `file_sha256`, ...) and `payload` `{session, stint, extras}` (max 5 MB) | `{status: created or updated, duplicate, session}` |
 | `/api/library` | GET | query `q`, `venue`, `vehicle`, `date_from`, `date_to`, `limit` (1-200), `offset` | `{items, total, limit, offset}` without the heavy payload |
+| `/api/library/lookup` | GET | query `sha` (the `file_id` of the upload), `partial` (quick fingerprint of older saves) | `{items}`: saved sessions that come from the same file; the UI uses it to say a file was already analysed |
 | `/api/library/facets` | GET | none | Circuits, cars and circuit+car combinations with counts |
 | `/api/library/sniff` | POST | `head`: first KB of a CSV (max 256 KB) | Circuit, car and driver from the MoTeC header |
 | `/api/library/compare` | POST | JSON `{a, b, force}` (session UUIDs) | Pace, consistency, fuel and per-corner differences, compatibility and warnings; `400` if circuit or car differ and `force` is false |
@@ -593,7 +594,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 582 collected: 550 run, 32 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 585 collected: 551 run, 34 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

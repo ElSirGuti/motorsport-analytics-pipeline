@@ -472,7 +472,7 @@ def test_setup_change_mid_session_splits_the_analysis(page, imola_csv, tmp_path,
     add = page.locator("[data-testid=setup-change-add]")
     add.scroll_into_view_if_needed()
     add.click()
-    page.locator("[data-testid=setup-change-lap]").fill("3")
+    page.locator("[data-testid=setup-change-lap]").select_option("3")
     page.locator("[data-testid=setup-change-form] input[type=file]").set_input_files(str(ini))
     segs = page.locator("[data-testid=setup-segment]")
     segs.nth(1).wait_for(timeout=90000)
@@ -482,3 +482,37 @@ def test_setup_change_mid_session_splits_the_analysis(page, imola_csv, tmp_path,
     page.get_by_role("button", name=i18n(lang, "ssRemove")).first.click()
     page.locator("[data-testid=setup-segments]").wait_for(state="detached", timeout=10000)
     _no_errors(page)
+
+
+@pytest.mark.parametrize("lang", ["en", "es"])
+def test_reloading_an_analysed_file_is_recognised(page, imola_csv, servers, lang):
+    """Save a session, load the same file again: the app says it was already analysed and opens the saved one."""
+    import json
+    import urllib.request
+
+    title = f"E2E duplicate {lang}"
+    open_app(page, lang)
+    upload_and_analyze(page, imola_csv)
+    page.locator("button[aria-haspopup='dialog']").click()
+    dialog = page.get_by_role("dialog")
+    dialog.wait_for()
+    dialog.locator("input").first.fill(title)
+    dialog.locator("button[type=submit]").click()
+    page.wait_for_function("() => !document.querySelector('[role=dialog]')", timeout=30000)
+    try:
+        page.goto(page.base_url, wait_until="networkidle")        # a fresh analysis with the same file
+        set_lang(page, lang)
+        page.set_input_files("input[type=file]", imola_csv)
+        notice = page.locator("[data-testid=saved-match]")
+        notice.wait_for(timeout=90000)
+        assert title in notice.inner_text()
+        assert i18n(lang, "libDupTitle") in notice.inner_text()
+        page.locator("[data-testid=saved-match-open]").click()
+        page.locator("#section-overview").wait_for(timeout=60000)
+        assert page.locator(".shell-chip", has_text=title).count() == 1
+    finally:
+        with urllib.request.urlopen(f"{servers['api']}/api/library?limit=50") as r:
+            items = json.load(r)["items"]
+        for it in items:
+            if it["title"] == title:
+                urllib.request.urlopen(urllib.request.Request(f"{servers['api']}/api/library/{it['id']}", method="DELETE"))

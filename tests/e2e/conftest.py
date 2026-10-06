@@ -41,7 +41,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 # ── i18n: leer textos de frontend/src/i18n por clave (resistente a cambios de copy) ──
-_EXTRAS = ("_init", "cornerMap", "data_quality", "formats", "incidents", "tyreGrip", "settings", "setupSegments", "library", "optimalLap", "pdf", "setups", "theme")
+_EXTRAS = ("_init", "cornerMap", "data_quality", "formats", "incidents", "tyreGrip", "settings", "setupSegments", "savedMatch", "library", "optimalLap", "pdf", "setups", "theme")
 _I18N_FILES = {lg: [f"{lg}.js"] + [f"extra/{n}.{lg}.js" for n in _EXTRAS] for lg in ("en", "es")}
 _i18n_cache: dict = {}
 

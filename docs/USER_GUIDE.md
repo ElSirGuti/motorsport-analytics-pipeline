@@ -127,9 +127,13 @@ Notes: the server can only read your game folder when it runs on the same comput
 
 If the circuit in the file header is known, the interface shows a badge with its name and length, and corners are shown as "Corner 4 - Tamburello". **19 circuits are recognised and 7 have corner names**: Imola, Spa-Francorchamps, Silverstone GP, Le Mans and Monaco (high confidence) and Mugello and Brands Hatch GP (medium confidence). The other 12 (Monza, Red Bull Ring, Nordschleife and others) are only recognised, and their corners keep their number. If the lap length does not match the circuit (another layout or a partial lap) the badge says "low confidence" and no names are shown. Names are never guessed: a corner table is published only when it was verified against real telemetry.
 
+### Opening a session you already analysed
+
+When you load a file that is already saved in the library (same file, byte for byte), a notice says so, with the title and date, and a button opens the saved result instantly. You can also analyse it again; saving then updates that library entry instead of creating a copy.
+
 ### Changing the setup mid-session
 
-Did you change the setup halfway through a long session? In the setups panel press **Add a setup change**, type the lap where the new setup starts and pick it (one the game saved for that car and track, or upload its `.ini`). You can add several. Each part of the session then gets its own card: the setup used, the pace (median, best and consistency, without pit laps or laps with a spin), the **parameters that changed** against the previous setup and **its own recommendations**, so they are not a mix of two cars. The pace difference between two parts is only a guide: fuel burn, track evolution and tyre wear also move it. The app remembers the changes for that file.
+Did you change the setup halfway through a long session? In the setups panel press **Add a setup change**, pick the lap where the new setup starts from the list (it shows each lap time, marks the pit laps and the best lap, and suggests the first lap after a pit stop) and choose the setup (one the game saved for that car and track, or upload its `.ini`). You can add several. Each part of the session then gets its own card: the setup used, the pace (median, best and consistency, without pit laps or laps with a spin), the **parameters that changed** against the previous setup and **its own recommendations**, so they are not a mix of two cars. The pace difference between two parts is only a guide: fuel burn, track evolution and tyre wear also move it. The app remembers the changes for that file.
 
 ### Settings: your folders
 

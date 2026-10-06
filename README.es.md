@@ -305,7 +305,7 @@ Notas: la carpeta de setups solo es legible cuando el backend corre en la misma 
 
 ### Cambios de setup durante una sesión
 
-**Cambiar el setup a mitad de la sesión.** En el panel de setups, **Añadir un cambio de setup** pide la vuelta en la que empieza el setup nuevo y cuál es (uno guardado por el juego para ese coche y pista, o un `.ini` subido). Hasta 8 cambios. `POST /api/stint/segments` (`src/analytics/setup_segments.py`) analiza entonces cada tramo de vueltas por separado: ritmo (mediana, mejor, consistencia; se excluyen las vueltas de boxes y las que tuvieron un trompo o un incidente grave), la diferencia con el tramo anterior y su propia ejecución del Asesor de Setup (curvas, telemetría y degradación de ese tramo solamente), de modo que las recomendaciones no son un promedio de dos coches. La interfaz también lista qué parámetros cambiaron entre setups. La comparación entre tramos es solo orientativa (el combustible, la evolución de la pista y el desgaste también mueven el ritmo). Los cambios se recuerdan en el navegador para ese archivo y se guardan con la sesión en la biblioteca. Un tramo necesita al menos 3 vueltas válidas para tener recomendaciones.
+**Cambiar el setup a mitad de la sesión.** En el panel de setups, **Añadir un cambio de setup** pide la vuelta en la que empieza el setup nuevo (se elige de una lista de vueltas con sus tiempos, marcando las de boxes y la mejor, y sugiriendo la primera tras una parada) y cuál es (uno guardado por el juego para ese coche y pista, o un `.ini` subido). Hasta 8 cambios. `POST /api/stint/segments` (`src/analytics/setup_segments.py`) analiza entonces cada tramo de vueltas por separado: ritmo (mediana, mejor, consistencia; se excluyen las vueltas de boxes y las que tuvieron un trompo o un incidente grave), la diferencia con el tramo anterior y su propia ejecución del Asesor de Setup (curvas, telemetría y degradación de ese tramo solamente), de modo que las recomendaciones no son un promedio de dos coches. La interfaz también lista qué parámetros cambiaron entre setups. La comparación entre tramos es solo orientativa (el combustible, la evolución de la pista y el desgaste también mueven el ritmo). Los cambios se recuerdan en el navegador para ese archivo y se guardan con la sesión en la biblioteca. Un tramo necesita al menos 3 vueltas válidas para tener recomendaciones.
 
 ### Biblioteca de sesiones y comparar sesiones
 
@@ -463,7 +463,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (582 recogidos: 550 se ejecutan por defecto, 32 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (585 recogidos: 551 se ejecutan por defecto, 34 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -548,6 +548,7 @@ Hay 26 endpoints (13 de análisis e informes, 5 de setups, 8 de biblioteca), lis
 |---|---|---|---|
 | `/api/library` | POST | JSON: metadatos (`title`, `vehicle`, `venue`, `driver`, `notes`, `file_sha256`, ...) y `payload` `{session, stint, extras}` (máx. 5 MB) | `{status: created o updated, duplicate, session}` |
 | `/api/library` | GET | query `q`, `venue`, `vehicle`, `date_from`, `date_to`, `limit` (1-200), `offset` | `{items, total, limit, offset}` sin el payload pesado |
+| `/api/library/lookup` | GET | query `sha` (el `file_id` de la subida), `partial` (huella rápida de guardados antiguos) | `{items}`: sesiones guardadas que vienen del mismo archivo; la interfaz lo usa para avisar de que un archivo ya se analizó |
 | `/api/library/facets` | GET | ninguna | Circuitos, coches y combinaciones circuito+coche con recuentos |
 | `/api/library/sniff` | POST | `head`: primeros KB de un CSV (máx. 256 KB) | Circuito, coche y piloto de la cabecera MoTeC |
 | `/api/library/compare` | POST | JSON `{a, b, force}` (UUID de sesiones) | Diferencias de ritmo, consistencia, combustible y por curva, compatibilidad y avisos; `400` si difieren circuito o coche y `force` es falso |
@@ -594,7 +595,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 582 recogidos: 550 se ejecutan, 32 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 585 recogidos: 551 se ejecutan, 34 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

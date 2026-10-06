@@ -45,7 +45,7 @@ Selectors use roles, stable ids (`#section-*`, `#data-quality`, `#optimal-lap`) 
 1.5 % different pixels. Dynamic zones (library dates) are masked. On failure `_artifacts/` (git-ignored) receives
 `*.actual.png`, `*.baseline.png` and `*.diff.png`.
 
-32 e2e tests in total. With `E2E=1` they run; without it they are skipped.
+34 e2e tests in total. With `E2E=1` they run; without it they are skipped.
 
 ## Baselines
 

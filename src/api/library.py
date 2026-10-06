@@ -307,6 +307,23 @@ def list_sessions(
     return {"items": [summary(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
+@router.get("/lookup")
+def lookup_by_file(
+    sha: Optional[str] = Query(None, description="SHA-256 completo del archivo (el file_id de POST /api/files)"),
+    partial: Optional[str] = Query(None, description="huella parcial antigua (primeros + ultimos 4 MB)"),
+    db: Session = Depends(get_db),
+):
+    """Sesiones guardadas que vienen del MISMO archivo: sirve para avisar de que ya se analizo antes."""
+    hashes = [h.lower() for h in (sha, partial) if h and re.fullmatch(r"[0-9a-fA-F]{64}", h)]
+    if not hashes:
+        return {"items": []}
+    rows = db.scalars(
+        select(LibrarySession).where(LibrarySession.file_sha256.in_(hashes)).options(defer(LibrarySession.payload))
+        .order_by(LibrarySession.created_at.desc(), LibrarySession.id).limit(5)
+    ).all()
+    return {"items": [summary(r) for r in rows]}
+
+
 @router.get("/facets")
 def facets(db: Session = Depends(get_db)):
     """Circuitos y coches disponibles (con recuento) y combinaciones circuito+coche."""

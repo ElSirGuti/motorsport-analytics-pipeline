@@ -269,3 +269,19 @@ def test_sqlite_engine_creates_missing_parent_dir(tmp_path):
         pass
     assert db.parent.is_dir()
     engine.dispose()
+
+
+def test_lookup_finds_sessions_saved_from_the_same_file(client):
+    """The library tells the UI that a file was already analysed (same SHA-256), whatever its venue."""
+    sha = "ab" * 32
+    body = {"title": "Spa run", "venue": "spa", "file_sha256": sha, "source_filename": "spa.ld",
+            "payload": {"session": {"laps": [], "total_laps": 7, "fastest_lap": {"lap_time": 140.5}}}}
+    created = client.post("/api/library", json=body)
+    assert created.status_code == 200, created.text
+    hit = client.get("/api/library/lookup", params={"sha": sha}).json()["items"]
+    assert [i["title"] for i in hit] == ["Spa run"] and hit[0]["n_laps"] == 7
+    assert client.get("/api/library/lookup", params={"sha": "cd" * 32}).json() == {"items": []}
+    assert client.get("/api/library/lookup", params={"sha": "not-a-hash"}).json() == {"items": []}
+    assert client.get("/api/library/lookup").json() == {"items": []}
+    # the legacy partial fingerprint is accepted too
+    assert len(client.get("/api/library/lookup", params={"partial": sha}).json()["items"]) == 1

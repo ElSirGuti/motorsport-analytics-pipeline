@@ -127,9 +127,13 @@ Notas: el servidor solo puede leer la carpeta del juego si corre en el mismo equ
 
 Si el circuito de la cabecera del archivo es conocido, la interfaz muestra una insignia con su nombre y longitud, y las curvas se muestran como "Curva 4 - Tamburello". **Se reconocen 19 circuitos y 7 tienen nombres de curva**: Imola, Spa-Francorchamps, Silverstone GP, Le Mans y Mónaco (confianza alta) y Mugello y Brands Hatch GP (confianza media). Los otros 12 (Monza, Red Bull Ring, Nordschleife y más) solo se reconocen y sus curvas conservan el número. Si la longitud de la vuelta no coincide con el circuito (otro trazado o vuelta parcial) la insignia dice "confianza baja" y no se muestran nombres. Los nombres nunca se adivinan: una tabla de curvas se publica solo cuando se verificó con telemetría real.
 
+### Abrir una sesión que ya analizaste
+
+Cuando cargas un archivo que ya está guardado en la biblioteca (el mismo archivo, byte a byte), un aviso lo indica con el título y la fecha, y un botón abre el resultado guardado al instante. También puedes analizarlo de nuevo; al guardar se actualiza esa entrada de la biblioteca en vez de crear una copia.
+
 ### Cambiar el setup a mitad de la sesión
 
-¿Cambiaste el setup a la mitad de una sesión larga? En el panel de setups pulsa **Añadir un cambio de setup**, escribe la vuelta en la que empieza el setup nuevo y elígelo (uno que el juego guardó para ese coche y pista, o sube su `.ini`). Puedes añadir varios. Cada parte de la sesión tiene entonces su propia tarjeta: el setup usado, el ritmo (mediana, mejor y consistencia, sin vueltas de boxes ni con trompo), los **parámetros que cambiaron** respecto al setup anterior y **sus propias recomendaciones**, de modo que no son una mezcla de dos coches. La diferencia de ritmo entre dos partes es solo una guía: el combustible, la evolución de la pista y el desgaste también la mueven. La app recuerda los cambios para ese archivo.
+¿Cambiaste el setup a la mitad de una sesión larga? En el panel de setups pulsa **Añadir un cambio de setup**, elige de la lista la vuelta en la que empieza el setup nuevo (muestra el tiempo de cada vuelta, marca las de boxes y la mejor, y sugiere la primera tras una parada) y elige el setup (uno que el juego guardó para ese coche y pista, o sube su `.ini`). Puedes añadir varios. Cada parte de la sesión tiene entonces su propia tarjeta: el setup usado, el ritmo (mediana, mejor y consistencia, sin vueltas de boxes ni con trompo), los **parámetros que cambiaron** respecto al setup anterior y **sus propias recomendaciones**, de modo que no son una mezcla de dos coches. La diferencia de ritmo entre dos partes es solo una guía: el combustible, la evolución de la pista y el desgaste también la mueven. La app recuerda los cambios para ese archivo.
 
 ### Ajustes: tus carpetas
 
