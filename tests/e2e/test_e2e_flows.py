@@ -460,3 +460,25 @@ def test_settings_view_saves_and_clears_a_setups_folder(page, tmp_path, lang):
     page.get_by_role("alert").filter(has_text="ruta completa" if lang == "es" else "full path").first.wait_for(timeout=10000)
     assert all("400" in e for e in page.errors), page.errors      # only the deliberate invalid-path request
 
+
+
+@pytest.mark.parametrize("lang", ["en", "es"])
+def test_setup_change_mid_session_splits_the_analysis(page, imola_csv, tmp_path, lang):
+    """The setup changed at lap 3: the section shows one card per range, with the uploaded setup in the second."""
+    ini = tmp_path / "second_setup.ini"
+    ini.write_text("[FRONT_BIAS]\nVALUE=58\n[WING_1]\nVALUE=7\n", encoding="utf-8")
+    open_app(page, lang)
+    upload_and_analyze(page, imola_csv)
+    add = page.locator("[data-testid=setup-change-add]")
+    add.scroll_into_view_if_needed()
+    add.click()
+    page.locator("[data-testid=setup-change-lap]").fill("3")
+    page.locator("[data-testid=setup-change-form] input[type=file]").set_input_files(str(ini))
+    segs = page.locator("[data-testid=setup-segment]")
+    segs.nth(1).wait_for(timeout=90000)
+    assert segs.count() == 2
+    assert "second_setup.ini" in segs.nth(1).inner_text()
+    assert "second_setup.ini" in page.locator("[data-testid=setup-changes]").inner_text()
+    page.get_by_role("button", name=i18n(lang, "ssRemove")).first.click()
+    page.locator("[data-testid=setup-segments]").wait_for(state="detached", timeout=10000)
+    _no_errors(page)

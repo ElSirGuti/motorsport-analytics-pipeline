@@ -303,6 +303,10 @@ Orden de búsqueda:
 
 Notas: la carpeta de setups solo es legible cuando el backend corre en la misma máquina que el juego. En Docker se sube manualmente o se usa un bind-mount de solo lectura. Los valores se muestran en las unidades propias del juego (clics); las unidades solo se aplican donde son seguras (presión de neumáticos en psi, balance de freno delantero y potencia de freno en %, combustible en litros), y los rangos mín/máx solo si existe el `data/setup.ini` desempaquetado del coche (los `data.acd` cifrados no se abren a propósito). Seguridad: los nombres de coche y pista se validan con un juego de caracteres estricto y se comparan con el listado real del directorio, la ruta resuelta debe quedar dentro de la carpeta de setups (se rechaza el path traversal) y solo se leen archivos `.ini`/`.sp` de hasta 256 KB.
 
+### Cambios de setup durante una sesión
+
+**Cambiar el setup a mitad de la sesión.** En el panel de setups, **Añadir un cambio de setup** pide la vuelta en la que empieza el setup nuevo y cuál es (uno guardado por el juego para ese coche y pista, o un `.ini` subido). Hasta 8 cambios. `POST /api/stint/segments` (`src/analytics/setup_segments.py`) analiza entonces cada tramo de vueltas por separado: ritmo (mediana, mejor, consistencia; se excluyen las vueltas de boxes y las que tuvieron un trompo o un incidente grave), la diferencia con el tramo anterior y su propia ejecución del Asesor de Setup (curvas, telemetría y degradación de ese tramo solamente), de modo que las recomendaciones no son un promedio de dos coches. La interfaz también lista qué parámetros cambiaron entre setups. La comparación entre tramos es solo orientativa (el combustible, la evolución de la pista y el desgaste también mueven el ritmo). Los cambios se recuerdan en el navegador para ese archivo y se guardan con la sesión en la biblioteca. Un tramo necesita al menos 3 vueltas válidas para tener recomendaciones.
+
 ### Biblioteca de sesiones y comparar sesiones
 
 Código en `src/api/library.py`, `src/db/` (modelos SQLAlchemy y motor), `src/analytics/session_compare.py` y migraciones en `alembic/`. Usa **Guardar en biblioteca** en la barra de archivo (o activa el guardado automático), luego reabre la sesión desde **Biblioteca** sin el CSV, o elige dos sesiones en **Comparar sesiones** para ver diferencias de ritmo medio y mediano, consistencia, combustible por vuelta y tiempo perdido por curva.
@@ -459,7 +463,7 @@ scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, de
                          profile_pipeline.py, make_fixtures.py,
                          datos de ejemplo y generadores de imágenes de la documentación
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   suite pytest (571 recogidos: 541 se ejecutan por defecto, 30 e2e omitidos sin E2E=1), fixtures/, e2e/
+tests/                   suite pytest (582 recogidos: 550 se ejecutan por defecto, 32 e2e omitidos sin E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (historial de ML) y motorsport.db (biblioteca), ambos se crean bajo demanda y están ignorados por git
 docs/                    Guías de usuario, guía de despliegue y documentación científica (EN/ES)
 ```
@@ -507,6 +511,7 @@ Hay 26 endpoints (13 de análisis e informes, 5 de setups, 8 de biblioteca), lis
 | `/api/files` | POST | `file`: CSV, `.ibt` o `.ld` | `{file_id, filename, size_bytes, format, venue, vehicle, driver, ttl_hours}`; `413` si supera `MAX_UPLOAD_MB`, `400` si está vacío |
 | `/api/files/{file_id}` | GET | id SHA-256 | `{file_id, filename, size_bytes}`, o `410` si el cliente debe volver a subirlo |
 | `/api/analyze-session` | POST | `session_file` o `file_id` | JSON con `laps` (tiempo, banderas de pit/atípica), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `incidents`, `data_quality`. Si no se puede segmentar ninguna vuelta, `laps` vacío y un `message`. |
+| `/api/stint/segments` | POST | `session_file` o `file_id`, campo `splits` (vueltas en las que empieza un setup nuevo, p. ej. `12,25`) | `segments[]` (`from_lap`, `to_lap`, `n_laps`, `pace`, `vs_previous`, `setup_advisor`, `advisor_reason`), `splits`, `n_laps`; `422` si una vuelta no está en 2..n_laps |
 | `/api/stint/analyze` | POST | `laps`: un archivo de sesión, o 3 o más archivos de una vuelta; o `file_id` de una sesión | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `incidents`, `health_summary`, `data_quality` |
 | `/api/optimal-lap` | POST | `session_file` o `file_id`; opcionales `microsector_m` (por defecto 25), `speed_tol_kmh` (por defecto 3) | Vuelta óptima teórica y realista, ganancias, microsectores, zonas, curvas, `corner_map`, contribuciones, avisos (ver "Vuelta óptima") |
 | `/api/compare-laps` | POST | `lap_a`, `lap_b` | Comparación básica: `summary`, comparaciones de velocidad/freno/acelerador, `time_delta_series`, `corners`, `corner_map`, `track_map`, `metadata`, `text_report`, `setup_advisor` y los resultados de los módulos avanzados cuando estén disponibles |
@@ -589,7 +594,7 @@ Copia `.env.example` a `.env` (se carga con `python-dotenv`; Docker Compose tamb
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 571 recogidos: 541 se ejecutan, 30 omitidos (todos e2e, corren con E2E=1)
+python -m pytest tests -q          # 582 recogidos: 550 se ejecutan, 32 omitidos (todos e2e, corren con E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

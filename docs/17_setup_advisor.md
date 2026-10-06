@@ -148,6 +148,7 @@ See 8 on the first row: it cannot fire with the current stint module.
 
 How the link works:
 
+0. **Setup changes mid-session.** `src/analytics/setup_segments.py` cuts the session at the laps where the user says a new setup starts and runs this advisor on each range separately (`POST /api/stint/segments`); each range needs at least 3 valid laps.
 1. **Locating setups.** The folder is the one set in the Settings view (`/api/settings/paths`) if any, then `AC_SETUPS_DIR` if set, otherwise the first existing `<Documents>/Assetto Corsa/setups` (Windows known-folder API, `USERPROFILE`, home). Layout `<car>/<track>/*.ini` plus `<car>/generic/last.ini`. When the server cannot see the folder (Docker, Linux, macOS) the state is `no_access` and the user can upload the file instead. In Docker, mount the folder read-only and set `AC_SETUPS_DIR` (see `docker-compose.override.example.yml`).
 2. **Safety.** Car and track names are validated against a strict character set and matched against the real directory listing; the resolved path must stay inside the setups folder; only `.ini`/`.sp` regular files up to 256 KiB and 2000 sections are read.
 3. **Parsing.** Sections such as `PRESSURE_LF`, `CAMBER_RR`, `ARB_FRONT`, `FRONT_BIAS` are classified into groups (aero, tyres, suspension, brakes, diff, electronics, other); wheel suffixes `LF/RF/LR/RR` map to FL/FR/RL/RR. The game stores "clicks": real units are claimed only where certain (tyre pressure in psi, front brake bias and brake power in %, fuel in litres); everything else is shown raw.

@@ -303,6 +303,10 @@ Lookup order:
 
 Notes: the setups folder is only readable when the backend runs on the same machine as the game. In Docker you upload manually or use a read-only bind mount. Values are shown in the game's raw units (clicks); units are applied only where they are certain (tyre pressure in psi, front brake bias and brake power in %, fuel in litres), and min/max ranges only when the car's unpacked `data/setup.ini` exists (encrypted `data.acd` files are deliberately not opened). Security: car and track names are validated against a strict character set and matched against the real directory listing, the resolved path must stay inside the setups folder (path traversal is rejected), and only `.ini`/`.sp` files up to 256 KB are read.
 
+### Setup changes during a session
+
+**Changing the setup mid-session.** In the setups panel, **Add a setup change** asks for the lap where the new setup starts and which setup it is (one saved by the game for that car and track, or an uploaded `.ini`). Up to 8 changes. `POST /api/stint/segments` (`src/analytics/setup_segments.py`) then analyses each range of laps on its own: pace (median, best, consistency; pit laps and laps with a spin or a big incident are left out), the difference with the previous range, and its own Setup Advisor run (corners, telemetry and degradation of that range only) so the recommendations are not an average of two cars. The UI also lists which parameters changed between setups. The comparison between ranges is informative only (fuel burn, track evolution and tyre wear also move the pace). The changes are remembered in the browser for that file and saved with the session in the library. A range needs at least 3 valid laps to get recommendations.
+
 ### Session library and session comparison
 
 Code in `src/api/library.py`, `src/db/` (SQLAlchemy models and engine), `src/analytics/session_compare.py` and migrations in `alembic/`. Use **Save to library** in the file bar (or enable automatic saving), then reopen the session from **Library** without the CSV, or pick two sessions in **Compare sessions** to see differences in average and median pace, consistency, fuel per lap and time lost per corner.
@@ -458,7 +462,7 @@ k8s/                     Kustomize: base/ and overlays/local, overlays/prod
 scripts/                 kind-up.sh/.ps1, kind-cluster.yaml, validate_k8s.py, dev.ps1, check_contrast.py,
                          profile_pipeline.py, make_fixtures.py, generate_sample_data.py, docs/ (image generators)
 Makefile                 env, up, down, logs, ps, build, test, lint, k8s-validate, kind-up, kind-down
-tests/                   pytest suite (571 collected: 541 run by default, 30 e2e skipped without E2E=1), fixtures/, e2e/
+tests/                   pytest suite (582 collected: 550 run by default, 32 e2e skipped without E2E=1), fixtures/, e2e/
 data/                    laptime_history.db (ML history) and motorsport.db (library), both created on demand and git-ignored
 docs/                    User guides, deployment guide and scientific documentation (EN/ES)
 ```
@@ -506,6 +510,7 @@ There are 26 endpoints (13 analysis and reports, 5 setups, 8 library), listed be
 | `/api/files` | POST | `file`: CSV, `.ibt` or `.ld` | `{file_id, filename, size_bytes, format, venue, vehicle, driver, ttl_hours}`; `413` above `MAX_UPLOAD_MB`, `400` if empty |
 | `/api/files/{file_id}` | GET | SHA-256 id | `{file_id, filename, size_bytes}`, or `410` if the client must upload again |
 | `/api/analyze-session` | POST | `session_file` or `file_id` | JSON with `laps` (time, pit/outlier flags), `fastest_lap`, `track_map`, `total_laps`, `circuit`, `corner_map`, `incidents`, `data_quality`. If no laps can be segmented, empty `laps` and a `message`. |
+| `/api/stint/segments` | POST | `session_file` or `file_id`, form field `splits` (laps where a new setup starts, e.g. `12,25`) | `segments[]` (`from_lap`, `to_lap`, `n_laps`, `pace`, `vs_previous`, `setup_advisor`, `advisor_reason`), `splits`, `n_laps`; `422` if a lap is not in 2..n_laps |
 | `/api/stint/analyze` | POST | `laps`: one session file, or 3 or more single-lap files; or `file_id` of a session | `laps`, `degradacion`, `combustible`, `montecarlo`, `curvas_sesion`, `telemetria_sesion`, `setup_sesion`, `thermal_analysis`, `degradacion_neumatico`, `racing_line_rl`, `track_evolution`, `corner_map`, `incidents`, `health_summary`, `data_quality` |
 | `/api/optimal-lap` | POST | `session_file` or `file_id`; optional `microsector_m` (default 25), `speed_tol_kmh` (default 3) | Theoretical and realistic optimal lap, gains, microsectors, zones, corners, `corner_map`, contributions, warnings (see "Optimal lap") |
 | `/api/compare-laps` | POST | `lap_a`, `lap_b` | Basic comparison: `summary`, speed/brake/throttle comparisons, `time_delta_series`, `corners`, `corner_map`, `track_map`, `metadata`, `text_report`, `setup_advisor` and the advanced module results when available |
@@ -588,7 +593,7 @@ Copy `.env.example` to `.env` (loaded with `python-dotenv`; Docker Compose also 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
-python -m pytest tests -q          # 571 collected: 541 run, 30 skipped (all e2e, they run with E2E=1)
+python -m pytest tests -q          # 582 collected: 550 run, 32 skipped (all e2e, they run with E2E=1)
 
 cd frontend
 npm run lint                       # ESLint

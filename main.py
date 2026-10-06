@@ -114,6 +114,7 @@ from src.analytics.setup_advisor import analizar_setup, analizar_setup_sesion
 from src.analytics.session_corner_analysis import analizar_curvas_sesion, get_corner_observations
 from src.analytics import circuits as circuits_db  # circuitos conocidos y nombres de curva
 from src.analytics.incidents import detect_incidents
+from src.analytics.setup_segments import analyze_segments, parse_splits, SegmentError
 from src.analytics import corner_service  # mapa unificado de curvas (CORNER_DETECTION=map|legacy) + caché
 from src.analytics.session_telemetry_analysis import analizar_telemetria_sesion
 from src.analytics.tyre_degradation import predecir_degradacion_neumatico
@@ -1472,6 +1473,18 @@ def analyze_telemetry_endpoint(
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def _flag_incident_laps(dfs: list, df_laps) -> None:
+    """Marks ``is_incident_lap`` (spin, major incident or a lap that lost 1.5 s or more): those laps are left
+    out of the tyre-degradation pace trend and of the pace of a setup range."""
+    try:
+        inc = detect_incidents(dfs)
+        bad = {e["lap"] for e in inc.get("events", [])
+               if e["kind"] == "spin" or e["severity"] == "major" or (e.get("lap_delta_s") or 0) >= 1.5}
+        df_laps["is_incident_lap"] = [(i + 1) in bad for i in range(len(df_laps))]
+    except Exception as exc:
+        logger.warning("incident laps: %s", exc)
+
+
 @app.post("/api/stint/analyze")
 def analyze_stint_endpoint(
     request: Request,
@@ -1533,14 +1546,7 @@ def analyze_stint_endpoint(
 
         logger.info(f"Paso 1/4: {len(dfs)} vueltas cargadas. Extrayendo métricas...")
         df_laps = extraer_metricas_por_vuelta(dfs)
-        try:   # laps with a spin / off-track are left out of the tyre-degradation pace trend
-            _inc0 = detect_incidents(dfs)
-            _bad = {e["lap"] for e in _inc0.get("events", [])
-                    if e["kind"] == "spin" or e["severity"] == "major" or (e.get("lap_delta_s") or 0) >= 1.5}
-            df_laps["is_incident_lap"] = [(i + 1) in _bad for i in range(len(df_laps))]
-        except Exception as _exc:
-            logger.warning("incident laps: %s", _exc)
-
+        _flag_incident_laps(dfs, df_laps)
         logger.info("Paso 2/4: Analizando degradación...")
         degradacion = analizar_degradacion_stint(df_laps)
 
@@ -1653,6 +1659,46 @@ def analyze_stint_endpoint(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error en stint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
+    finally:
+        if tmp_dir and os.path.exists(tmp_dir):
+            import shutil
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@app.post("/api/stint/segments")
+def analyze_setup_segments_endpoint(
+    request: Request,
+    session_file: Optional[UploadFile] = File(None, description="CSV / .ibt / .ld de la sesión completa (o usa file_id)"),
+    file_id: Optional[str] = Form(None),
+    splits: str = Form("", description="vueltas (1-based) en las que EMPIEZA un setup nuevo, p. ej. '12,25'"),
+):
+    """Pace and Setup Advisor of each range of laps between setup changes (the user changed the setup mid-session)."""
+    tmp_dir = None
+    try:
+        lang = _detect_lang(request)
+        set_language(lang)
+        inp = resolve_input(session_file, file_id, lang, "motorsport_segments_")
+        tmp_dir = inp.tmp_dir
+        dfs = _segment_laps_or_422(inp.raw())
+        try:
+            cuts = parse_splits(splits, len(dfs))
+        except SegmentError as exc:
+            raise HTTPException(status_code=422, detail=_(f"seg_err_{exc.code}", **exc.kw))
+        df_laps = extraer_metricas_por_vuelta(dfs)
+        _flag_incident_laps(dfs, df_laps)
+        try:
+            _venue = read_motec_metadata(inp.path).get("venue")
+        except Exception:
+            _venue = None
+        cmap = _session_map(dfs, _venue, inp.sha, df_laps)
+        return JSONResponse(content=_sanitize(analyze_segments(dfs, df_laps, cuts, lang, cmap)))
+    except HTTPException:
+        raise
+    except DataLoaderException as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error en segmentos de setup: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=_("api_err_internal", err=str(e)))
     finally:
         if tmp_dir and os.path.exists(tmp_dir):

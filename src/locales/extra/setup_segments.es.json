@@ -1,0 +1,5 @@
+{
+  "seg_err_not_numeric": "Las vueltas de cambio deben ser números, por ejemplo 12 o 12,25.",
+  "seg_err_out_of_range": "La vuelta {lap} no puede iniciar un setup nuevo: debe estar entre 2 y {n} (las vueltas encontradas en la sesión).",
+  "seg_err_too_many": "Como máximo 8 cambios de setup por sesión."
+}

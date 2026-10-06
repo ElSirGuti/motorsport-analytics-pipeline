@@ -1,0 +1,5 @@
+{
+  "seg_err_not_numeric": "The change laps must be numbers, for example 12 or 12,25.",
+  "seg_err_out_of_range": "Lap {lap} cannot start a new setup: it must be between 2 and {n} (the laps found in the session).",
+  "seg_err_too_many": "At most 8 setup changes per session."
+}

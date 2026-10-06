@@ -186,7 +186,7 @@ Las recomendaciones muestran entonces **Actual -> Sugerido**. Las unidades apare
 | Confianza de la proyección | Siempre baja con menos de 8 vueltas válidas; vuelve al ritmo reciente con menos de 5 |
 | Circuitos | 19 reconocidos; 7 con nombres de curva (Imola, Spa, Silverstone GP, Le Mans, Mónaco = confianza alta; Mugello, Brands Hatch GP = media) |
 | Comparar dos archivos | 2 archivos con una vuelta cada uno: el primero es la referencia y el segundo el comparado; avisa si los coches son distintos |
-| Tests | `python -m pytest tests -q`: 571 recogidos, 541 se ejecutan, 30 e2e omitidos sin `E2E=1` |
+| Tests | `python -m pytest tests -q`: 582 recogidos, 550 se ejecutan, 32 e2e omitidos sin `E2E=1` |
 
 ---
 

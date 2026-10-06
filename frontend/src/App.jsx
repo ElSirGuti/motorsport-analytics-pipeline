@@ -1372,7 +1372,7 @@ export default function App() {
                   )}
                   {stintResult.setup_sesion?.available && (
                     <div className="shell-gap">
-                      <SetupSection file={files[0]} setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} savedSetup={!files[0] ? (savedSession?.extras?.setup ?? null) : null} />
+                      <SetupSection file={files[0]} setup_advisor={stintResult.setup_sesion} isPilotMode={isPilotMode} savedSetup={!files[0] ? (savedSession?.extras?.setup ?? null) : null} nLaps={stintResult.n_laps ?? 0} savedChanges={!files[0] ? (savedSession?.extras?.setup_changes ?? null) : null} />
                     </div>
                   )}
                   {(stintResult.degradacion_neumatico?.available || stintResult.degradacion_neumatico?.reason) && (

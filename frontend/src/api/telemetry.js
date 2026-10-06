@@ -140,6 +140,25 @@ export const downloadSessionPdfReport = async ({ session, stint, comparison, met
   return { blob: response.data, filename: match ? match[1] : 'motorsport_report.pdf' };
 };
 
+/** Pace + Setup Advisor of each range of laps between setup changes. `splits`: laps where a new setup starts. */
+export const analyzeSetupSegments = async (file, splits, lang = 'en', { signal } = {}) => {
+  const send = async (id) => {
+    const formData = new FormData();
+    if (id) formData.append('file_id', id);
+    else formData.append('session_file', file);
+    formData.append('splits', splits.join(','));
+    const response = await apiClient.post('/stint/segments', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }, params: { lang }, signal,
+    });
+    return response.data;
+  };
+  try {
+    return await withFile(file, { signal }, send);
+  } catch (error) {
+    throw asError(error);
+  }
+};
+
 export const analyzeStint = async (lapFiles, lang = 'en', { signal, onProgress } = {}) => {
   const send = async (id) => {
     const formData = new FormData();

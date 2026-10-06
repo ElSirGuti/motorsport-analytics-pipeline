@@ -31,7 +31,7 @@ const errText = (t, msg) => (t.acsErrMap && t.acsErrMap[msg]) || msg;
 
 const fmtDate = (mtime, lang) => (mtime ? new Date(mtime * 1000).toLocaleString(lang, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
-function DropZone({ onFile, busy, error }) {
+export function DropZone({ onFile, busy, error }) {
   const { t } = useLanguage();
   const inputRef = useRef(null);
   const [over, setOver] = useState(false);
